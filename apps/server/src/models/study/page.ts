@@ -110,6 +110,8 @@ export interface IStudyPage {
    * objects in storage, so this log is how "Earlier versions" says who wrote which one.
    */
   versionLog?: IPageVersionEntry[];
+  /** Unlogged earlier versions up to here were already removed by the thinning (services/study/page-versions-prune.ts). */
+  prunedThrough?: number;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -184,6 +186,7 @@ const StudyPageSchema = new Schema<IStudyPage>(
       default: undefined,
     },
     editedBy: { type: EditedBySchema, default: null },
+    prunedThrough: { type: Number, default: 0 },
     versionLog: {
       type: [
         new Schema(

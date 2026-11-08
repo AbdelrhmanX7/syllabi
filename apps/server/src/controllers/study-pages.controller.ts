@@ -15,6 +15,7 @@ import { displayName, loadCaller, NamedCaller } from "@/services/share/access";
 import { itemsDto, LIST_PROJECTION } from "@/services/study/views";
 import { questionDto } from "@/services/study/questions";
 import { searchTranscripts } from "@/services/study/transcript-search";
+import { prunePageVersions } from "@/services/study/page-versions-prune";
 import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
 
 /**
@@ -305,7 +306,13 @@ export const casCommit = (page: IStudyPage, version: number, key: string, author
         : {}),
     },
     { new: true, projection: PAGE_PROJECTION, timestamps: false }
-  ).lean<IStudyPage>();
+  )
+    .lean<IStudyPage>()
+    .then((updated) => {
+      // Thin the earlier versions in the background (at most once a minute per page).
+      if (updated) void prunePageVersions(String(page._id)).catch(() => undefined);
+      return updated;
+    });
 };
 
 export const commitPageContent = wrap(async (req, res) => {
@@ -411,23 +418,23 @@ export const VERSIONS_PAGE = 30;
  */
 export const listPageVersions = wrap(async (req, res) => {
   if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid page id");
+  const owned = await StudyPage.exists({ _id: req.params.id, userId: uid(req), deletedAt: null });
+  if (!owned) return fail(res, 404, "NOT_FOUND", "Page not found");
+  // Thinned first, so the list only offers versions that are still stored.
+  await prunePageVersions(req.params.id, { force: true }).catch(() => undefined);
   const page = await StudyPage.findOne({ _id: req.params.id, userId: uid(req), deletedAt: null }, { version: 1, versionLog: 1, userId: 1 }).lean<IStudyPage>();
   if (!page) return fail(res, 404, "NOT_FOUND", "Page not found");
   const raw = req.query.before;
   const before = typeof raw === "string" && /^\d{1,9}$/.test(raw) ? Math.min(Number(raw), page.version + 1) : page.version + 1;
-  const log = new Map((page.versionLog ?? []).map((e) => [e.version, e]));
-  const items = [];
-  for (let v = before - 1; v >= 1 && items.length < VERSIONS_PAGE; v--) {
-    const e = log.get(v);
-    items.push({
-      version: v,
-      by: e ? { name: e.name || "Someone", isOwner: String(e.userId) === String(page.userId) } : null,
-      at: e ? new Date(e.at).toISOString() : null,
-      restoredFrom: e?.restoredFrom ?? null,
-    });
-  }
-  const last = items[items.length - 1]?.version ?? 1;
-  res.json({ current: page.version, items, next: last > 1 ? last : null });
+  const entries = (page.versionLog ?? []).filter((e) => e.version < before && e.version < page.version).sort((a, b) => b.version - a.version);
+  const items = entries.slice(0, VERSIONS_PAGE).map((e) => ({
+    version: e.version,
+    by: e.name ? { name: e.name, isOwner: String(e.userId) === String(page.userId) } : null,
+    at: new Date(e.at).toISOString(),
+    restoredFrom: e.restoredFrom ?? null,
+  }));
+  const more = entries.length > VERSIONS_PAGE;
+  res.json({ current: page.version, items, next: more ? items[items.length - 1].version : null });
 });
 
 /**
