@@ -1,0 +1,5 @@
+{
+  "goal": 99,
+  "raised": 0,
+  "note": "Apple Developer Program, one year. Update `raised` and run `node scripts/ios-fund.mjs`."
+}

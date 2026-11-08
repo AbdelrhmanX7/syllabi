@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="92" viewBox="0 0 640 92" role="img" aria-label="iOS fund: $0 of $99 raised">
+  <rect x="1" y="1" width="638" height="90" rx="16" fill="#F4F6FD" stroke="#C9D3F5" stroke-width="2"/>
+  <text x="20" y="34" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#1B2350">iOS / iPad fund</text>
+  <text x="620" y="34" text-anchor="end" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#3A4370">$0 of $99 raised · 0%</text>
+  <rect x="20" y="52" width="600" height="16" rx="8" fill="#DCE3FA"/>
+  
+</svg>
