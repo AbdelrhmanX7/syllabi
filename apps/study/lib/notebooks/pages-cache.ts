@@ -35,7 +35,8 @@ export function rememberPages(pages: Page[]): void {
   if (pages.length === 0) return;
   const map = read<PageMap>(PAGES_KEY, {});
 
-  for (const page of pages) map[page.id] = page;
+  // A list row has no `live`; keep the one a single-page read recorded, so a shared page reopens live.
+  for (const page of pages) map[page.id] = page.live === undefined && map[page.id]?.live !== undefined ? { ...page, live: map[page.id].live } : page;
   write(PAGES_KEY, map);
 }
 

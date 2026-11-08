@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { StudyClass } from "@/models/study/class";
@@ -259,13 +260,30 @@ export async function earlierContent(req: Request, res: Response, page: IStudyPa
     fail(res, 400, "VALIDATION_ERROR", "version must be a stored version of this page");
     return;
   }
-  const key = version === page.version && page.contentKey ? page.contentKey : pageContentKey(String(page.userId), String(page._id), version);
+  const key = await storedVersionKey(page, version);
   if (!(await studyObjectExists(key))) {
     fail(res, 404, "NOT_FOUND", "That version is no longer stored");
     return;
   }
   const { url, expiresAt } = await signedGetUrl(key, { contentType: "application/json" });
   res.json({ url, version, expiresAt });
+}
+
+/**
+ * The key to write version `version` to. Holding the cross-fork lock, the usual `v<n>.json`; without
+ * it (Redis down or busy) a key of our own, so a racing fork cannot overwrite the bytes the winning
+ * commit points at. casCommit records an unusual key in the version log so it can still be found.
+ */
+export const versionWriteKey = (page: IStudyPage, version: number, exclusive: boolean) => {
+  const usual = pageContentKey(String(page.userId), String(page._id), version);
+  return exclusive ? usual : `${usual.replace(/\.json$/, "")}-${randomUUID()}.json`;
+};
+
+/** Where version `version` of the page is stored: the current key, a logged unusual key, or the usual one. */
+export async function storedVersionKey(page: IStudyPage, version: number): Promise<string> {
+  if (version === page.version && page.contentKey) return page.contentKey;
+  const row = await StudyPage.findOne({ _id: page._id }, { versionLog: { $elemMatch: { version } } }).lean<IStudyPage>();
+  return row?.versionLog?.[0]?.key || pageContentKey(String(page.userId), String(page._id), version);
 }
 
 /** Who is writing: the editor, else the owner (looked up for the name). */
@@ -277,12 +295,13 @@ export const authorOf = async (req: Request, editor: NamedCaller | null) => edit
  */
 export const casCommit = (page: IStudyPage, version: number, key: string, author: NamedCaller | null, restoredFrom: number | null = null) => {
   const at = new Date();
+  const unusual = key !== pageContentKey(String(page.userId), String(page._id), version) ? key : null;
   return StudyPage.findOneAndUpdate(
     { _id: page._id, userId: page.userId, deletedAt: null, version: version - 1 },
     {
       $set: { version, contentKey: key, updatedAt: at, ...(author ? { editedBy: editedByOf(author) } : {}) },
       ...(author
-        ? { $push: { versionLog: { $each: [{ version, userId: author.userId, name: author.name, at, restoredFrom }], $slice: -PAGE_VERSION_LOG_MAX } } }
+        ? { $push: { versionLog: { $each: [{ version, userId: author.userId, name: author.name, at, restoredFrom, key: unusual }], $slice: -PAGE_VERSION_LOG_MAX } } }
         : {}),
     },
     { new: true, projection: PAGE_PROJECTION, timestamps: false }
@@ -333,12 +352,12 @@ export const putPageBlob = wrap(async (req, res) => {
   // Under the page lock (live pushes and other saves of this page wait), re-reading the version: two
   // savers on the same base can no longer both write the v+1 object and leave the winner pointing at
   // the loser's bytes.
-  const outcome = await withPageLock(String(page._id), async () => {
+  const outcome = await withPageLock(String(page._id), async (exclusive) => {
     const fresh = await StudyPage.findOne({ _id: page._id, deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
     if (!fresh) return { stale: page.version };
     if (baseVersion !== fresh.version) return { stale: fresh.version };
     const version = fresh.version + 1;
-    const key = pageContentKey(String(fresh.userId), String(fresh._id), version);
+    const key = versionWriteKey(fresh, version, exclusive);
     await putStudyObject(key, body, "application/json");
     const updated = await casCommit(fresh, version, key, author);
     return updated ? { version, key } : { stale: fresh.version };
@@ -427,14 +446,14 @@ export const restorePageVersion = wrap(async (req, res) => {
   if (baseVersion !== page.version)
     return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
   if (target >= page.version) return fail(res, 400, "VALIDATION_ERROR", "Pick an earlier version");
-  const from = pageContentKey(String(page.userId), String(page._id), target);
+  const from = await storedVersionKey(page, target);
   if (!(await studyObjectExists(from))) return fail(res, 404, "NOT_FOUND", "That version is no longer stored");
   const author = await loadCaller(req.adminId);
-  const updated = await withPageLock(String(page._id), async () => {
+  const updated = await withPageLock(String(page._id), async (exclusive) => {
     const fresh = await StudyPage.findOne({ _id: page._id, deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
     if (!fresh || fresh.version !== baseVersion) return null;
     const version = fresh.version + 1;
-    const key = pageContentKey(String(fresh.userId), String(fresh._id), version);
+    const key = versionWriteKey(fresh, version, exclusive);
     await putStudyObject(key, await getStudyObject(from), "application/json");
     return casCommit(fresh, version, key, author, target);
   });

@@ -330,4 +330,35 @@ describe("live notebook pages", () => {
     assert.deepEqual(now.ids, ["first"]);
     assert.equal(now.doc.pages[0].backgroundType, "grid");
   });
+  test("without the cross-fork lock a write gets its own key, and that version can still be read and restored", async () => {
+    const pages = await import("../src/controllers/study-pages.controller");
+    const owner = oid(users.owner.id);
+    const id = new mongoose.Types.ObjectId();
+    const row = { _id: id, userId: owner, version: 1 };
+    const usual = m.storage.pageContentKey(users.owner.id, String(id), 2);
+    assert.equal(pages.versionWriteKey(row, 2, true), usual);
+    const own = pages.versionWriteKey(row, 2, false);
+    assert.notEqual(own, usual);
+    assert.match(own, /\/v2-[0-9a-f-]{36}\.json$/);
+    assert.notEqual(pages.versionWriteKey(row, 2, false), own); // two racing forks never share a key
+
+    // version 1 lives under its own key (logged); version 2 is current
+    const k1 = pages.versionWriteKey(row, 1, false);
+    await m.storage.putStudyObject(k1, Buffer.from(board([stroke("one")])), "application/json");
+    const k2 = m.storage.pageContentKey(users.owner.id, String(id), 2);
+    await m.storage.putStudyObject(k2, Buffer.from(board([stroke("two")])), "application/json");
+    const at = new Date();
+    await m.StudyPage.create({
+      _id: id, userId: owner, title: "Logged", kind: "note", version: 2, contentKey: k2,
+      versionLog: [
+        { version: 1, userId: owner, name: "Owner", at, key: k1 },
+        { version: 2, userId: owner, name: "Owner", at },
+      ],
+    });
+    const earlier = await call("owner", "GET", `/study/pages/${id}/content?version=1`);
+    assert.equal(earlier.status, 200);
+    const restored = await call("owner", "POST", `/study/pages/${id}/versions/1/restore`, { baseVersion: 2 });
+    assert.equal(restored.status, 200);
+    assert.deepEqual((await stored(String(id))).ids, ["one"]);
+  });
 });

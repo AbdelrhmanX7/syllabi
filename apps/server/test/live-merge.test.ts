@@ -118,3 +118,13 @@ test("ops shape check", () => {
   assert.ok(opsError({ pages: [{ noId: true }] }));
   assert.ok(opsError({ items: [{ page: "p1", put: Array.from({ length: 6 }, (_, i) => stroke(`i${i}`)) }] }, { items: 5, pages: 5 }));
 });
+
+test("a page's recorded frame is set once: another tablet's width is not a change", () => {
+  const base = doc(page("p1", [stroke("a")], { canvasWidthPx: 1000 }));
+  assert.equal(diffDocs(base, doc(page("p1", [stroke("a")], { canvasWidthPx: 800 }))), null);
+  // the first record still travels
+  const fresh = doc(page("p1", [stroke("a")]));
+  assert.equal(diffDocs(fresh, base)?.pages?.[0].canvasWidthPx, 1000);
+  // a real setting change still does, frame and all
+  assert.equal(diffDocs(base, doc(page("p1", [stroke("a")], { canvasWidthPx: 800, backgroundType: "grid" })))?.pages?.[0].backgroundType, "grid");
+});

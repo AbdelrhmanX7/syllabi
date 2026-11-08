@@ -54,7 +54,7 @@ import { syncPageRenders } from '@/lib/notebooks/page-renders';
 import { readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
 import { LiveSession, presenceLine } from '@/lib/notebooks/live';
 import { fetchBoardVersion, fetchLatestBoard, openLiveNotebook, openLiveStream, pushLiveOps } from '@/lib/notebooks/live-api';
-import { applyOps, ensureDocIds } from '@/lib/notebooks/live-merge';
+import { applyOps, ensureDocIds, itemsOnlyFor } from '@/lib/notebooks/live-merge';
 import { getPage } from '@/lib/api/endpoints';
 import { parseJwt, readSessionToken } from '@/lib/auth';
 import { LivePeopleChip } from '@/features/share/components/PageVersions';
@@ -463,6 +463,9 @@ export function NotebookBoard({
   useEffect(() => {
     if (!storage.isReady || !storage.storage) return;
     let cancelled = false;
+    // Re-opening a board that is on screen (it just turned live): save what the editor holds first, while
+    // it is still mounted, so the live open merges it instead of reading an older copy.
+    const saved = flushRef.current ? flushRef.current().catch(() => undefined) : Promise.resolve();
 
     setOpened(null);
     setOpenError(null);
@@ -475,12 +478,12 @@ export function NotebookBoard({
       seed: seed ? () => seed(target) : undefined,
     };
     const opening = liveMode
-      ? openLiveNotebook(options).then((result) => {
+      ? saved.then(() => openLiveNotebook(options)).then((result) => {
           liveBaseRef.current = result.base;
 
           return { source: result.source, remoteVersion: result.base?.version ?? null };
         })
-      : openNotebookDocument(options);
+      : saved.then(() => openNotebookDocument(options));
 
     opening
       .then(async (result) => {
@@ -669,7 +672,10 @@ export function NotebookBoard({
         getLocal: () => (liveBoardRef.current?.getDocument() as unknown as BoardDoc | undefined) ?? null,
         applyRemote: async (ops) => {
           const handle = liveBoardRef.current;
-          const itemsOnly = !ops.pages && !ops.removedPages && !ops.order;
+          const local = handle?.getDocument() as unknown as BoardDoc | undefined;
+          // Page settings that only differ in the recorded frame, or an order that is already ours, go in
+          // item by item too: a reload for those would bounce between two tablets.
+          const itemsOnly = local ? itemsOnlyFor(local, ops) : !ops.pages && !ops.removedPages && !ops.order;
 
           if (handle && itemsOnly && (await handle.applyRemoteItems(ops.items ?? []))) return true;
           await reloadWithRemote(ops);

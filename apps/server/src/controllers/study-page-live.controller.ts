@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
 import { StudyPage, IStudyPage } from "@/models/study/page";
-import { getStudyObject, pageContentKey, putStudyObject } from "@/services/study/storage";
+import { getStudyObject, putStudyObject } from "@/services/study/storage";
 import { pageFor, scopedPage } from "@/services/share/edit";
 import { loadCaller } from "@/services/share/access";
 import { applyOps, BoardDoc, ensureDocIds, LiveOps, opsError } from "@/services/share/live-merge";
 import { dropPresence, PagePerson, pagePeople, publishPageEvent, subscribePage, touchPresence, withPageLock } from "@/services/study/page-live";
 import { openStudySse, PING_MS } from "@/services/study/sse";
-import { authorOf, casCommit, PAGE_PROJECTION } from "./study-pages.controller";
+import { authorOf, casCommit, PAGE_PROJECTION, versionWriteKey } from "./study-pages.controller";
 import { fail, isOid, wrap } from "./study.controller";
 
 /**
@@ -70,14 +70,14 @@ export const pushPageLive = wrap(async (req, res) => {
   const ops = body.ops as LiveOps;
   const pageId = String(found.doc._id);
 
-  const result = await withPageLock(pageId, async () => {
+  const result = await withPageLock(pageId, async (exclusive) => {
     for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
       const fresh = await StudyPage.findOne({ _id: pageId, deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
       if (!fresh) return null;
       const next = applyOps(ensureDocIds(await readBoard(fresh)), ops);
       next.updatedAt = Date.now();
       const version = (fresh.version ?? 0) + 1;
-      const key = pageContentKey(String(fresh.userId), pageId, version);
+      const key = versionWriteKey(fresh, version, exclusive);
       const json = JSON.stringify(next);
       await putStudyObject(key, Buffer.from(json, "utf8"), "application/json");
       if (await casCommit(fresh, version, key, author)) {

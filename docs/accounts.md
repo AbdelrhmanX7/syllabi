@@ -203,10 +203,13 @@ screen item by item (no reload, the page's undo history restarts there); a gap r
 added, removed or moved by someone else reloads the editor on the merged board.
 
 **Saves at the same moment.** Every write of page content (live pushes, whole-board saves, restore) runs under a
-per-page lock: in-process chain + Redis `SET NX PX` across forks (skipped when Redis is down; the version
-compare-and-set stays the last guard, with up to 3 retries for pushes). This also fixes an older race where two
+per-page lock: in-process chain + Redis `SET NX PX` (30 s) across forks, then the version compare-and-set (up to
+3 retries for pushes). Holding the lock, a writer stores the usual `v<n+1>.json`. When it could not get the lock
+(Redis down, or busy past 4 s) it writes a key of its own (`v<n+1>-<uuid>.json`, recorded in the version log), so
+a racing fork can never overwrite the bytes the winning commit points at. This also fixes an older race where two
 whole-board saves on the same version both wrote the `v<n+1>` object and the winner could point at the loser's
-bytes.
+bytes. The older two-step save (signed upload, then commit) still writes `v<n+1>.json` directly and is not
+covered; the app tries the one-step save first.
 
 **Opening a page with edits made offline.** The device merges three-way: its edits since the version it last
 had (read back with `content?version=`) onto the current version. A page that becomes shared while open

@@ -152,7 +152,24 @@ export function pageMeta(page: BoardPage): Json {
   return meta;
 }
 
-const sameMeta = (a: BoardPage, b: BoardPage) => JSON.stringify(pageMeta(a)) === JSON.stringify(pageMeta(b));
+/**
+ * The frame a page was first written in (`canvasWidthPx`, the PDF placement, the sheet shape). It is
+ * recorded once, on the page's first save, from that device's pane, so two tablets can disagree. Once
+ * a page has it, a different value from another device is not a change (same rule as the app).
+ */
+export const FRAME_KEYS = new Set(["canvasWidthPx", "pdfPlacement", "sheetAspect"]);
+
+/** `b`'s page settings equal `a`'s, not counting the frame keys `a` already has. */
+export function sameMeta(a: BoardPage, b: BoardPage): boolean {
+  const left = pageMeta(a);
+  const right = pageMeta(b);
+  for (const key of FRAME_KEYS)
+    if (left[key] !== undefined && left[key] !== null) {
+      delete left[key];
+      delete right[key];
+    }
+  return JSON.stringify(left) === JSON.stringify(right);
+}
 
 function itemsById(page: BoardPage): Map<string, { item: Json; json: string }> | null {
   const canvas = parseCanvas(page.canvasJSON);

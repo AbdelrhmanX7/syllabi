@@ -170,8 +170,41 @@ export function pageMeta(page: BoardPage): Json {
   return meta;
 }
 
-const sameMeta = (a: BoardPage, b: BoardPage) =>
-  JSON.stringify(pageMeta(a)) === JSON.stringify(pageMeta(b));
+/**
+ * The frame a page was first written in (`canvasWidthPx`, the PDF placement, the sheet shape). It is
+ * recorded once, on the page's first save, from that device's pane, so two tablets can disagree. Once
+ * a page has it, a different value from another device is not a change: comparing it would make each
+ * tablet re-send its own frame and reload the other's editor back and forth.
+ */
+export const FRAME_KEYS = new Set(["canvasWidthPx", "pdfPlacement", "sheetAspect"]);
+
+/** `b`'s page settings equal `a`'s, not counting the frame keys `a` already has. */
+export function sameMeta(a: BoardPage, b: BoardPage): boolean {
+  const left = pageMeta(a);
+  const right = pageMeta(b);
+  for (const key of FRAME_KEYS)
+    if (left[key] !== undefined && left[key] !== null) {
+      delete left[key];
+      delete right[key];
+    }
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * True when `ops` only changes items on pages `doc` already has: page settings that match (frame
+ * aside), nothing removed, the same page order. Such ops go on screen item by item; anything else
+ * reloads the editor.
+ */
+export function itemsOnlyFor(doc: BoardDoc, ops: LiveOps): boolean {
+  if (ops.removedPages?.length) return false;
+  const local = new Map(doc.pages.map((p) => [p.id, p] as const));
+  for (const meta of ops.pages ?? []) {
+    const page = isObj(meta) && typeof meta.id === "string" ? local.get(meta.id) : undefined;
+    if (!page || !sameMeta(page, meta as BoardPage)) return false;
+  }
+  if (ops.order && ops.order.join("\n") !== doc.pages.map((p) => p.id).join("\n")) return false;
+  return true;
+}
 
 function itemsById(
   page: BoardPage,

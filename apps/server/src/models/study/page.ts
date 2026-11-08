@@ -39,6 +39,8 @@ export interface IPageVersionEntry {
   at: Date;
   /** Set when this version restored an earlier one. */
   restoredFrom?: number | null;
+  /** Where this version's board is stored, when not the usual `v<n>.json` (written without the cross-fork lock). */
+  key?: string | null;
 }
 export const PAGE_VERSION_LOG_MAX = 100;
 
@@ -191,6 +193,7 @@ const StudyPageSchema = new Schema<IStudyPage>(
             name: { type: String, default: "" },
             at: { type: Date, required: true },
             restoredFrom: { type: Number, default: null },
+            key: { type: String, default: null },
           },
           { _id: false }
         ),

@@ -118,10 +118,11 @@ export function publishPageEvent(pageId: string, event: PageEvent): void {
 // ─── the write lock ─────────────────────────────────────────────────────────────────────
 
 const chains = new Map<string, Promise<void>>();
-const LOCK_TTL_MS = 10_000;
+const LOCK_TTL_MS = 30_000;
 const LOCK_WAIT_MS = 4_000;
 const RELEASE = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
+/** The release function when this fork holds the Redis lock; null when it does not (down, or busy past the wait). */
 async function redisLock(pageId: string): Promise<(() => void) | null> {
   const c = client("cmd");
   if (!ready(c)) return null;
@@ -133,7 +134,7 @@ async function redisLock(pageId: string): Promise<(() => void) | null> {
     try {
       got = await c.set(key, token, "PX", LOCK_TTL_MS, "NX");
     } catch {
-      return null; // Redis went away: the version check still guards the commit
+      return null; // Redis went away: the caller writes without the cross-fork lock
     }
     if (got === "OK") {
       return () => {
@@ -147,9 +148,12 @@ async function redisLock(pageId: string): Promise<(() => void) | null> {
 
 /**
  * Run `fn` holding page `pageId`'s write lock: one at a time per page in this process, and (when Redis
- * is up) across forks. Writers still commit with the version check, which is the last guard.
+ * is up) across forks. `exclusive` tells `fn` whether the cross-fork lock is really held. Without it
+ * another fork may be writing the same next version at the same moment, so `fn` must store its bytes
+ * under a key nobody else can pick (the version check then lets exactly one commit win, and the
+ * winner's row points at its own bytes).
  */
-export async function withPageLock<T>(pageId: string, fn: () => Promise<T>): Promise<T> {
+export async function withPageLock<T>(pageId: string, fn: (exclusive: boolean) => Promise<T>): Promise<T> {
   const prev = chains.get(pageId) ?? Promise.resolve();
   let release!: () => void;
   const mine = new Promise<void>((r) => (release = r));
@@ -159,7 +163,7 @@ export async function withPageLock<T>(pageId: string, fn: () => Promise<T>): Pro
   let unlockRedis: (() => void) | null = null;
   try {
     unlockRedis = await redisLock(pageId);
-    return await fn();
+    return await fn(unlockRedis !== null);
   } finally {
     unlockRedis?.();
     release();

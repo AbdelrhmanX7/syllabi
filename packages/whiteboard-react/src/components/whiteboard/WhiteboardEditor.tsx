@@ -6426,10 +6426,21 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // gets its stored JSON updated. False = could not apply: the host reloads the board instead.
   const applyRemoteItems = useCallback(
     async (ops: RemoteItemOps[]): Promise<boolean> => {
-      const until = Date.now() + 15_000;
+      // Wait for a stroke, a page load, a text being typed, and (briefly) a selection: putting items in
+      // replaces the page's objects, which would cut a stroke short or drop what is selected. A pen held
+      // down for a full minute is the only case that gives up (the host then reloads the board); typing
+      // waits as long as it takes.
+      const started = Date.now();
+      const typing = () => (fabricCanvasRef.current?.getActiveObject() as { isEditing?: boolean } | undefined)?.isEditing === true;
+      const busy = () => {
+        if (isPointerDown() || isSyncingCanvasRef.current || isBatchRenderingRef.current) return true;
+        if (!fabricCanvasRef.current?.getActiveObject()) return false;
 
-      while (isPointerDown() || isSyncingCanvasRef.current || isBatchRenderingRef.current) {
-        if (Date.now() > until) return false;
+        return typing() || Date.now() - started < 3_000;
+      };
+
+      while (busy()) {
+        if (!typing() && Date.now() - started > 60_000) return false;
         await new Promise((resolve) => setTimeout(resolve, 60));
       }
 

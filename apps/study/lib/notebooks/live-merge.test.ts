@@ -8,6 +8,7 @@ import {
   applyOps,
   diffDocs,
   ensureDocIds,
+  itemsOnlyFor,
   mergeDocs,
   opsError,
 } from "./live-merge";
@@ -207,4 +208,25 @@ test("ops shape check", () => {
       { items: 5, pages: 5 },
     ),
   );
+});
+
+test("a page's recorded frame is set once: another tablet's width is not a change", () => {
+  const base = doc(page("p1", [stroke("a")], { canvasWidthPx: 1000 }));
+  assert.equal(diffDocs(base, doc(page("p1", [stroke("a")], { canvasWidthPx: 800 }))), null);
+  const fresh = doc(page("p1", [stroke("a")]));
+  assert.equal(diffDocs(fresh, base)?.pages?.[0].canvasWidthPx, 1000);
+  assert.equal(
+    diffDocs(base, doc(page("p1", [stroke("a")], { canvasWidthPx: 800, backgroundType: "grid" })))?.pages?.[0].backgroundType,
+    "grid",
+  );
+});
+
+test("frame-only page settings and our own order go in item by item, real changes reload", () => {
+  const local = doc(page("p1", [stroke("a")], { canvasWidthPx: 800 }), page("p2", []));
+  const frameOnly = { pages: [{ id: "p1", backgroundType: "blank", canvasWidthPx: 1000 }], order: ["p1", "p2"], items: [{ page: "p1", put: [stroke("b")] }] };
+  assert.equal(itemsOnlyFor(local, frameOnly), true);
+  assert.equal(itemsOnlyFor(local, { pages: [{ id: "p1", backgroundType: "grid" }] }), false);
+  assert.equal(itemsOnlyFor(local, { order: ["p2", "p1"] }), false);
+  assert.equal(itemsOnlyFor(local, { removedPages: ["p2"] }), false);
+  assert.equal(itemsOnlyFor(local, { pages: [{ id: "p3" }], order: ["p1", "p2", "p3"] }), false);
 });
