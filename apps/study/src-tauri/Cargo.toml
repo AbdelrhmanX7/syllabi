@@ -1,6 +1,6 @@
 [package]
 name = "ka-study"
-version = "0.1.8"
+version = "0.1.9"
 description = "Study — personal study app (Tauri 2 Android shell)"
 edition = "2021"
 rust-version = "1.77.2"
