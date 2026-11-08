@@ -3,6 +3,7 @@ import type { Page } from "@/lib/api/types";
 import { useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NotebookPen, Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -22,6 +23,11 @@ import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
 import { formatRelative } from "@/lib/format";
 import { rememberPages } from "@/lib/notebooks/pages-cache";
+
+const ImportNotebookButton = dynamic(
+  () => import("@/features/inbox").then((mod) => mod.ImportNotebookButton),
+  { ssr: false },
+);
 
 function NoteRow({ page, label }: { page: Page; label?: string }) {
   return (
@@ -89,13 +95,16 @@ export default function NotesPage() {
       </Head>
       <PageHeader
         actions={
-          <ActionButton
-            disabled={create.isPending}
-            variant="primary"
-            onClick={() => create.mutate()}
-          >
-            <Plus className="h-4 w-4" /> New note
-          </ActionButton>
+          <div className="flex flex-wrap gap-3">
+            <ImportNotebookButton classId={null} />
+            <ActionButton
+              disabled={create.isPending}
+              variant="primary"
+              onClick={() => create.mutate()}
+            >
+              <Plus className="h-4 w-4" /> New note
+            </ActionButton>
+          </div>
         }
         title="Notes"
       />
@@ -112,7 +121,7 @@ export default function NotesPage() {
         <div className="flex flex-col gap-3">
           {own.length === 0 ? (
             <EmptyState
-              hint="Write anything here: ideas, to-do lists, notes for a club. They don’t need a class."
+              hint="Write anything here: ideas, lists, notes for a club. Coming from Samsung Notes, GoodNotes or OneNote? Export a note as a PDF there, then tap Import pages."
               icon={NotebookPen}
               title="No notes yet"
             />

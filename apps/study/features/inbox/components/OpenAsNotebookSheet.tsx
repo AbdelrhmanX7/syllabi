@@ -40,7 +40,8 @@ export const fileSources = (files: readonly File[]): ImportSource[] =>
 /**
  * «Open as notebook»: a PDF (one board page per PDF page) or a set of images (one page each, the
  * image as the locked background) becomes a NEW notebook page in a class, then opens on the board.
- * `classId` fixes the class (the class page); without it the student picks one (the share sheet).
+ * `classId` fixes the class (the class page; `null` = no class, the Notes page); without it the student
+ * picks one or «No class» (the share sheet).
  */
 export function OpenAsNotebookSheet({
   input,
@@ -52,7 +53,7 @@ export function OpenAsNotebookSheet({
 }: {
   input: NotebookImport;
   defaultTitle: string;
-  classId?: string;
+  classId?: string | null;
   /** Last step before building, e.g. keep a shared PDF in the inbox so another tablet can fetch it. */
   prepare?: (input: NotebookImport) => Promise<NotebookImport>;
   /** The notebook exists: drop the source files (the share bridge's copies). */
@@ -63,7 +64,9 @@ export function OpenAsNotebookSheet({
   const queryClient = useQueryClient();
   const { data: classes } = useClasses();
   const [title, setTitle] = useState(defaultTitle.slice(0, TITLE_MAX));
+  const fixed = fixedClassId !== undefined;
   const [classId, setClassId] = useState(fixedClassId ?? '');
+  const [noClass, setNoClass] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = progress !== null;
@@ -71,11 +74,11 @@ export function OpenAsNotebookSheet({
 
   // Preselect the class used last time (or the only one).
   useEffect(() => {
-    if (fixedClassId || classId || !classes?.length) return;
+    if (fixed || noClass || classId || !classes?.length) return;
     const last = readLastClass();
 
     setClassId(classes.some((cls) => cls.id === last) ? last : classes[0].id);
-  }, [classId, classes, fixedClassId]);
+  }, [classId, classes, fixed, noClass]);
 
   const open = async () => {
     setError(null);
@@ -137,11 +140,21 @@ export function OpenAsNotebookSheet({
             onChange={(event) => setTitle(event.target.value)}
           />
         </Field>
-        {!fixedClassId && (
+        {!fixed && (
           <div className='flex flex-col gap-1.5'>
             <span className='text-st-fg text-sm font-medium'>Class</span>
             {classes?.length ? (
               <div className='flex flex-wrap gap-2'>
+                <FilterChip
+                  active={!classId}
+                  onClick={() => {
+                    if (busy) return;
+                    setNoClass(true);
+                    setClassId('');
+                  }}
+                >
+                  No class
+                </FilterChip>
                 {classes.map((cls) => (
                   <FilterChip key={cls.id} active={classId === cls.id} onClick={() => !busy && setClassId(cls.id)}>
                     <span className='h-2 w-2 rounded-sm' style={{ backgroundColor: cls.color }} />

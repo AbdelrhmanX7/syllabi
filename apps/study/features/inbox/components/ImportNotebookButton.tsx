@@ -16,7 +16,7 @@ const ACCEPT = 'application/pdf,.pdf,image/*';
  * (or a set of page images) and open it as a new notebook in this class — the web / desktop way in,
  * the same import the Android share sheet runs.
  */
-export function ImportNotebookButton({ classId }: { classId: string }) {
+export function ImportNotebookButton({ classId }: { classId: string | null }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{ input: NotebookImport; title: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
