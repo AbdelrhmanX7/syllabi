@@ -1,9 +1,9 @@
-import { APP, RELEASES, REPO } from '~/sections/links';
+import { APP, DOWNLOAD, REPO } from '~/sections/links';
 
 const LINKS = [
   { label: 'Open the app', href: APP },
   { label: 'GitHub', href: REPO },
-  { label: 'Android releases', href: RELEASES },
+  { label: 'Android app', href: DOWNLOAD },
   { label: 'License', href: `${REPO}/blob/master/LICENSE` },
   { label: 'Privacy', href: '/privacy/' },
   { label: 'Terms', href: '/terms/' },
