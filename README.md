@@ -5,20 +5,17 @@
 <h1 align="center">Syllabi</h1>
 
 <p align="center">
-  The open-source study app for tablets: handwritten notebooks, an AI tutor, spaced-repetition questions
-  and a calendar of everything due, all in one place.<br>
+  A free study app for your tablet. Take notes by hand, see everything that's due, and get help when you're stuck.<br>
   <a href="https://syllabi.studio">syllabi.studio</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#self-hosting">Self-hosting</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a> ·
-  <a href="https://github.com/AbdelrhmanX7/syllabi/discussions">Discussions</a> ·
-  <a href="#support">Support</a>
+  <a href="https://app.syllabi.studio">Open the app</a> ·
+  <a href="#support">Support</a> ·
+  <a href="https://github.com/AbdelrhmanX7/syllabi/discussions">Talk to us</a>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2F5BEA"></a>
+  <a href="LICENSE"><img alt="Free to use" src="https://img.shields.io/badge/free-to%20use-2F5BEA"></a>
   <img alt="Android tablets and web" src="https://img.shields.io/badge/platform-Android%20tablets%20%2B%20web-2F5BEA">
-  <a href="CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-2E9E6E"></a>
+  <a href="CONTRIBUTING.md"><img alt="Help welcome" src="https://img.shields.io/badge/help-welcome-2E9E6E"></a>
   <a href="https://buymeacoffee.com/AbdelrhmanX7"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFC93C"></a>
 </p>
 
@@ -32,8 +29,7 @@
   <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/ios-fund.svg" alt="iOS fund progress" width="640"></a>
 </p>
 
-The App Store needs an Apple Developer Program membership ($99 a year). When the fund gets there, the iOS build goes
-to TestFlight and then the App Store.
+Putting an app on the App Store costs $99 a year. Once we raise it, Syllabi comes to iPad and iPhone.
 
 <p>
   <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/btn-coffee.svg" alt="Buy me a coffee" height="52"></a>
@@ -44,99 +40,109 @@ to TestFlight and then the App Store.
 
 | | |
 | --- | --- |
-| **Classes** | Canvas classes in one place: grades, assignments, quizzes, files, pages, announcements. You can add classes that aren't on Canvas too. |
-| **Today** | What's due, what's overdue and what to review next. |
-| **Calendar** | Week and month views of due dates, exams, class times and reviews, each in its class colour. |
-| **Notebooks** | A pen board with stylus pressure and palm rejection, pages per class or lecture, rulers and shapes. The AI can read your handwriting, explain a step and draw on the page. |
-| **AI tutor** | Chat about any item, lecture or notebook page; it explains mistakes. |
-| **Question bank** | Questions made from your material, with spaced repetition, mock exams and weak-topic tracking. |
-| **Lectures** | Recordings or YouTube links become transcripts and lecture notes. |
-| **Concept maps** | For any class or topic. Draw one or start from a photo; the AI builds a reference map or checks yours. |
-| **Phone inbox** | Snap a worksheet or whiteboard on your phone and it lands on the tablet. |
+| **Classes** | All your classes in one place: grades, homework, quizzes, files and announcements. Works with Canvas, and you can add your own classes too. |
+| **Today** | What's due, what's late and what to study next. |
+| **Calendar** | Every due date, exam and class time by week or month, each in its class colour. |
+| **Notebooks** | Write with your pen like on paper, with a page for every class or lecture. Ask for help on a step and it can explain it or draw on the page. |
+| **Tutor** | Ask questions about any homework, lecture or page of notes. It explains where you went wrong. |
+| **Practice questions** | Questions made from your own notes, brought back right before you'd forget them. Practice exams and a list of your weak spots. |
+| **Flashcards** | Make cards from your notes and review them in a few minutes a day. |
+| **Lectures** | Add a recording or a YouTube link and get the notes written out for you. |
+| **Concept maps** | Draw how ideas connect, or start from a photo and get one made for you. |
+| **Phone to tablet** | Take a photo of a worksheet or the board with your phone (iPhone or Android) and it shows up on your tablet. |
+| **Use it with Claude or ChatGPT** | Connect your own AI assistant so it can see your classes and notes and help you study. |
 
-Tested on a Samsung Galaxy Tab S9 Ultra. It's written with cheaper student tablets in mind too (3–4 GB of RAM,
-older Android WebViews), but it hasn't been tested on those yet; reports from other devices are welcome.
+Your notes follow you: sign in and they're on your tablet, phone and computer.
 
-## Quick start
+Tested on a Samsung Galaxy Tab S9 Ultra. It's made to run well on cheaper tablets too, but hasn't been tested on
+them yet. If you try it on another device, tell us how it went.
+
+## Try it
+
+- **In your browser:** [app.syllabi.studio](https://app.syllabi.studio). Look around with sample data, or create a free account.
+- **On an Android tablet:** download the app from [Releases](https://github.com/AbdelrhmanX7/syllabi/releases).
+- **iPad and iPhone:** coming once the [fund](#help-bring-syllabi-to-ipad-and-iphone) is reached.
+
+<details>
+<summary><b>For developers</b>: run it yourself, host your own server, release builds</summary>
+
+### Run it on your computer
 
 You need Node 22+ and pnpm 10.
 
 ```bash
-git clone https://github.com/AbdelrhmanX7/syllabi && cd syllabi
+git clone https://github.com/AbdelrhmanX7/syllabi
+cd syllabi
 pnpm install
-pnpm dev          # http://localhost:3016 (demo mode, no server needed)
+pnpm dev
 ```
 
-With no server configured, the app runs entirely on built-in demo data, so every screen works offline. To use your
-own data, point it at a Syllabi server with `NEXT_PUBLIC_API=https://your-server` (see `apps/study/.env.example`)
-or in **Settings → Backend** on each device.
+Then open http://localhost:3016. Without a server it uses sample data, so every screen works offline. To use your
+own data, set `NEXT_PUBLIC_API=https://your-server` (see `apps/study/.env.example`) or change it in
+**Settings → Backend** on each device.
 
-## Self-hosting
-
-`apps/server` is the self-hostable backend: Express, MongoDB, Redis, any S3-compatible store and any
-OpenAI-compatible model, packaged as a Docker Compose stack.
+### Host your own server
 
 ```bash
 cd apps/server
-cp .env.example .env   # set JWT_SECRET, MINIO_ROOT_PASSWORD, ADMIN_EMAIL/ADMIN_PASSWORD, model keys
+cp .env.example .env
 docker compose up -d --build
 ```
 
-The server is still catching up with the app, so a few features need a compatible `/study` API for now. See
-[`apps/server/README.md`](apps/server/README.md) for TLS, the owner account and running without Docker.
+Fill in `.env` first (secrets, the owner account, AI keys). See [`apps/server/README.md`](apps/server/README.md) for
+HTTPS and running without Docker. A few features still need a compatible server while it catches up with the app.
 
-## Android
+### Android builds
 
-`apps/study` is wrapped by Tauri 2 into an Android APK (bundle id `studio.syllabi.app`).
-`node apps/study/scripts/android-release.mjs` builds a signed release. Set `STUDY_BUILD_API` to bake in a default
-server, or leave it empty for demo mode.
+`node apps/study/scripts/android-release.mjs` builds a signed APK (app id `studio.syllabi.app`). Set
+`STUDY_BUILD_API` to pick a default server, or leave it empty for sample data.
 
 ### Releasing
 
-Releases are manual. In GitHub, open **Actions → Release → Run workflow** and pick the bump:
+In GitHub, open **Actions → Release → Run workflow** and pick:
 
-- `patch` for small changes and fixes (0.1.0 → 0.1.1)
+- `patch` for small fixes (0.1.0 → 0.1.1)
 - `minor` for new features (0.1.0 → 0.2.0)
-- `major` for breaking changes (0.1.0 → 1.0.0)
+- `major` for big changes (0.1.0 → 1.0.0)
 
-Optional `notes` show in the in-app update banner and on top of the generated release notes. The workflow bumps
-the version, commits `Release vX.Y.Z` to `master`, tags it, builds the signed arm64 APK against
-`https://api.syllabi.studio`, attaches `syllabi-X.Y.Z-arm64.apk` to a GitHub Release and publishes it to the
-update feed, so installed apps offer the update. Tick `dry_run` to only build and verify the APK (downloadable
-from the run's artifacts) without bumping, tagging or publishing.
+It bumps the version, builds the signed APK, attaches it to a GitHub Release and tells installed apps there's an
+update. `notes` shows in the app's update banner. Tick `dry_run` to only build and check the APK.
 
-## Repository layout
+### Where things are
 
-| Path | What's there |
+| Folder | What's there |
 | --- | --- |
-| `apps/study` | The app: Next.js 16 (Pages Router, static export), React 19, Tailwind, React Query, Tauri 2 shell |
-| `apps/server` | The self-hostable `/study` API |
-| `apps/site` | The syllabi.studio landing page (`pnpm --filter @repo/site dev`, port 3018) |
-| `packages/ui` | The clay design system every screen is built from |
-| `packages/whiteboard-*` | The pen board engine and its React bindings |
-| `tools/` | UI clip audit, perf tracing on simulated tablets |
+| `apps/study` | The app (web and Android) |
+| `apps/server` | The server you can host yourself |
+| `apps/site` | The syllabi.studio website |
+| `packages/ui` | The shared buttons, cards and other pieces every screen uses |
+| `packages/whiteboard-*` | The pen and notebook engine |
+| `tools/` | Checks for cut-off layouts and speed on slower tablets |
+
+</details>
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome.
+Found a bug, have an idea, or want to help build it? You're welcome here.
 
 - **Found a bug or want a feature?** [Open an issue](https://github.com/AbdelrhmanX7/syllabi/issues/new/choose).
 - **Have a question or an idea to talk through?** Start a thread in [Discussions](https://github.com/AbdelrhmanX7/syllabi/discussions).
-- **Want to write code?** Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and the UI rules, then pick an
-  issue labelled `good first issue` or `help wanted`.
+- **Want to help build it?** Start with [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled
+  `good first issue` or `help wanted`.
 - **Found a security problem?** Please report it privately; see [SECURITY.md](SECURITY.md).
 
 Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-Syllabi is free and built in spare time. If it helps you study, you can support it:
+Syllabi is free and made in my spare time. If it helps you study, you can help keep it going:
 
-- [Chip in to the iOS fund](#help-bring-syllabi-to-ipad-and-iphone) so Syllabi can ship on the App Store
+- [Chip in to the iPad and iPhone fund](#help-bring-syllabi-to-ipad-and-iphone)
 - [Buy me a coffee](https://buymeacoffee.com/AbdelrhmanX7)
 - [Sponsor on GitHub](https://github.com/sponsors/AbdelrhmanX7)
 - Star the repo, report bugs, or tell a classmate. That helps too.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Bundled fonts are under the SIL OFL (`packages/ui/fonts/*-OFL.txt`).
+Free to use, copy and change (MIT, see [LICENSE](LICENSE)). Fonts are under their own free licence
+(`packages/ui/fonts/*-OFL.txt`).

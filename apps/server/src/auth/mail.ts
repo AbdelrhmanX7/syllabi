@@ -45,46 +45,46 @@ export function sendMailInBackground(mail: Mail): void {
 }
 
 function build(to: string, subject: string, content: MailContent): Mail {
-  const text = `${content.body}\n\n${content.action}: ${content.link}\n\n${content.expiry}\n${content.footnote ?? "If you didn't ask for this, you can ignore this email."}\n`;
+  const text = `${content.body}\n\n${content.action}: ${content.link}\n\n${content.expiry}\n${content.footnote ?? "Didn't ask for this? Just ignore this email."}\n`;
   return { to, subject, text, html: renderMailHtml(content) };
 }
 
 export const verifyEmailMail = (to: string, link: string): Mail =>
   build(to, "Confirm your Syllabi email", {
-    preheader: "One tap to confirm your email and turn on the AI tutor.",
+    preheader: "One tap to finish setting up your Syllabi account.",
     title: "Confirm your email",
-    body: "Welcome to Syllabi! Confirm this address to finish setting up your account and turn on the AI features: the tutor, lecture notes and concept maps.",
+    body: "Welcome to Syllabi! Tap the button to confirm it's you. After that, the tutor, lecture notes and concept maps are ready to use.",
     action: "Confirm email",
     link,
-    expiry: "This link works once and expires in 48 hours.",
-    footnote: "If you didn't create a Syllabi account, you can ignore this email.",
+    expiry: "This button works once, for the next 2 days.",
+    footnote: "Didn't sign up for Syllabi? Just ignore this email.",
     hero: "verify",
     features: [
-      { title: "Notebooks", body: "Write by hand with your stylus; the AI can read your work and explain a step." },
-      { title: "Spaced repetition", body: "Questions and flashcards from your material, scheduled so you review at the right time." },
-      { title: "Everything due", body: "Classes, deadlines and reviews in one calendar, synced to every device." },
+      { title: "Notebooks", body: "Write with your pen like on paper. Stuck on a step? Ask, and it explains." },
+      { title: "Practice", body: "Questions and flashcards from your own notes, brought back right before you'd forget them." },
+      { title: "Everything due", body: "Homework, exams and classes in one calendar, on your tablet, phone and computer." },
     ],
   });
 
 export const magicLinkMail = (to: string, link: string): Mail =>
   build(to, "Your Syllabi sign-in link", {
-    preheader: "Your sign-in link is ready. It expires in 15 minutes.",
+    preheader: "Tap to sign in. No password needed.",
     title: "Sign in to Syllabi",
     body: "Tap the button to sign in. No password needed.",
     action: "Sign in",
     link,
-    expiry: "This link works once and expires in 15 minutes.",
+    expiry: "This button works once, for the next 15 minutes.",
     hero: "magic",
   });
 
 export const resetPasswordMail = (to: string, link: string): Mail =>
   build(to, "Reset your Syllabi password", {
-    preheader: "Choose a new password for your Syllabi account.",
+    preheader: "Pick a new password for Syllabi.",
     title: "Reset your password",
-    body: "Someone asked to reset the password for this Syllabi account. Tap the button to choose a new one.",
+    body: "Forgot your password? No problem. Tap the button and pick a new one.",
     action: "Choose a new password",
     link,
-    expiry: "This link works once and expires in 1 hour.",
-    footnote: "If you didn't ask for this, ignore this email. Your password stays the same.",
+    expiry: "This button works once, for the next hour.",
+    footnote: "Didn't ask for this? Just ignore this email. Your password stays the same.",
     hero: "reset",
   });

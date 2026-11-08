@@ -58,7 +58,7 @@ function featuresBlock(features: { title: string; body: string }[]): string {
 }
 
 export function renderMailHtml(c: MailContent): string {
-  const footnote = c.footnote ?? "If you didn't ask for this, you can ignore this email. Nothing changes until the link is opened.";
+  const footnote = c.footnote ?? "Didn't ask for this? Just ignore this email. Nothing happens unless you tap the button.";
   const link = esc(c.link);
   return `<!doctype html>
 <html lang="en">
@@ -92,14 +92,14 @@ export function renderMailHtml(c: MailContent): string {
         </tr></table>
         <p style="margin:18px 0 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${MUTED};">${esc(c.expiry)}</p>
         <p style="margin:16px 0 0 0;padding-top:14px;border-top:1px solid ${LINE};font-family:${FONT};font-size:12px;line-height:1.5;color:${MUTED};">
-          Button not working? Paste this into your browser:<br>
+          Button not working? Copy this into your browser:<br>
           <a href="${link}" style="color:${BRAND};word-break:break-all;">${link}</a>
         </p>
         </div>
       </td></tr>${c.features ? featuresBlock(c.features) : ""}
       <tr><td style="padding:16px 4px 0 4px;font-family:${FONT};font-size:12px;line-height:1.6;color:${MUTED};">
         ${esc(footnote)}<br>
-        <a href="https://syllabi.studio" style="color:${MUTED};">syllabi.studio</a> · the open-source study app ·
+        <a href="https://syllabi.studio" style="color:${MUTED};">syllabi.studio</a> · the free study app ·
         <a href="https://syllabi.studio/privacy/" style="color:${MUTED};">Privacy</a>
       </td></tr>
     </table>
