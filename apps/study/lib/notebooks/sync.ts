@@ -11,6 +11,7 @@ import { readPaperSpacingDefaults, withPaperSpacingDefaults } from './paper-sett
 
 import { beginPageContentUpload, commitPageContent, getPageContent, putPageContentBlob } from '@/lib/api/endpoints';
 import { isStudyApiError } from '@/lib/api/errors';
+import { studyGet } from '@/lib/api/http';
 import { fetchJsonFromUrl, putToUrl } from '@/lib/api/upload';
 
 export interface OpenNotebookOptions {
@@ -47,8 +48,18 @@ export async function openNotebookDocument({ pageId, title, storage, seed }: Ope
   remoteVersion: number | null;
 }> {
   const local = await storage.loadWhiteboard(pageId).catch(() => null);
-  const synced = readSyncedVersion(pageId);
   const remote = await readRemoteContent(pageId);
+  let synced = readSyncedVersion(pageId);
+
+  // The unsent mark is set the moment the board saves on the device (leaving the page saves it too), so
+  // it can stand on a board that is exactly what this device last synced. Same ink = nothing to send:
+  // clear it, and a newer copy from another device then opens as usual instead of a conflict.
+  if (local && synced?.dirty && synced.version > 0 && remote && remote.version >= synced.version) {
+    if (await syncedCopyMatches(pageId, synced.version, remote, local)) {
+      writeSyncedVersion(pageId, synced.version, false);
+      synced = readSyncedVersion(pageId);
+    }
+  }
   const remoteHasContent = remote !== null && remote.url !== null && remote.version > 0;
   const remoteIsNewer = remoteHasContent && remote.version > (synced?.version ?? 0);
 
@@ -113,6 +124,28 @@ async function pushContent(pageId: string, baseVersion: number, json: string): P
   await commitPageContent(pageId, begin.version);
 
   return begin.version;
+}
+
+/** Whether the stored `version` (the one this device last synced) holds the same ink as the device copy. */
+async function syncedCopyMatches(
+  pageId: string,
+  version: number,
+  remote: PageContentRef,
+  doc: WhiteboardDocument,
+): Promise<boolean> {
+  try {
+    const url =
+      remote.version === version
+        ? remote.url
+        : (await studyGet<{ url: string | null }>(`/pages/${encodeURIComponent(pageId)}/content?version=${version}`)).url;
+
+    if (!url) return false;
+
+    return sameDocument(await fetchJsonFromUrl<WhiteboardDocument>(url), doc);
+  } catch {
+    // An older server without earlier versions, or offline: keep the mark (the upload sorts it out).
+    return false;
+  }
 }
 
 /** Whether the server's `version` of the page holds the same document as the device copy. */
