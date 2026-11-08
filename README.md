@@ -54,8 +54,8 @@ to TestFlight and then the App Store.
 | **Concept maps** | For any class or topic. Draw one or start from a photo; the AI builds a reference map or checks yours. |
 | **Phone inbox** | Snap a worksheet or whiteboard on your phone and it lands on the tablet. |
 
-Built for real student tablets such as the Samsung Galaxy Tab A7: it stays fast on 3–4 GB of RAM and works on older
-Android WebViews.
+Tested on a Samsung Galaxy Tab S9 Ultra. It's written with cheaper student tablets in mind too (3–4 GB of RAM,
+older Android WebViews), but it hasn't been tested on those yet; reports from other devices are welcome.
 
 ## Quick start
 
