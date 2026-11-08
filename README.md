@@ -33,8 +33,12 @@
 </p>
 
 The App Store needs an Apple Developer Program membership ($99 a year). When the fund gets there, the iOS build goes
-to TestFlight and then the App Store. [Buy me a coffee](https://buymeacoffee.com/AbdelrhmanX7) or
-[sponsor on GitHub](https://github.com/sponsors/AbdelrhmanX7) to chip in.
+to TestFlight and then the App Store.
+
+<p>
+  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/btn-coffee.svg" alt="Buy me a coffee" height="52"></a>
+  <a href="https://github.com/sponsors/AbdelrhmanX7"><img src=".github/btn-sponsor.svg" alt="Sponsor on GitHub" height="52"></a>
+</p>
 
 ## What it does
 

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="214" height="52" viewBox="0 0 214 52" role="img" aria-label="Sponsor on GitHub">
+  <rect x="1" y="6" width="212" height="45" rx="12" fill="#D9468F"/>
+  <rect x="1" y="1" width="212" height="45" rx="12" fill="#FFFFFF" stroke="#D9468F" stroke-width="2"/>
+  <g transform="translate(20 10)" fill="none" stroke="#B4236E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>
+  <text x="52" y="29" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#B4236E">Sponsor on GitHub</text>
+</svg>
