@@ -13,11 +13,18 @@ const PROBE_MS = 15_000;
 /** The first re-check after a failure comes quickly: one dropped request should not park us offline. */
 const FIRST_PROBE_MS = 2_500;
 const PROBE_TIMEOUT_MS = 6_000;
+/**
+ * Flaky connections: a failed request or the browser's «offline» event only makes us SUSPECT a drop.
+ * We check again after these waits and only go offline when every check fails (about 5 s in all), so a
+ * one-second blip never flips the app or its warnings.
+ */
+const CONFIRM_STEPS_MS = [1_500, 3_500];
 
 let online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
 let probeTimer: ReturnType<typeof setTimeout> | null = null;
 let probesSinceOnline = 0;
 let probeUrl: () => string | null = () => null;
+let confirmTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<Listener>();
 
 function emit(): void {
@@ -31,7 +38,52 @@ function emit(): void {
   });
 }
 
+function stopConfirm(): void {
+  if (confirmTimer !== null) clearTimeout(confirmTimer);
+  confirmTimer = null;
+}
+
+/** One check: can we reach the server right now? (No server to ask = trust the browser.) */
+async function reachable(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  const url = probeUrl();
+
+  if (!url) return true;
+  try {
+    await fetchWithTimeout(url, { method: 'GET', cache: 'no-store', mode: 'no-cors' }, 4_000);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A drop is suspected: re-check a few times before believing it. Any success on the way cancels it. */
+function suspectOffline(): void {
+  if (!online || confirmTimer !== null || typeof window === 'undefined') return;
+  let step = 0;
+  const next = () => {
+    confirmTimer = setTimeout(async () => {
+      if (!online) return stopConfirm();
+      if (await reachable()) {
+        confirmTimer = null;
+
+        return;
+      }
+      step += 1;
+      if (step < CONFIRM_STEPS_MS.length) next();
+      else {
+        confirmTimer = null;
+        setOnline(false);
+      }
+    }, CONFIRM_STEPS_MS[step]);
+  };
+
+  next();
+}
+
 function setOnline(next: boolean): void {
+  stopConfirm();
   if (next) {
     stopProbe();
     resetProbeBackoff();
@@ -57,7 +109,7 @@ export function subscribeOnline(listener: Listener): () => void {
 
 /** A request never reached the server (network error): we are offline whatever the browser says. */
 export function reportNetworkFailure(): void {
-  setOnline(false);
+  suspectOffline();
 }
 
 /** The server answered (any status): we are online. */
@@ -132,11 +184,12 @@ export function installNetworkWatch(url: () => string | null): void {
   // React Query listens to the same events by default; we own the signal now.
   onlineManager.setEventListener(() => () => undefined);
   window.addEventListener('online', () => {
+    // A blip that never got as far as «offline»: nothing to undo.
+    if (online) return stopConfirm();
     // The browser says yes — confirm with the server before trusting it.
-    online = false;
     recheckNow();
   });
-  window.addEventListener('offline', () => setOnline(false));
+  window.addEventListener('offline', () => suspectOffline());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') recheckNow();
   });
@@ -147,6 +200,7 @@ export function installNetworkWatch(url: () => string | null): void {
 /** Test hook: reset the module state. */
 export function __resetNetworkForTests(value = true): void {
   stopProbe();
+  stopConfirm();
   online = value;
   listeners.clear();
 }

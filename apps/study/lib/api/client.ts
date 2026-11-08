@@ -229,16 +229,40 @@ function noteLiveClasses(method: string, path: string, result: unknown): void {
  * `fetch` that tells the offline layer what happened: a request that never reached the server flips the
  * app offline (Android WebViews keep `navigator.onLine` true on a dead network), any answer flips it back.
  */
+/** Waits before re-sending a request that never reached the server (flaky connection). */
+const NETWORK_RETRY_MS = [800, 2_000];
+
+function wait(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 async function liveFetch(url: string, init: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(url, init);
+  const method = (init.method ?? 'GET').toUpperCase();
+  // Only requests that are safe to send twice are re-sent on their own (reads and whole-file PUTs).
+  const retries = method === 'GET' || method === 'HEAD' || method === 'PUT' ? NETWORK_RETRY_MS : [];
 
-    reportNetworkSuccess();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, init);
 
-    return res;
-  } catch (error) {
-    if (!(init.signal?.aborted ?? false)) reportNetworkFailure();
-    throw error;
+      reportNetworkSuccess();
+
+      return res;
+    } catch (error) {
+      const aborted = init.signal?.aborted ?? false;
+
+      if (!aborted) reportNetworkFailure();
+      if (aborted || attempt >= retries.length) throw error;
+      await wait(retries[attempt], init.signal);
+      if (init.signal?.aborted) throw error;
+    }
   }
 }
 

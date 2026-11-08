@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { CloudOff } from 'lucide-react';
 
 import { Badge } from '@/components/ui/primitives';
@@ -10,8 +11,21 @@ import { useOnline, useOutboxCount } from '@/lib/offline/hooks';
 export function OfflineBar() {
   const online = useOnline();
   const waiting = useOutboxCount();
+  // The line waits a few more seconds before showing, so a short drop never flashes it.
+  const [shown, setShown] = useState(false);
 
-  if (online) return null;
+  useEffect(() => {
+    if (online) {
+      setShown(false);
+
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), 3_000);
+
+    return () => clearTimeout(timer);
+  }, [online]);
+
+  if (online || !shown) return null;
 
   return (
     <div

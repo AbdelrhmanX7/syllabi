@@ -98,7 +98,8 @@ export function isAiQuotaError(error: unknown): boolean {
 
 /** React Query `retry`: once for a flaky network, never for an empty AI account. */
 export const retryUnlessAiQuota = (failureCount: number, error: unknown): boolean =>
-  failureCount < 1 && !isOfflineError(error) && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error) && !isAiResting(error);
+  // A dropped connection gets a few more tries (React Query waits longer each time); anything else one.
+  failureCount < (isNetworkError(error) ? 3 : 1) && !isOfflineError(error) && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error) && !isAiResting(error);
 
 /** An AI / online-only action tried while the device is offline: thrown before any request leaves. */
 export const OFFLINE_CODE = 'OFFLINE';
