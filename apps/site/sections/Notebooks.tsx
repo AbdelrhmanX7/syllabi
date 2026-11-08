@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
+import { ThemedShot } from '~/sections/ThemedShot';
 import { FileDown, Hand, Layers, PenLine, Ruler, ScanText, Sparkles } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
@@ -58,7 +59,7 @@ export function Notebooks() {
 
         <div className='min-w-0' data-reveal-item>
           <Surface className='p-2 sm:p-3'>
-          <img
+          <ThemedShot
             alt='A Syllabi notebook page: a sketch drawn with the pen, with the toolbar of pens, shapes and rulers'
             className='border-st-line block h-auto w-full rounded-md border'
             height={800}

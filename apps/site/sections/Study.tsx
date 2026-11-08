@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
+import { ThemedShot } from '~/sections/ThemedShot';
 import { Layers3, MessageSquareText, Network, Repeat2, Video } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
@@ -99,7 +100,7 @@ export function Study() {
         {SHOTS.map((shot) => (
           <div key={shot.src} className='min-w-0' data-reveal-item>
             <Surface as='article' className='flex flex-col gap-2 p-2.5'>
-              <img
+              <ThemedShot
                 alt={shot.alt}
                 className='border-st-line block h-auto w-full rounded-md border'
                 height={800}

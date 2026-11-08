@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 
+import { ThemeToggle } from '~/sections/ThemeToggle';
 import { LinkButton } from '@/components/ui/primitives';
 
 import { SIGN_IN, SIGN_UP } from '~/sections/links';
@@ -40,6 +41,7 @@ export function Nav() {
         </ul>
 
         <div className='flex shrink-0 items-center gap-2 sm:gap-3'>
+          <ThemeToggle />
           <LinkButton className='hidden px-3 sm:inline-flex' href={SIGN_IN} variant='ghost'>
             Sign in
           </LinkButton>

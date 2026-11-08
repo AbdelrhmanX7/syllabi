@@ -37,3 +37,8 @@ html {
 html:root {
   background-color: rgb(var(--st-bg));
 }
+
+/* Themed app screenshots (sections/ThemedShot.tsx) */
+.shot-dark { display: none; }
+.dark .shot-dark { display: block; }
+.dark .shot-light { display: none; }

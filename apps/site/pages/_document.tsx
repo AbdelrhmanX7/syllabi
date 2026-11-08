@@ -1,8 +1,8 @@
 import { Head, Html, Main, NextScript } from 'next/document';
 
-// Dark mode follows the OS: the app's tokens (and HeroUI's) switch on `.dark`, so mirror
-// prefers-color-scheme onto <html> before first paint and keep it in sync if the OS flips.
-const THEME_SCRIPT = `(function(){try{var m=window.matchMedia('(prefers-color-scheme: dark)');var s=function(){document.documentElement.classList.toggle('dark',m.matches)};s();m.addEventListener?m.addEventListener('change',s):m.addListener(s)}catch(e){}})();`;
+// Theme: the visitor's saved choice (ThemeToggle, localStorage syllabi_theme) wins; otherwise follow the OS.
+// The app's tokens (and HeroUI's) switch on `.dark`; set it before first paint so there's no flash.
+const THEME_SCRIPT = `(function(){try{var m=window.matchMedia('(prefers-color-scheme: dark)');var k='syllabi_theme';var s=function(){var v=null;try{v=localStorage.getItem(k)}catch(e){}document.documentElement.classList.toggle('dark',v?v==='dark':m.matches)};s();m.addEventListener?m.addEventListener('change',s):m.addListener(s)}catch(e){}})();`;
 
 export default function Document() {
   return (

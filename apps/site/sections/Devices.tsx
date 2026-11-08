@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
+import { ThemedShot } from '~/sections/ThemedShot';
 import { ArrowRight, Globe, Smartphone, Tablet } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
@@ -45,7 +46,7 @@ function PhoneToTablet() {
         <ArrowRight aria-hidden className='text-st-muted h-5 w-5 shrink-0' />
 
         <div className='border-st-clay-edge bg-st-raised relative min-w-0 flex-1 rounded-lg border-2 p-1.5'>
-          <img
+          <ThemedShot
             alt='The tablet Inbox: pages snapped on a phone, each ready to add to notes, a concept map or the question bank'
             className='border-st-line block h-auto w-full rounded-md border'
             height={800}

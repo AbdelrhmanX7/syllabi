@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
+import { ThemedShot } from '~/sections/ThemedShot';
 import { CalendarDays, CalendarRange, GraduationCap, Library } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
@@ -80,7 +81,7 @@ export function Organize() {
           <div className='min-w-0'>
             <div className='min-w-0' data-reveal-item>
               <Surface className='p-2 md:p-3'>
-                <img
+                <ThemedShot
                   alt='Calendar week view with class times, due dates, exams and reviews, each coloured by class'
                   className='border-st-line block h-auto w-full rounded-md border'
                   height={800}
