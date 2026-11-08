@@ -7,6 +7,7 @@ import type { PageContentRef } from '@/lib/api/types';
 import { createBlankWhiteboardDocument, normalizeWhiteboardDocument } from '@repo/whiteboard-core';
 
 import { readSyncedVersion, writeSyncedVersion } from './pages-cache';
+import { pdfAssetIdsOf, queuePdfAssetUpload } from './pdf-assets-sync';
 import { readPaperSpacingDefaults, withPaperSpacingDefaults } from './paper-settings';
 
 import { beginPageContentUpload, commitPageContent, getPageContent, putPageContentBlob } from '@/lib/api/endpoints';
@@ -195,6 +196,8 @@ export async function uploadNotebookDocument(pageId: string, storage: Whiteboard
     const version = await pushContent(pageId, baseVersion, JSON.stringify(doc));
 
     writeSyncedVersion(pageId, version, false);
+    // The PDFs under the pages follow in the background (the board JSON only points at them).
+    void queuePdfAssetUpload(pageId, pdfAssetIdsOf(doc), storage);
 
     return { ok: true, version };
   } catch (error) {

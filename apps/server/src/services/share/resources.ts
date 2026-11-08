@@ -11,6 +11,7 @@ import { StudyConceptMap, IStudyConceptMap } from "@/models/study/concept-map";
 import type { IEditedBy, ShareResourceType } from "@/models/share";
 import { getStudyObject, pageContentKey, putStudyObject, signedGetUrl } from "@/services/study/storage";
 import { questionDto, srsDto } from "@/services/study/questions";
+import { copyBoardAssets } from "@/services/study/pdf-assets";
 
 export const FLASHCARD_TAG_RE = /^flashcard$/i;
 /** A shared set never returns more than this many questions (and a fork copies at most this many). */
@@ -175,8 +176,8 @@ export async function forkTargetClass(userId: Types.ObjectId, name: string): Pro
 }
 
 /**
- * Deep copy into `userId`'s account: new ids, the notebook's board JSON copied to the caller's own
- * storage prefix (deleting the owner's account never breaks the copy), fresh progress on questions.
+ * Deep copy into `userId`'s account: new ids, the notebook's board JSON (and the PDF backgrounds it
+ * references) copied to the caller's own storage prefix (deleting the owner's account never breaks the copy), fresh progress on questions.
  * Question images stay references to their public URL. Returns the new resource.
  */
 export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Promise<{ resourceId: Types.ObjectId; topic: string | null; classId: Types.ObjectId | null }> {
@@ -190,6 +191,8 @@ export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Pr
         version = 1;
         contentKey = pageContentKey(String(userId), String(id), version);
         await putStudyObject(contentKey, body, "application/json");
+        // The PDFs under the pages go too, under the same ids, so the copy opens with its backgrounds.
+        await copyBoardAssets(body, String(r.page.userId), String(userId));
       }
       await StudyPage.create({
         _id: id,

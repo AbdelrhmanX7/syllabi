@@ -52,6 +52,7 @@ import { nativeInkRecognizer } from '@/lib/ink/nativeRecognizer';
 import { inkEnabledForPage, savePageInkOverride, useInkSettings } from '@/lib/ink/settings';
 import { syncPageRenders } from '@/lib/notebooks/page-renders';
 import { markSyncedVersionDirty, readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
+import { pdfAssetIdsOf, queuePdfAssetUpload, restorePagePdfAsset } from '@/lib/notebooks/pdf-assets-sync';
 import { LiveSession, presenceLine } from '@/lib/notebooks/live';
 import { fetchBoardVersion, fetchLatestBoard, openLiveNotebook, openLiveStream, pushLiveOps } from '@/lib/notebooks/live-api';
 import { applyOps, ensureDocIds, itemsOnlyFor } from '@/lib/notebooks/live-merge';
@@ -112,9 +113,10 @@ export interface NotebookBoardProps {
   /** Progress text while `seed` (or `restorePdfAsset`) runs (e.g. "Rendering PDF 3/12"). */
   seedProgress?: string | null;
   /**
-   * PDF assets live only on the device that imported them; the backend copy carries ink + page refs.
-   * When a document opened here points at an asset this device lacks, this re-downloads the PDF and
-   * stores it under `assetId` — without it the pages open blank (second tablet, cleared storage).
+   * The backend's board JSON carries only page refs to its PDFs; the board uploads the files themselves
+   * after a save and fetches a missing one from the server first. When the server has no copy either
+   * (imported on a device that never synced it), this re-downloads the PDF from the host's own source and
+   * stores it under `assetId` — without either the pages open blank.
    */
   restorePdfAsset?: (storage: WhiteboardStorage, assetId: string) => Promise<void>;
   /** Extra controls for the top-right cluster, next to the sync chip (e.g. «Make questions»). */
@@ -223,11 +225,14 @@ function TypedNoteSheet({
   );
 }
 
-/** PDF assets the document's pages render from that this device's storage does not hold (+ their file name). */
-async function missingPdfAssets(
+/**
+ * The PDF assets the document's pages render from (`all`), and those this device's storage does not
+ * hold (`missing`, + their file name).
+ */
+async function pdfAssetsOf(
   storage: WhiteboardStorage,
   pageId: string,
-): Promise<{ id: string; sourceName: string | undefined }[]> {
+): Promise<{ all: string[]; missing: { id: string; sourceName: string | undefined }[] }> {
   const doc = await storage.loadWhiteboard(pageId);
   const byId = new Map<string, string | undefined>();
 
@@ -237,7 +242,7 @@ async function missingPdfAssets(
   const assets = Array.from(byId, ([id, sourceName]) => ({ id, sourceName }));
   const present = await Promise.all(assets.map(({ id }) => storage.loadPdfAsset(id).then((asset) => asset !== null)));
 
-  return assets.filter((_, index) => !present[index]);
+  return { all: assets.map(({ id }) => id), missing: assets.filter((_, index) => !present[index]) };
 }
 
 export function NotebookBoard({
@@ -326,6 +331,10 @@ export function NotebookBoard({
   const [switchedLive, setSwitchedLive] = useState(false);
   const liveMode = (live || switchedLive) && !readOnly;
   const liveBoardRef = useRef<WhiteboardLiveHandle | null>(null);
+  // The live session reads the storage through this, so a storage change never restarts the session.
+  const storageRef = useRef<WhiteboardStorage | null>(null);
+
+  storageRef.current = storage.storage;
   const liveSessionRef = useRef<LiveSession | null>(null);
   const liveBaseRef = useRef<Awaited<ReturnType<typeof openLiveNotebook>>['base']>(null);
   const clientIdRef = useRef<string>('');
@@ -487,16 +496,22 @@ export function NotebookBoard({
 
     opening
       .then(async (result) => {
-        // Before the editor mounts, so the PDF renders under the ink on the first paint. A PDF that came
-        // from the phone inbox is fetched from there; any other asset is the host's (its own source file).
+        // Before the editor mounts, so the PDF renders under the ink on the first paint. The server's copy
+        // first (any PDF this account or the page owner saved); else a PDF that came from the phone inbox
+        // is fetched from there, and any other asset is the host's (its own source file).
+        const assets = await pdfAssetsOf(target, pageId).catch(() => ({ all: [] as string[], missing: [] }));
+
         if (result.source !== 'seed' && result.source !== 'blank') {
-          for (const asset of await missingPdfAssets(target, pageId).catch(() => [])) {
+          for (const asset of assets.missing) {
             if (cancelled) return;
+            if (await restorePagePdfAsset(target, pageId, asset.id, asset.sourceName)) continue;
             const fromInbox = await restoreInboxPdfAsset(target, asset.id, asset.sourceName).catch(() => false);
 
             if (!fromInbox) await restorePdfAsset?.(target, asset.id).catch(() => undefined);
           }
         }
+        // PDFs on this device the server lacks (imported before PDFs synced) go up in the background.
+        if (!cancelled) void queuePdfAssetUpload(pageId, assets.all, target);
 
         return result;
       })
@@ -703,6 +718,11 @@ export function NotebookBoard({
         onSynced: (version, dirty) => {
           writeSyncedVersion(pageId, version, dirty);
           if (!dirty) scheduleRenders(version);
+          // Live saves skip uploadNotebookDocument: send the PDFs of the board in memory from here.
+          const doc = liveBoardRef.current?.getDocument() as WhiteboardDocument | undefined;
+          const target = storageRef.current;
+
+          if (doc && target) void queuePdfAssetUpload(pageId, pdfAssetIdsOf(doc), target);
         },
       },
       liveBaseRef.current,

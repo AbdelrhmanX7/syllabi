@@ -16,6 +16,8 @@
  *   GET    /share/with-me             shared to my account / verified email     -> {items}
  *   GET    /share/forks               where my copies came from                 -> {items}
  *   GET    /share/view/:idOrToken     read-only snapshot (grant, owner or link)  -> {share, content}
+ *   GET    /share/view/:idOrToken/pdf-assets/:assetId  a shared notebook's PDF background
+ *                                     -> {assetId, url, expiresAt} (same access as the view)
  *   POST   /share/fork/:idOrToken     deep copy into my account                 -> {resourceType, resourceId, topic, classId}
  *
  * Strangers get 404 (never "exists but not yours"). Adding people needs a verified email (it sends
@@ -35,6 +37,7 @@ import { generateRawToken } from "@/auth/tokens";
 import { bindEmailGrants, Caller, callerGrant, displayName, grantedToFilter, resolveShared, SHARE_ID_RE } from "@/services/share/access";
 import { forkResource, loadOwned, resourceEditedBy, resourceTitle, resourceUpdatedAt, snapshot, TOPIC_MAX } from "@/services/share/resources";
 import { logger } from "@/services/logger.service";
+import { sendAssetUrl, validAssetId } from "@/services/study/pdf-assets";
 
 export const EMAILS_PER_REQUEST = 20;
 export const GRANTS_PER_SHARE = 50;
@@ -365,6 +368,21 @@ router.get(
       },
       content: await snapshot(resource),
     });
+  })
+);
+
+// A shared notebook's PDF background, from the owner's store: anyone who may open the view (owner,
+// named viewer or editor, link holder) — the view never hands viewers the page id, so they come here.
+router.get(
+  "/view/:idOrToken/pdf-assets/:assetId",
+  readLimit,
+  wrap(async (req, res) => {
+    if (!validAssetId(req.params.assetId)) return fail(res, 400, "INVALID_ID", "Invalid asset id");
+    const caller = me(req);
+    await bindEmailGrants(caller);
+    const found = await resolveShared(req.params.idOrToken, caller, "read");
+    if (!found || found.resource.type !== "notebook") return fail(res, 404, "NOT_FOUND", "This link doesn't work any more, or it wasn't shared with this account.");
+    await sendAssetUrl(res, String(found.share.ownerId), req.params.assetId);
   })
 );
 

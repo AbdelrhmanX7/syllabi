@@ -91,6 +91,21 @@ export const STUDY_CONVERT_PATH = /^\/study\/convert\/pdf\/?$/;
 /** Glyph bank PUT (2.5 MB), perf telemetry POST (2 MB inflated, gzip) and ink-classify POST (16 KB) mount their own json parsers, after auth. */
 export const STUDY_OWN_JSON_PARSER_PATH = /^\/study\/(?:handwriting\/bank|telemetry\/perf|ai\/ink-classify)\/?$/;
 
+/**
+ * Notebook PDF backgrounds (the file under a page's ink), one object per account and asset id:
+ * `study/<userId>/pdf-assets/<assetId>.pdf`. The id is the client-minted uuid the board JSON's pages
+ * point at (`pdfAssetId`), so the same file backs every page and every copy that references it, and
+ * account deletion removes them with the rest of `study/<userId>/`. Written once, never overwritten.
+ */
+export const PDF_ASSET_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+export const PDF_ASSET_MAX_BYTES = 60 * 1024 * 1024;
+export const pdfAssetKey = (userId: string, assetId: string) => {
+  if (!/^[0-9a-f]{24}$/i.test(userId) || !PDF_ASSET_ID_RE.test(assetId)) throw new Error("pdfAssetKey: bad id");
+  return `study/${userId}/pdf-assets/${assetId}.pdf`;
+};
+/** PDF asset PUTs (raw body, 60 MB) mount their own parser. */
+export const STUDY_PDF_ASSET_PATH = /^\/study\/(?:pages\/[^/]+\/)?pdf-assets\/[^/]+\/?$/;
+
 /** Server-routed upload signature (local driver and STORAGE_PROXY): HMAC over key + expiry, keyed by JWT_SECRET. */
 const devSig = (key: string, exp: number) =>
   createHmac("sha256", `study-dev-upload:${getJwtSecret() ?? ""}`).update(`${key}\n${exp}`).digest("hex");

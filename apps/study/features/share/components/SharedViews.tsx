@@ -16,6 +16,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { ActionButton, INPUT_CLASS } from '@/components/ui/primitives';
 import { fetchJsonFromUrl } from '@/lib/api/upload';
 import { useBoardTheme } from '@/lib/notebooks/board-theme';
+import { restoreSharedPdfAsset } from '@/lib/notebooks/pdf-assets-sync';
 
 const WhiteboardEditor = dynamic(() => import('@repo/whiteboard-react').then((mod) => mod.WhiteboardEditor), {
   ssr: false,
@@ -31,10 +32,11 @@ function BoardNote({ children }: { children: React.ReactNode }) {
 /**
  * A shared notebook, view only: the snapshot's board JSON is written to this device's board storage
  * under its own id (`shared-<shareId>`, rewritten on every open) and the editor runs read-only on it:
- * pan, zoom and scroll, no tools, no sync. PDF backgrounds live on the owner's device and do not
- * travel with the share, so only the ink and paper show.
+ * pan, zoom and scroll, no tools, no sync. PDF backgrounds the owner's app saved to the server come
+ * through the share (`idOrToken`, the id or link the view was opened with); one that never reached the
+ * server stays blank under the ink.
  */
-function NotebookView({ shareId, content }: { shareId: string; content: NotebookContent }) {
+function NotebookView({ shareId, idOrToken, content }: { shareId: string; idOrToken: string; content: NotebookContent }) {
   const storage = useWhiteboardStorage();
   const boardTheme = useBoardTheme();
   const boardId = `shared-${shareId}`;
@@ -51,13 +53,25 @@ function NotebookView({ shareId, content }: { shareId: string; content: Notebook
 
       if (!doc) throw new Error('empty');
       await storage.saveWhiteboard({ ...doc, id: boardId, title: content.title });
+      // Before the editor mounts, so the PDFs render under the ink on the first paint.
+      const target = storage.storage;
+      const tried = new Set<string>();
+
+      for (const page of target ? doc.pages : []) {
+        const assetId = page.pdfAssetId;
+
+        if (!live || !target || !assetId || tried.has(assetId)) continue;
+        tried.add(assetId);
+        if (await storage.loadPdfAsset(assetId).catch(() => null)) continue;
+        await restoreSharedPdfAsset(target, idOrToken, assetId, page.pdfSourceName);
+      }
       if (live) setState('ready');
     })().catch(() => live && setState('error'));
 
     return () => {
       live = false;
     };
-  }, [boardId, content.contentUrl, content.title, content.version, storage]);
+  }, [boardId, content.contentUrl, content.title, content.version, idOrToken, storage]);
 
   return (
     <div className='border-st-line bg-st-bg relative h-[70vh] min-h-[360px] w-full overflow-hidden rounded-lg border'>
@@ -356,14 +370,14 @@ function ConceptMapView({ content, edit }: { content: ConceptMapContent; edit?: 
 }
 
 /** The shared item; a named editor (not the owner viewing their own link) gets the editable version. */
-export function SharedContent({ view }: { view: SharedView }) {
+export function SharedContent({ view, idOrToken }: { view: SharedView; idOrToken: string }) {
   const { share } = view;
   const canEdit = share.role === 'editor' && !share.isOwner && Boolean(share.resourceId);
   const id = share.resourceId ?? '';
 
   switch (share.resourceType) {
     case 'notebook':
-      return <NotebookView content={view.content as NotebookContent} shareId={share.id} />;
+      return <NotebookView content={view.content as NotebookContent} idOrToken={idOrToken} shareId={share.id} />;
     case 'deck':
     case 'questions':
       return (

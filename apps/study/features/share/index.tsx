@@ -152,7 +152,7 @@ function SharedViewer({ id }: { id: string }) {
         } · ${share.editedBy ? `edited by ${share.editedBy.name}` : 'updated'} ${shortWhen(share.updatedAt)}`}
         title={share.title}
       />
-      <SharedContent view={data} />
+      <SharedContent idOrToken={id} view={data} />
     </>
   );
 }

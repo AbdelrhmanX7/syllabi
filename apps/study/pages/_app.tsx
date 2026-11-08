@@ -12,12 +12,15 @@ import { AppLinkRouter } from '@/features/auth/components/AppLinkRouter';
 import { installStudyTransport } from '@/lib/api/client';
 import { retryUnlessAiQuota } from '@/lib/api/errors';
 import { useAuthInit } from '@/lib/auth';
+import { installPdfAssetMigrationHelper } from '@/lib/notebooks/pdf-assets-migrate';
 import { IS_ANDROID_BUILD } from '@/lib/platform/runtime';
 import '@/styles/globals.css';
 
 // Module scope: features call the API from their first render, so the transport must exist before
 // React mounts anything.
 installStudyTransport();
+// Devtools helper: move this device's notebook PDFs to the signed-in server account.
+installPdfAssetMigrationHelper();
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({

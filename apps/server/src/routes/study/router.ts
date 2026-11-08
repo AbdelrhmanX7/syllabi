@@ -30,6 +30,17 @@ import {
   search,
 } from "@/controllers/study-pages.controller";
 import { pushPageLive, streamPageLive } from "@/controllers/study-page-live.controller";
+import {
+  getMyPdfAsset,
+  getPagePdfAsset,
+  headMyPdfAsset,
+  headPagePdfAsset,
+  listMyPdfAssets,
+  listPagePdfAssets,
+  putMyPdfAsset,
+  putPagePdfAsset,
+} from "@/controllers/study-pdf-assets.controller";
+import { PDF_ASSET_MAX_BYTES } from "@/services/study/storage";
 import { commitPageRenders, deletePageAnnotation, getPageRenders, listPageAnnotations, putPageRender, RENDER_MAX_BYTES } from "@/controllers/study-page-renders.controller";
 import {
   attemptQuestion,
@@ -150,6 +161,16 @@ router.delete("/pages/:id/annotations/:annotationId", deletePageAnnotation);
 router.get("/pages/:id/ruler", getPageRulers);
 router.put("/pages/:id/ruler/:page", putPageRuler);
 router.delete("/pages/:id/ruler/:page", deletePageRuler);
+// Notebook PDF backgrounds, per account by asset id (controllers/study-pdf-assets.controller.ts).
+const pdfBody = express.raw({ type: "*/*", limit: PDF_ASSET_MAX_BYTES });
+router.get("/pages/:id/pdf-assets", listPagePdfAssets);
+router.head("/pages/:id/pdf-assets/:assetId", headPagePdfAsset);
+router.get("/pages/:id/pdf-assets/:assetId", getPagePdfAsset);
+router.put("/pages/:id/pdf-assets/:assetId", pdfBody, putPagePdfAsset);
+router.get("/pdf-assets", listMyPdfAssets);
+router.head("/pdf-assets/:assetId", headMyPdfAsset);
+router.get("/pdf-assets/:assetId", getMyPdfAsset);
+router.put("/pdf-assets/:assetId", pdfBody, putMyPdfAsset);
 router.delete("/pages/:id", deletePage);
 
 router.get("/search", search);
