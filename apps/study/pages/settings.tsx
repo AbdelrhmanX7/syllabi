@@ -663,7 +663,9 @@ export default function SettingsPage() {
         <NotebookPaperSection />
         <InkAutoColorSection />
         <HandwritingSection />
-        <BackendSection />
+        {/* Which server the app talks to is set when the app is built (NEXT_PUBLIC_API / STUDY_BUILD_API), so
+            people running their own server set it in their own copy. The switch only shows in local development. */}
+        {process.env.NODE_ENV !== 'production' && <BackendSection />}
         <UpdatesSection />
         <PerfLogSection />
       </div>

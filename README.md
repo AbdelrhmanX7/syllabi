@@ -63,8 +63,8 @@ pnpm dev
 ```
 
 Then open http://localhost:3016. Without a server it uses sample data, so every screen works offline. To use your
-own data, set `NEXT_PUBLIC_API=https://your-server` (see `apps/study/.env.example`) or change it in
-**Settings → Backend** on each device.
+own data, set `NEXT_PUBLIC_API=https://your-server` (see `apps/study/.env.example`) before you build. Running your
+own server? Fork the repo, set it there, and build your own web app or APK.
 
 ### Host your own server
 

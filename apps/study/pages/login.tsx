@@ -333,22 +333,10 @@ export default function LoginPage() {
       title={creating ? 'Create your account' : 'Sign in to Syllabi'}
     >
       {body}
-      {backendUrl ? (
-        <p className='text-st-muted border-st-line mt-5 flex items-center gap-2 border-t pt-3 text-xs'>
-          <span className='min-w-0 truncate' title={backendUrl}>
-            Server: <span className='font-mono'>{hostOf(backendUrl)}</span>
-          </span>
-          <Link className='ml-auto shrink-0 underline underline-offset-2' href='/settings/'>
-            Change
-          </Link>
-        </p>
-      ) : (
-        <p className='text-st-muted border-st-line mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm'>
+      {!backendUrl && (
+        <p className='text-st-muted border-st-line mt-5 border-t pt-3 text-sm'>
           <Link className='underline underline-offset-2' href='/'>
             Keep exploring the demo
-          </Link>
-          <Link className='ml-auto underline underline-offset-2' href='/settings/'>
-            Use my own server
           </Link>
         </p>
       )}
