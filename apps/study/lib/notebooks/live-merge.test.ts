@@ -230,3 +230,13 @@ test("frame-only page settings and our own order go in item by item, real change
   assert.equal(itemsOnlyFor(local, { removedPages: ["p2"] }), false);
   assert.equal(itemsOnlyFor(local, { pages: [{ id: "p3" }], order: ["p1", "p2", "p3"] }), false);
 });
+
+test("applying ops keeps a page's recorded frame (first record wins)", () => {
+  const stored = doc(page("p1", [stroke("a")], { canvasWidthPx: 1000, pdfPlacement: { x: 0, y: 0, width: 1000, height: 1400 } }));
+  const other = applyOps(stored, { pages: [{ id: "p1", backgroundType: "grid", canvasWidthPx: 800 }] });
+  assert.equal(other.pages[0].backgroundType, "grid");
+  assert.equal(other.pages[0].canvasWidthPx, 1000);
+  assert.deepEqual(other.pages[0].pdfPlacement, { x: 0, y: 0, width: 1000, height: 1400 });
+  const first = applyOps(doc(page("p1", [stroke("a")])), { pages: [{ id: "p1", backgroundType: "blank", canvasWidthPx: 800 }] });
+  assert.equal(first.pages[0].canvasWidthPx, 800);
+});

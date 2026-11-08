@@ -319,6 +319,9 @@ export function applyOps<T extends BoardDoc>(
       const kept: Json = {};
       for (const key of Object.keys(old))
         if (NOT_META.has(key)) kept[key] = old[key];
+      // the frame is recorded once: the first record wins over another tablet's (or a missing one)
+      for (const key of FRAME_KEYS)
+        if (old[key] !== undefined && old[key] !== null) kept[key] = old[key];
       pages = pages.slice();
       pages[index] = { ...(clean as BoardPage), ...kept, id: meta.id };
     } else {

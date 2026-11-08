@@ -361,4 +361,17 @@ describe("live notebook pages", () => {
     assert.equal(restored.status, 200);
     assert.deepEqual((await stored(String(id))).ids, ["one"]);
   });
+  test("a commit under a key of its own logs that key", async () => {
+    const pages = await import("../src/controllers/study-pages.controller");
+    const owner = oid(users.owner.id);
+    const row = (await m.StudyPage.create({ userId: owner, title: "Own key", kind: "note", version: 0 })).toObject();
+    const key = pages.versionWriteKey(row, 1, false);
+    const done = await pages.casCommit(row, 1, key, { userId: owner, name: "Owner" } as never);
+    assert.equal(done.contentKey, key);
+    const log = (await m.StudyPage.findById(row._id).lean()).versionLog;
+    assert.equal(log.at(-1).key, key);
+    const usual = await pages.casCommit({ ...row, version: 1 }, 2, m.storage.pageContentKey(users.owner.id, String(row._id), 2), { userId: owner, name: "Owner" } as never);
+    assert.ok(usual);
+    assert.equal((await m.StudyPage.findById(row._id).lean()).versionLog.at(-1).key, null);
+  });
 });

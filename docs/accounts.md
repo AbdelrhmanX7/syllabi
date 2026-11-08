@@ -208,8 +208,12 @@ per-page lock: in-process chain + Redis `SET NX PX` (30 s) across forks, then th
 (Redis down, or busy past 4 s) it writes a key of its own (`v<n+1>-<uuid>.json`, recorded in the version log), so
 a racing fork can never overwrite the bytes the winning commit points at. This also fixes an older race where two
 whole-board saves on the same version both wrote the `v<n+1>` object and the winner could point at the loser's
-bytes. The older two-step save (signed upload, then commit) still writes `v<n+1>.json` directly and is not
-covered; the app tries the one-step save first.
+bytes. The older two-step save (signed upload, then commit) still writes `v<n+1>.json` directly: the app only
+falls back to it when the server lacks the one-step save, so only a very old app could overwrite a committed
+live version that way. Without Redis every write takes its own key; those versions stay findable while their
+entry is among the last 100 in the version log (older ones answer "no longer stored").
+A page's recorded frame (`canvasWidthPx`, PDF placement, sheet shape) is set once: merges keep the first
+record, and another tablet's value is not sent as a change.
 
 **Opening a page with edits made offline.** The device merges three-way: its edits since the version it last
 had (read back with `content?version=`) onto the current version. A page that becomes shared while open
