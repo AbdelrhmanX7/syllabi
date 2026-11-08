@@ -107,6 +107,7 @@ import { capsulesBBox, collectSweepHits, sweepCapsules } from '../utils/objectEr
 import { installGeometryTargetFind } from '../utils/selectionHitTest';
 import { installStrokeScaleBake } from '../utils/strokeScaleBake';
 import { serializeCanvasJson } from '../utils/canvasJson';
+import { installItemIds } from '../utils/itemIds';
 import {
   clampPanDelta,
   clampViewportTransform,
@@ -2768,6 +2769,9 @@ export function useWhiteboardCanvas({
       preserveObjectStacking: true,
       allowTouchScrolling: false,
     });
+
+    // Stable ids on every object (live co-editing matches items by them). Listeners go with the canvas.
+    installItemIds(fabricCanvas);
 
     // --- Any viewport write that is not the fling's own cancels the fling ---
     // Page load, zoom reset, fit-to-page, a wheel zoom's commit: they all land through

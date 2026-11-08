@@ -5,7 +5,9 @@ export { default as WhiteboardLibrary } from './components/whiteboard/Whiteboard
 export { default as WhiteboardPdfLibrary } from './components/whiteboard/WhiteboardPdfLibrary';
 export type { WhiteboardPdfLibraryProps } from './components/whiteboard/WhiteboardPdfLibrary';
 export { default as WhiteboardEditor } from './components/whiteboard/WhiteboardEditor';
-export type { WhiteboardEditorProps } from './components/whiteboard/WhiteboardEditor';
+export type { WhiteboardEditorProps, WhiteboardLiveHandle } from './components/whiteboard/WhiteboardEditor';
+// Live co-editing: another person's item changes for one page (matched by the items' `oid`).
+export type { RemoteItemOps } from './components/whiteboard/utils/itemIds';
 // Host buttons on the selection bar and the selection picture they receive.
 export type { WhiteboardSelectionAction, WhiteboardSelectionSnapshot } from './components/whiteboard/SelectionActionBar';
 export type { SelectionRaster } from './components/whiteboard/utils/selectionActions';

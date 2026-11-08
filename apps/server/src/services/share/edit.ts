@@ -12,7 +12,7 @@
  */
 import { Request } from "express";
 import { Types } from "mongoose";
-import { IEditedBy } from "@/models/share";
+import { IEditedBy, Share } from "@/models/share";
 import { StudyPage, IStudyPage } from "@/models/study/page";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
 import { StudyConceptMap, IStudyConceptMap } from "@/models/study/concept-map";
@@ -40,13 +40,23 @@ export const isCard = (tags: readonly string[] | null | undefined) => (tags ?? [
 
 /** The page by id: the owner, or an editor of it. Viewers keep the read-only share view. */
 export async function scopedPage(req: Request, id: string, projection?: Record<string, 0 | 1>): Promise<Scoped<IStudyPage> | null> {
+  return pageFor(req.adminId, id, projection);
+}
+
+/** `scopedPage` by account id (the live stream re-checks with it after the request is long gone). */
+export async function pageFor(adminId: unknown, id: string, projection?: Record<string, 0 | 1>): Promise<Scoped<IStudyPage> | null> {
   const page = await StudyPage.findOne({ _id: id, deletedAt: null }, projection).lean<IStudyPage>();
   if (!page) return null;
-  if (isOwner(req, page.userId)) return { doc: page, editor: null };
-  const caller = await loadCaller(req.adminId);
+  if (Boolean(page.userId) && String(page.userId) === String(adminId)) return { doc: page, editor: null };
+  const caller = await loadCaller(adminId);
   if (!caller) return null;
   const ok = await canAccess(caller, { resourceType: "notebook", resourceId: page._id, topic: null, ownerId: page.userId }, "write");
   return ok ? { doc: page, editor: caller } : null;
+}
+
+/** Whether anyone besides the owner may edit this page (it is then a live page: pushes + the stream). */
+export async function pageHasEditors(page: Pick<IStudyPage, "_id" | "userId">): Promise<boolean> {
+  return Boolean(await Share.exists({ ownerId: page.userId, resourceType: "notebook", resourceId: page._id, "grants.role": "editor" }));
 }
 
 // ─── questions + cards ──────────────────────────────────────────────────────────────────

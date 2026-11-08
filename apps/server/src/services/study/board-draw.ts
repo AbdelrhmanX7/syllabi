@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { publishPageEvent } from "@/services/study/page-live";
 import { Types } from "mongoose";
 import { z } from "zod";
 import { StudyPage, IStudyPage } from "@/models/study/page";
@@ -309,7 +310,11 @@ async function withBoardDoc<T>(userId: Types.ObjectId, pageId: string, mutate: M
       { $set: { version, contentKey: key, updatedAt: new Date() } },
       { new: true, projection: { _id: 1 }, timestamps: false }
     ).lean();
-    if (won) return { result, version };
+    if (won) {
+      // Anyone live on the page re-reads it (sharing phase 2 part B).
+      publishPageEvent(String(page._id), { type: "ops", prevVersion: version - 1, version, ops: null, by: { clientId: "", userId: String(userId), name: "Claude" } });
+      return { result, version };
+    }
   }
   throw new DrawError("CONFLICT", "The page keeps changing (another device is saving) — try again");
 }

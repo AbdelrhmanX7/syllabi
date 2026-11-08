@@ -22,6 +22,7 @@
  * mail) and is rate limited per account; views and forks are rate limited too.
  */
 import { Router, Request, Response, NextFunction } from "express";
+import { publishPageEvent } from "@/services/study/page-live";
 import { Types } from "mongoose";
 import { Admin } from "@/models/admin";
 import { IShare, Share, ShareFork, SHARE_RESOURCE_TYPES, SHARE_ROLES, ShareResourceType, ShareRole } from "@/models/share";
@@ -272,6 +273,8 @@ router.patch(
     if (typeof result === "string") return fail(res, 400, "VALIDATION_ERROR", result);
     share = (await Share.findById(share._id).lean<IShare>())!;
     mailInvites(share, result.added, caller);
+    // Someone removed or lowered: their open live stream on the notebook closes now, pushes already 404.
+    if (share.resourceType === "notebook" && (remove.length || roles.length)) publishPageEvent(String(share.resourceId), { type: "revoke" });
     res.json({ share: await ownerShareDto(share) });
   })
 );
@@ -283,6 +286,7 @@ router.delete(
     const share = await ownShare(req, res);
     if (!share) return;
     await Share.deleteOne({ _id: share._id, ownerId: me(req).userId });
+    if (share.resourceType === "notebook") publishPageEvent(String(share.resourceId), { type: "revoke" });
     res.status(204).end();
   })
 );

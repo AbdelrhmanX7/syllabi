@@ -134,3 +134,15 @@ export function SharedEditChip({ ownerName, className }: { ownerName: string; cl
     </Tooltip>
   );
 }
+
+/** Live co-editing: "Maya is here too" while someone else has the page open. A plain name, no picture. */
+export function LivePeopleChip({ text, className }: { text: string; className?: string }) {
+  return (
+    <Tooltip content={text}>
+      <span aria-label={text} aria-live='polite' className={cn(BOARD_CHIP, 'max-w-[14rem] cursor-default', className)} role='status'>
+        <Users className='text-st-accent h-4 w-4 shrink-0' />
+        <span className='truncate'>{text}</span>
+      </span>
+    </Tooltip>
+  );
+}

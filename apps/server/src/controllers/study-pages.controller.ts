@@ -8,7 +8,8 @@ import { StudyModule } from "@/models/study/module";
 import { StudyLecture, IStudyLecture } from "@/models/study/lecture";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
 import { getStudyObject, pageContentKey, presignedPutUrl, putStudyObject, signedGetUrl, studyObjectExists } from "@/services/study/storage";
-import { editedByDto, editedByOf, scopedPage } from "@/services/share/edit";
+import { editedByDto, editedByOf, pageHasEditors, scopedPage } from "@/services/share/edit";
+import { publishPageEvent, withPageLock } from "@/services/study/page-live";
 import { displayName, loadCaller, NamedCaller } from "@/services/share/access";
 import { itemsDto, LIST_PROJECTION } from "@/services/study/views";
 import { questionDto } from "@/services/study/questions";
@@ -68,7 +69,7 @@ export const orgFieldError = (b: Record<string, unknown>): string | null => {
 };
 const toLecture = (l: any): PageLecture | null => (l ? { number: l.number ?? null, key: l.key, date: l.date } : null);
 
-const PAGE_PROJECTION = { ocrText: 0, renders: 0, annotations: 0, versionLog: 0 } as const;
+export const PAGE_PROJECTION = { ocrText: 0, renders: 0, annotations: 0, versionLog: 0 } as const;
 
 const ownPage = async (req: Request, res: Response): Promise<IStudyPage | null> => {
   if (!isOid(req.params.id)) {
@@ -120,7 +121,8 @@ export const getPage = wrap(async (req, res) => {
   const found = await scopedPage(req, req.params.id, { renders: 0, annotations: 0, versionLog: 0 });
   if (!found) return fail(res, 404, "NOT_FOUND", "Page not found");
   const page = found.doc;
-  if (!found.editor) return res.json({ ...pageDto(page), markdown: page.ocrText ?? null });
+  // `live`: someone besides the owner may edit, so the app syncs it live (pushes + the stream).
+  if (!found.editor) return res.json({ ...pageDto(page), markdown: page.ocrText ?? null, live: await pageHasEditors(page) });
   // Someone else's page shared with the caller to edit: no class / lecture links into the owner's account.
   const owner = await Admin.findById(page.userId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
   res.json({
@@ -131,6 +133,7 @@ export const getPage = wrap(async (req, res) => {
     moduleId: null,
     lecture: null,
     markdown: page.ocrText ?? null,
+    live: true,
     shared: { role: "editor", ownerName: displayName(owner) },
   });
 });
@@ -228,6 +231,7 @@ export const getPageContent = wrap(async (req, res) => {
   const found = await editablePage(req, res);
   if (!found) return;
   const { page } = found;
+  if (req.query.version !== undefined) return earlierContent(req, res, page, req.query.version);
   if (!page.version || !page.contentKey) return res.json({ url: null, version: 0, expiresAt: null });
   const { url, expiresAt } = await signedGetUrl(page.contentKey, { contentType: "application/json" });
   res.json({ url, version: page.version, expiresAt });
@@ -248,14 +252,30 @@ export const putPageContent = wrap(async (req, res) => {
   res.json({ uploadUrl: url, version, expiresAt });
 });
 
+/** `GET content?version=N`: an earlier stored version of the page (owner or editor). */
+export async function earlierContent(req: Request, res: Response, page: IStudyPage, raw: unknown): Promise<void> {
+  const version = typeof raw === "string" && /^\d{1,9}$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isInteger(version) || version < 1 || version > (page.version ?? 0)) {
+    fail(res, 400, "VALIDATION_ERROR", "version must be a stored version of this page");
+    return;
+  }
+  const key = version === page.version && page.contentKey ? page.contentKey : pageContentKey(String(page.userId), String(page._id), version);
+  if (!(await studyObjectExists(key))) {
+    fail(res, 404, "NOT_FOUND", "That version is no longer stored");
+    return;
+  }
+  const { url, expiresAt } = await signedGetUrl(key, { contentType: "application/json" });
+  res.json({ url, version, expiresAt });
+}
+
 /** Who is writing: the editor, else the owner (looked up for the name). */
-const authorOf = async (req: Request, editor: NamedCaller | null) => editor ?? (await loadCaller(req.adminId));
+export const authorOf = async (req: Request, editor: NamedCaller | null) => editor ?? (await loadCaller(req.adminId));
 
 /**
  * Compare-and-set on the version: two racing commits of the same version → exactly one wins (null =
  * lost). The same update records the author (editedBy + one versionLog entry, newest last, capped).
  */
-const casCommit = (page: IStudyPage, version: number, key: string, author: NamedCaller | null, restoredFrom: number | null = null) => {
+export const casCommit = (page: IStudyPage, version: number, key: string, author: NamedCaller | null, restoredFrom: number | null = null) => {
   const at = new Date();
   return StudyPage.findOneAndUpdate(
     { _id: page._id, userId: page.userId, deletedAt: null, version: version - 1 },
@@ -281,8 +301,10 @@ export const commitPageContent = wrap(async (req, res) => {
   const key = pageContentKey(String(page.userId), String(page._id), version);
   if (!(await studyObjectExists(key)))
     return res.status(409).json({ message: "The upload for this version was not found — PUT the content first", code: "UPLOAD_MISSING", currentVersion: page.version });
-  const updated = await casCommit(page, version, key, await authorOf(req, editor));
+  const author = await authorOf(req, editor);
+  const updated = await casCommit(page, version, key, author);
   if (!updated) return stale();
+  announceVersion(page, page.version, version, req, author);
   res.json(pageDto(updated));
 });
 
@@ -307,21 +329,43 @@ export const putPageBlob = wrap(async (req, res) => {
   }
   const stale = (currentVersion: number) =>
     res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion });
-  if (baseVersion !== page.version) return stale(page.version);
-  const version = page.version + 1;
-  const key = pageContentKey(String(page.userId), String(page._id), version);
-  await putStudyObject(key, body, "application/json");
-  const updated = await casCommit(page, version, key, await authorOf(req, editor));
-  if (!updated) return stale(page.version);
-  const { expiresAt } = await signedGetUrl(key, { contentType: "application/json" });
-  res.json({ version, expiresAt });
+  const author = await authorOf(req, editor);
+  // Under the page lock (live pushes and other saves of this page wait), re-reading the version: two
+  // savers on the same base can no longer both write the v+1 object and leave the winner pointing at
+  // the loser's bytes.
+  const outcome = await withPageLock(String(page._id), async () => {
+    const fresh = await StudyPage.findOne({ _id: page._id, deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
+    if (!fresh) return { stale: page.version };
+    if (baseVersion !== fresh.version) return { stale: fresh.version };
+    const version = fresh.version + 1;
+    const key = pageContentKey(String(fresh.userId), String(fresh._id), version);
+    await putStudyObject(key, body, "application/json");
+    const updated = await casCommit(fresh, version, key, author);
+    return updated ? { version, key } : { stale: fresh.version };
+  });
+  if ("stale" in outcome) return stale(outcome.stale ?? 0);
+  announceVersion(page, outcome.version - 1, outcome.version, req, author);
+  const { expiresAt } = await signedGetUrl(outcome.key, { contentType: "application/json" });
+  res.json({ version: outcome.version, expiresAt });
 });
+
+/** A whole-board save landed: anyone live on the page re-reads it (no ops to send). */
+function announceVersion(page: IStudyPage, prevVersion: number, version: number, req: Request, author: NamedCaller | null) {
+  publishPageEvent(String(page._id), {
+    type: "ops",
+    prevVersion,
+    version,
+    ops: null,
+    by: { clientId: "", userId: String(req.adminId), name: author?.name ?? "Someone" },
+  });
+}
 
 /** Soft delete: the row is hidden everywhere; stored versions are never deleted (storage lifecycle). */
 export const deletePage = wrap(async (req, res) => {
   const page = await ownPage(req, res);
   if (!page) return;
   await StudyPage.updateOne({ _id: page._id, userId: page.userId }, { $set: { deletedAt: new Date() } }, { timestamps: false });
+  publishPageEvent(String(page._id), { type: "revoke" });
   res.status(204).end();
 });
 
@@ -385,11 +429,17 @@ export const restorePageVersion = wrap(async (req, res) => {
   if (target >= page.version) return fail(res, 400, "VALIDATION_ERROR", "Pick an earlier version");
   const from = pageContentKey(String(page.userId), String(page._id), target);
   if (!(await studyObjectExists(from))) return fail(res, 404, "NOT_FOUND", "That version is no longer stored");
-  const version = page.version + 1;
-  const key = pageContentKey(String(page.userId), String(page._id), version);
-  await putStudyObject(key, await getStudyObject(from), "application/json");
-  const updated = await casCommit(page, version, key, await loadCaller(req.adminId), target);
+  const author = await loadCaller(req.adminId);
+  const updated = await withPageLock(String(page._id), async () => {
+    const fresh = await StudyPage.findOne({ _id: page._id, deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
+    if (!fresh || fresh.version !== baseVersion) return null;
+    const version = fresh.version + 1;
+    const key = pageContentKey(String(fresh.userId), String(fresh._id), version);
+    await putStudyObject(key, await getStudyObject(from), "application/json");
+    return casCommit(fresh, version, key, author, target);
+  });
   if (!updated) return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
+  announceVersion(page, updated.version - 1, updated.version, req, author);
   res.json(pageDto(updated));
 });
 

@@ -153,18 +153,86 @@ by the AI drawing tools); `POST /pages/:id/versions/:v/restore {baseVersion}` co
 **App.** Share sheet: a Can view / Can edit picker for new people and per person; lowering or removing confirms.
 "Shared with me" shows Can edit / Can view and "edited by". Editors edit cards and questions (edit, add, delete
 with a confirm) and concept-map terms right on the shared page, and open a notebook on the board ("Open to
-edit"), which saves to the original with the normal sync (a stale save is the usual conflict prompt). Viewers keep
+edit"), which saves to the original; editing at the same time is part B below. Viewers keep
 the read-only view. The demo mock shares its deck and concept map as editable.
 
-### Phase 2, part B: editing at the same time (next)
+### Phase 2, part B: editing at the same time (shipped for notebook pages)
 
-TODO, not built yet:
-- **Comments** on pages and cards.
-- **Live co-editing.** Several people on the same notebook page or deck at once: Yjs CRDT documents over WebSockets
-  (notebook ink as a Y.Array of strokes per board page, deck / question edits as Y.Maps), presence (who is here,
-  cursors and the pen position) via the Yjs awareness protocol, and offline edits on a tablet merging when it
-  reconnects (Yjs updates queued in IndexedDB). The server keeps the merged document and still writes the board
-  JSON snapshot, so viewers, copies and the MCP keep working.
+When the owner and the people with "Can edit" have the same notebook page open, each person's ink shows up
+for the others within a second or two, changes merge quietly (no "keep mine / keep theirs" on a shared page),
+and a small "Maya is here too" chip on the board says who else is there (a first name in text, no picture).
+Code: server `src/services/share/live-merge.ts` (the merge), `src/services/study/page-live.ts` (lock, channel,
+presence), `src/controllers/study-page-live.controller.ts` (routes); app `lib/notebooks/live-merge.ts` (same
+merge, kept in step, same tests), `lib/notebooks/live.ts` (the session), `lib/notebooks/live-api.ts`,
+`components/notebook/NotebookBoard.tsx`; editor `utils/itemIds.ts` and `WhiteboardEditor`'s `liveBoardRef`.
+
+**Item ids.** Every board object (stroke, text box, image, shape) carries a stable `oid` in the page JSON. The
+editor gives a new object a random id when it is added; a copy (paste, duplicate, a split eraser piece) gets a
+fresh one while its source is still on the board; undo puts an object back with the id it had. The object eraser
+removes by id; lasso move changes the object in place (same id). Objects saved before ids existed get an id
+derived from their own JSON (a hash of page id + object JSON, `.n` for the n-th identical twin), computed the
+same way by the app and the server, so old pages need no migration and two devices never name an old stroke
+differently. Pages within a board are `pages[]` with their own ids; paper style (`backgroundType`,
+`paperSpacingMm`) and the PDF fields are page fields.
+
+**Merge.** Per item, no new library. A change is a set of ops, found by comparing the board on screen with the
+version the device last had: page records added or changed, page ids removed, the page order, and per page
+`put` (whole objects) / `del` (ids). Per-device fields (scroll, zoom, preview) never travel. The server applies
+ops to its CURRENT version, so arrival order decides: the last change to an item wins; a deleted item stays
+deleted unless someone puts it back later (an undo). A device never lets someone else's change overwrite an item
+it changed and has not sent yet: that item goes out next and, arriving later, wins. Page add / remove / reorder
+merge the same way (a page someone else added stays after the page it followed).
+
+**Transport.** No WebSockets. The existing study SSE framing over a plain GET (signed in with the normal
+`Authorization` header, which `fetch` streams can send), plus normal POSTs:
+
+| Method | Path | Body | Result |
+| --- | --- | --- | --- |
+| POST | `/study/pages/:id/live` | `{clientId, ops}` | `{prevVersion, version}`; ops sent to everyone else |
+| GET | `/study/pages/:id/live/stream?clientId=` | – | SSE: `hello {version, people}`, `ops {prevVersion, version, ops, by}`, `presence {people}`; ends with `error {code: ACCESS_REVOKED}` |
+| GET | `/study/pages/:id/content?version=N` | – | `{url, version}`: an earlier stored version |
+
+`GET /pages/:id` adds `live: true` when someone besides the owner may edit the page; the app then uses the live
+path for it. A batch goes out ~300 ms after a stroke ends (strokes finished meanwhile ride along), never pen
+point by pen point; no live pen preview. Each push becomes a normal stored version (so restore and the version
+log keep working) and is published on Redis channel `study:page:<pageId>`, which every API fork
+pattern-subscribes (the inbox bus pattern), so the shared web server needs no change. A whole-board save, a
+restore and the AI drawing tools publish `ops: null` ("re-read the page"); so do pushes over 256 KB (a photo).
+Each device keeps a base version: an event whose `prevVersion` is its base moves the base along and goes on
+screen item by item (no reload, the page's undo history restarts there); a gap re-reads the board once. A page
+added, removed or moved by someone else reloads the editor on the merged board.
+
+**Saves at the same moment.** Every write of page content (live pushes, whole-board saves, restore) runs under a
+per-page lock: in-process chain + Redis `SET NX PX` across forks (skipped when Redis is down; the version
+compare-and-set stays the last guard, with up to 3 retries for pushes). This also fixes an older race where two
+whole-board saves on the same version both wrote the `v<n+1>` object and the winner could point at the loser's
+bytes.
+
+**Opening a page with edits made offline.** The device merges three-way: its edits since the version it last
+had (read back with `content?version=`) onto the current version. A page that becomes shared while open
+switches to the live path on its first conflicting save instead of showing the conflict prompt.
+
+**Presence.** A Redis hash per page (one entry per open stream, refreshed on the 10 s ping, stale after 35 s),
+with a per-fork local copy when Redis is down; joins and leaves are published. "Is here too" leaves out the
+viewer's own devices.
+
+**Access.** Only the owner and named editors can push or open the stream; viewers keep the read-only share view
+(no live updates for them), strangers and link holders get `404`. Every push re-checks access. Changing or
+removing people on a notebook share, stopping the share or deleting the page publishes a revoke: each open
+stream re-checks at once and ends with `ACCESS_REVOKED` (and every 30 s as a backstop); the app stops sending
+and keeps the person's unsent changes on their tablet.
+
+**Gaps.**
+- Every push is a stored version and a log entry: an hour of live writing can mean many versions (storage
+  grows; the 100-entry author log covers minutes). The live path is used only on pages with editors.
+- Someone else's change restarts undo for that page (undoing past it would delete their ink).
+- A page add / remove / reorder by someone else reloads the editor (your view goes back to where the page opens).
+- Item z-order changes (bring to front) do not travel; new items go on top.
+- A device that changes the same item at the same moment as another may see a brief jump before the later
+  write wins. PDF backgrounds still live on the importing device (ink and paper travel).
+- Old app versions keep the whole-board save path; on a page someone edits live they still get the conflict
+  prompt.
+- Still TODO: comments on pages and cards; live co-editing of decks and question sets (they save per card).
 
 ## Hosting (needs a decision)
 

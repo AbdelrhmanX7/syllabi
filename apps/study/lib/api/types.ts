@@ -184,6 +184,8 @@ export interface Page {
   editedBy?: { name: string; at: string | null } | null;
   /** Set when this is someone else's page shared with me to edit (sharing). */
   shared?: { role: 'editor'; ownerName: string } | null;
+  /** Someone besides the owner may edit it: the board syncs live (changes in and out as they happen). */
+  live?: boolean;
 }
 
 /** `GET /pages/:id/content`. Before the first commit `url` is null and `version` 0 — an empty page. */

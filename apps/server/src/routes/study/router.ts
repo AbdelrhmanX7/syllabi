@@ -29,6 +29,7 @@ import {
   restorePageVersion,
   search,
 } from "@/controllers/study-pages.controller";
+import { pushPageLive, streamPageLive } from "@/controllers/study-page-live.controller";
 import { commitPageRenders, deletePageAnnotation, getPageRenders, listPageAnnotations, putPageRender, RENDER_MAX_BYTES } from "@/controllers/study-page-renders.controller";
 import {
   attemptQuestion,
@@ -133,6 +134,9 @@ router.put("/pages/:id/content", putPageContent);
 router.put("/pages/:id/content/blob", express.raw({ type: "*/*", limit: "25mb" }), putPageBlob);
 router.post("/pages/:id/content/commit", commitPageContent);
 router.put("/pages/:id/ocr", putPageOcr);
+// Live co-editing (sharing phase 2 part B): small change batches in, everyone else's out over SSE.
+router.post("/pages/:id/live", pushPageLive);
+router.get("/pages/:id/live/stream", streamPageLive);
 // Earlier versions (owner only): list with authors, restore one as a new version.
 router.get("/pages/:id/versions", listPageVersions);
 router.post("/pages/:id/versions/:version/restore", restorePageVersion);

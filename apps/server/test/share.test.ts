@@ -94,6 +94,7 @@ describe("sharing", () => {
     server?.closeAllConnections();
     server?.close();
     (await import("../src/middleware/rate-limit")).closeRateLimitRedis();
+    (await import("../src/services/study/page-live")).closePageLive();
     if (!mongoUp) return rmSync(storageDir, { recursive: true, force: true });
     await mongoose.connection.dropDatabase().catch(() => {});
     await mongoose.disconnect();

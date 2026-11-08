@@ -150,6 +150,7 @@ export default function NotebookPage() {
           extraSelectionActions={conceptMaps.selectionActions}
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
+          live={Boolean(page.live)}
           pageId={page.id}
           pendingImage={inboxImage}
           pendingPdf={inboxPdf}

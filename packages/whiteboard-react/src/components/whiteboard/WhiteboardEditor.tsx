@@ -188,6 +188,8 @@ import type { PageTransitionHandle } from './WhiteboardCanvas';
 import { boardPatternSpacingPx, resolveDefaultPaperSpacingMm } from './utils/paperSpacing';
 import { findPdfScrollPageAt, pdfScrollRegionPaintArgs, resolvePdfPageAspect } from './utils/pdfScrollLayout';
 import type { PageListEntry } from './utils/boardHistory';
+import { applyItemOpsToCanvasJson, applyItemOpsToState } from './utils/itemIds';
+import type { RemoteItemOps } from './utils/itemIds';
 import type { PdfScrollPainter } from './utils/pdfScrollLayout';
 import type { PdfImportNativeRescue, PdfImportResult, ResolveRemotePdfAsset } from './utils/pdfAssetRenderer';
 import type { PeekPageIntro, ResolvePageIntro } from './utils/pageIntroPolicy';
@@ -249,6 +251,14 @@ export interface WhiteboardPdfImportedEvent {
   pdfPageCount: number;
   /** The file the teacher picked: the `.pptx` when one was converted, else the PDF itself. */
   sourceFile: File;
+}
+
+/** See {@link WhiteboardEditorProps.liveBoardRef}. */
+export interface WhiteboardLiveHandle {
+  /** The board as it is right now (the page being written on serialized). */
+  getDocument: () => WhiteboardDocument;
+  /** Put someone else's item changes in, per page. Resolves false when it could not (reload instead). */
+  applyRemoteItems: (ops: RemoteItemOps[]) => Promise<boolean>;
 }
 
 export interface WhiteboardEditorProps {
@@ -573,6 +583,13 @@ export interface WhiteboardEditorProps {
    * before the window is destroyed (a plain `beforeunload` can't await on Tauri).
    */
   flushBeforeCloseRef?: React.MutableRefObject<(() => Promise<void>) | null>;
+  /**
+   * Live co-editing (a notebook page several people edit at once): populated by the editor with the
+   * board as it is right now and a way to put someone else's item changes onto it without a reload.
+   */
+  liveBoardRef?: React.MutableRefObject<WhiteboardLiveHandle | null>;
+  /** The user changed the board (a stroke, erase, move, undo …) — fires at the end of the gesture. */
+  onBoardChange?: () => void;
   /**
    * Populated by the editor with a full-page renderer: a page's paper + ink over its PDF/image
    * background, as a webp whose LONG edge is `longEdge` px (`utils/pageThumbnail`). Offscreen — the
@@ -1519,6 +1536,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   extraSelectionActions,
   flushOnCrashRef,
   flushBeforeCloseRef,
+  liveBoardRef,
+  onBoardChange,
   renderPageImageRef,
   rulerEdgesRef,
   onViewportZoomChange,
@@ -2019,6 +2038,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
   // --- History (undo/redo) — pass state (not ref) so hook re-runs when canvas is set ---
   // Undo/redo of a sheet insert/delete — wired once the page operations exist (below).
+  const onBoardChangeRef = useRef(onBoardChange);
+
+  onBoardChangeRef.current = onBoardChange;
   const applyHistoryPageListChangeRef = useRef<
     ((action: 'insert' | 'remove', entry: PageListEntry<WhiteboardPage>) => Promise<boolean>) | null
   >(null);
@@ -2029,6 +2051,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     currentPageId: isScrollActive ? DOCUMENT_HISTORY_SCOPE : (pages[currentPageIndex]?.id ?? ''),
     getScrollSession: () => scrollSessionRef.current,
     applyPageListChange: (action, entry) => applyHistoryPageListChangeRef.current?.(action, entry) ?? false,
+    onUserChange: () => onBoardChangeRef.current?.(),
   });
 
   useEffect(() => {
@@ -6396,6 +6419,76 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
     if (entry) settleHistoryStep(pageIndexAtStart);
   }, [history, runHistoryStep, settleHistoryStep]);
+
+  // --- Live co-editing: someone else's item changes, put in without a reload ---
+  // Never under the pen or during a page load. A page on the canvas changes object by object through
+  // the history's restore (only the changed items are revived, its undo restarts there); any other page
+  // gets its stored JSON updated. False = could not apply: the host reloads the board instead.
+  const applyRemoteItems = useCallback(
+    async (ops: RemoteItemOps[]): Promise<boolean> => {
+      const until = Date.now() + 15_000;
+
+      while (isPointerDown() || isSyncingCanvasRef.current || isBatchRenderingRef.current) {
+        if (Date.now() > until) return false;
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      }
+
+      const pageIndexAtStart = currentPageIndexRef.current;
+      let onCanvas = false;
+
+      historyStepsInFlightRef.current += 1;
+      isRestoringHistoryRef.current = true;
+
+      try {
+        for (const op of ops) {
+          const result = await history.applyExternal(op.page, (live) => applyItemOpsToState(live, op));
+
+          if (result === 'applied') {
+            onCanvas = true;
+            continue;
+          }
+
+          if (result === 'failed') return false;
+
+          const index = pagesRef.current.findIndex((page) => page.id === op.page);
+          const page = pagesRef.current[index];
+
+          if (!page) continue;
+
+          const canvasJSON = applyItemOpsToCanvasJson(page.canvasJSON, op);
+
+          if (canvasJSON === page.canvasJSON) continue;
+
+          const next = pagesRef.current.slice();
+
+          next[index] = { ...page, canvasJSON };
+          pagesRef.current = next;
+          setPages(next);
+          scrollSessionRef.current?.syncPages(next);
+          needsPersistRef.current = true;
+        }
+      } finally {
+        historyStepsInFlightRef.current -= 1;
+
+        if (historyStepsInFlightRef.current === 0) isRestoringHistoryRef.current = false;
+      }
+
+      if (onCanvas) settleHistoryStep(pageIndexAtStart);
+
+      return true;
+    },
+    [history, settleHistoryStep],
+  );
+
+  useEffect(() => {
+    if (!liveBoardRef) return;
+
+    liveBoardRef.current = { getDocument: buildDocumentSnapshot, applyRemoteItems };
+
+    return () => {
+      liveBoardRef.current = null;
+    };
+  }, [applyRemoteItems, buildDocumentSnapshot, liveBoardRef]);
 
   // Hand the live canvas to a paged export/publish sweep: the scroll session writes every dirty page
   // back, dehydrates to an empty canvas, and stops painting the stacked pages. Returns the session to

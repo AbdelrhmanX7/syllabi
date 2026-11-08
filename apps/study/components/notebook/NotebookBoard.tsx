@@ -1,5 +1,7 @@
 import type { WhiteboardDocument, WhiteboardStorage } from '@repo/whiteboard-core';
-import type { EditorViewport, RulerEdgesRef, WhiteboardPdfImportedEvent } from '@repo/whiteboard-react';
+import type { EditorViewport, RulerEdgesRef, WhiteboardLiveHandle, WhiteboardPdfImportedEvent } from '@repo/whiteboard-react';
+import type { BoardDoc, LiveOps } from '@/lib/notebooks/live-merge';
+import type { LivePerson, LiveStatus } from '@/lib/notebooks/live';
 import type {
   BoardAiService,
   ConceptMap,
@@ -49,7 +51,13 @@ import { useInkModels } from '@/lib/ink/models';
 import { nativeInkRecognizer } from '@/lib/ink/nativeRecognizer';
 import { inkEnabledForPage, savePageInkOverride, useInkSettings } from '@/lib/ink/settings';
 import { syncPageRenders } from '@/lib/notebooks/page-renders';
-import { readSyncedVersion } from '@/lib/notebooks/pages-cache';
+import { readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
+import { LiveSession, presenceLine } from '@/lib/notebooks/live';
+import { fetchBoardVersion, fetchLatestBoard, openLiveNotebook, openLiveStream, pushLiveOps } from '@/lib/notebooks/live-api';
+import { applyOps, ensureDocIds } from '@/lib/notebooks/live-merge';
+import { getPage } from '@/lib/api/endpoints';
+import { parseJwt, readSessionToken } from '@/lib/auth';
+import { LivePeopleChip } from '@/features/share/components/PageVersions';
 import { useBoardTheme } from '@/lib/notebooks/board-theme';
 import { usePaperSpacingDefaults } from '@/lib/notebooks/paper-settings';
 import { useNotebookFillScreen } from '@/lib/notebooks/fill-screen';
@@ -143,7 +151,14 @@ export interface NotebookBoardProps {
   pdfLayout?: 'paged' | 'scroll';
   /** Filled by the editor: every page's ink overlay + geometry, in order (a board exam grades from it). */
   buildMergeOverlaysRef?: React.MutableRefObject<(() => Promise<MergeOverlaysResult | null>) | null>;
+  /**
+   * Someone besides the owner may edit this page (sharing, "Can edit"): changes go out in small batches
+   * and everyone else's come in live; never a "keep mine / keep theirs" choice. See lib/notebooks/live.ts.
+   */
+  live?: boolean;
 }
+
+const newClientId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
 /**
  * The board for one notebook page. Opens the document (device copy → backend → seed → blank) into the
@@ -248,6 +263,7 @@ export function NotebookBoard({
   pdfLayout = 'scroll',
   buildMergeOverlaysRef,
   onPdfFileImported,
+  live = false,
 }: NotebookBoardProps) {
   // The title only seeds a brand-new document; a rename must not re-open (and so remount) the board.
   const titleRef = useRef(title);
@@ -305,6 +321,19 @@ export function NotebookBoard({
   const [opened, setOpened] = useState<{ pageId: string; source: OpenNotebookSource } | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const [sync, setSync] = useState<SyncState>({ kind: 'idle' });
+  // --- live co-editing (a page someone else may edit too)
+  // A page that became shared while open switches over on its first conflicting save.
+  const [switchedLive, setSwitchedLive] = useState(false);
+  const liveMode = (live || switchedLive) && !readOnly;
+  const liveBoardRef = useRef<WhiteboardLiveHandle | null>(null);
+  const liveSessionRef = useRef<LiveSession | null>(null);
+  const liveBaseRef = useRef<Awaited<ReturnType<typeof openLiveNotebook>>['base']>(null);
+  const clientIdRef = useRef<string>('');
+  const [people, setPeople] = useState<LivePerson[]>([]);
+  // Bumped to reload the editor on the stored board (someone added, removed or moved a page).
+  const [boardGeneration, setBoardGeneration] = useState(0);
+
+  clientIdRef.current ||= newClientId();
   const flushRef = useRef<(() => Promise<void>) | null>(null);
   const uploadTimerRef = useRef<number | null>(null);
   const renderPageImageRef = useRef<PageImageRenderer | null>(null);
@@ -439,12 +468,21 @@ export function NotebookBoard({
     setOpenError(null);
     const target = storage.storage;
 
-    openNotebookDocument({
+    const options = {
       pageId,
       title: titleRef.current,
       storage: target,
       seed: seed ? () => seed(target) : undefined,
-    })
+    };
+    const opening = liveMode
+      ? openLiveNotebook(options).then((result) => {
+          liveBaseRef.current = result.base;
+
+          return { source: result.source, remoteVersion: result.base?.version ?? null };
+        })
+      : openNotebookDocument(options);
+
+    opening
       .then(async (result) => {
         // Before the editor mounts, so the PDF renders under the ink on the first paint. A PDF that came
         // from the phone inbox is fetched from there; any other asset is the host's (its own source file).
@@ -490,7 +528,7 @@ export function NotebookBoard({
       cancelled = true;
     };
     // `seed` is intentionally not a dependency: a new closure per render must not re-open the board.
-  }, [pageId, storage.isReady, storage.storage]);
+  }, [pageId, storage.isReady, storage.storage, liveMode]);
 
   // --- upload
   const renderNow = useCallback(
@@ -528,7 +566,17 @@ export function NotebookBoard({
       setSync(dirtyRef.current ? { kind: 'pending' } : { kind: 'synced', at: Date.now() });
       scheduleRenders(outcome.version);
     } else if (outcome.reason === 'conflict') {
-      setSync({ kind: 'conflict', message: outcome.message });
+      // Shared to edit since it was opened: merge quietly from now on instead of asking.
+      const nowLive = await getPage(pageId)
+        .then((fresh) => Boolean(fresh.live))
+        .catch(() => false);
+
+      if (nowLive && !readOnly) {
+        await flushRef.current?.().catch(() => undefined);
+        setSwitchedLive(true);
+      } else {
+        setSync({ kind: 'conflict', message: outcome.message });
+      }
     } else if (outcome.reason === 'offline') {
       dirtyRef.current = true;
       setSync({ kind: 'offline' });
@@ -538,7 +586,7 @@ export function NotebookBoard({
     }
 
     return outcome;
-  }, [pageId, scheduleRenders, storage.storage]);
+  }, [pageId, readOnly, scheduleRenders, storage.storage]);
 
   const scheduleUpload = useCallback(() => {
     // New ink: the page images wait for the next synced version.
@@ -559,17 +607,23 @@ export function NotebookBoard({
     const handleUpdated = (event: Event) => {
       const detail = (event as CustomEvent<WhiteboardStorageUpdatedEventDetail>).detail;
 
-      if (detail?.id === pageId) scheduleUpload();
+      if (detail?.id !== pageId) return;
+      // Live: the session sends (a backstop for changes that are not a stroke: a page, the paper).
+      if (liveMode) liveSessionRef.current?.noteLocalChange();
+      else scheduleUpload();
     };
     const handleOnline = () => {
-      if (dirtyRef.current) void runUpload();
+      if (liveMode) liveSessionRef.current?.noteLocalChange();
+      else if (dirtyRef.current) void runUpload();
     };
 
     window.addEventListener(WHITEBOARD_STORAGE_UPDATED_EVENT, handleUpdated);
     window.addEventListener('online', handleOnline);
 
     // A document that was seeded/created here, or left dirty last time, goes up right away.
-    if (dirtyRef.current) scheduleUpload();
+    if (liveMode) {
+      // the live session sends it
+    } else if (dirtyRef.current) scheduleUpload();
     else {
       // Clean and synced: make sure its page images exist (notebooks synced before the MCP could see them).
       const synced = readSyncedVersion(pageId);
@@ -583,7 +637,82 @@ export function NotebookBoard({
       if (uploadTimerRef.current !== null) window.clearTimeout(uploadTimerRef.current);
       if (renderTimerRef.current !== null) window.clearTimeout(renderTimerRef.current);
     };
-  }, [opened, pageId, runUpload, scheduleRenders, scheduleUpload]);
+  }, [liveMode, opened, pageId, runUpload, scheduleRenders, scheduleUpload]);
+
+  // Someone else's change that cannot go in item by item (pages added, removed, moved): save it into the
+  // stored board and reload the editor on it.
+  const reloadWithRemote = useCallback(
+    async (ops: LiveOps) => {
+      const target = storage.storage;
+
+      if (!target) return;
+      await flushRef.current?.().catch(() => undefined);
+      const stored = await target.loadWhiteboard(pageId).catch(() => null);
+
+      if (!stored) return;
+      const next = applyOps(ensureDocIds(stored as unknown as BoardDoc), ops) as unknown as WhiteboardDocument;
+
+      await target.saveWhiteboard({ ...next, id: pageId });
+      setBoardGeneration((n) => n + 1);
+    },
+    [pageId, storage.storage],
+  );
+
+  // --- the live session: one per open live page
+  useEffect(() => {
+    if (!liveMode || !isOpen) return;
+
+    const session = new LiveSession(
+      {
+        pageId,
+        clientId: clientIdRef.current,
+        getLocal: () => (liveBoardRef.current?.getDocument() as unknown as BoardDoc | undefined) ?? null,
+        applyRemote: async (ops) => {
+          const handle = liveBoardRef.current;
+          const itemsOnly = !ops.pages && !ops.removedPages && !ops.order;
+
+          if (handle && itemsOnly && (await handle.applyRemoteItems(ops.items ?? []))) return true;
+          await reloadWithRemote(ops);
+
+          return true;
+        },
+        push: (ops) => pushLiveOps(pageId, clientIdRef.current, ops),
+        fetchLatest: () => fetchLatestBoard(pageId),
+        fetchVersion: (version) => fetchBoardVersion(pageId, version),
+        lastVersion: readSyncedVersion(pageId)?.version ?? null,
+        openStream: (handlers, signal) => openLiveStream(pageId, clientIdRef.current, handlers, signal),
+        onPeople: setPeople,
+        onStatus: (status: LiveStatus, detail?: string) => {
+          if (status === 'sending') setSync({ kind: 'uploading' });
+          else if (status === 'live') setSync({ kind: 'synced', at: Date.now() });
+          else if (status === 'offline') setSync({ kind: 'offline' });
+          else if (status === 'error') setSync({ kind: 'error', message: detail || 'Could not reach the server' });
+          else if (status === 'revoked') {
+            setPeople([]);
+            setSync({ kind: 'error', message: 'You can no longer edit this page. Your changes stay on this tablet.' });
+          }
+        },
+        onSynced: (version, dirty) => {
+          writeSyncedVersion(pageId, version, dirty);
+          if (!dirty) scheduleRenders(version);
+        },
+      },
+      liveBaseRef.current,
+    );
+
+    liveSessionRef.current = session;
+    session.start();
+
+    return () => {
+      session.stop();
+      if (liveSessionRef.current === session) liveSessionRef.current = null;
+      setPeople([]);
+    };
+  }, [isOpen, liveMode, pageId, reloadWithRemote, scheduleRenders]);
+
+  const handleBoardChange = useCallback(() => liveSessionRef.current?.noteLocalChange(), []);
+  // My own other devices are not "someone else here".
+  const presence = liveMode ? presenceLine(people, { clientId: clientIdRef.current, userId: parseJwt(readSessionToken() ?? '')?._id ?? null }) : null;
 
   const handleBack = useCallback(async () => {
     try {
@@ -595,13 +724,14 @@ export function NotebookBoard({
       window.clearTimeout(uploadTimerRef.current);
       uploadTimerRef.current = null;
     }
-    if (dirtyRef.current) await runUpload();
+    if (liveMode) await liveSessionRef.current?.flushNow().catch(() => undefined);
+    else if (dirtyRef.current) await runUpload();
     // Leaving: the page images go up now, not after the quiet wait (the renderer outlives the editor).
     const synced = readSyncedVersion(pageId);
 
     if (synced && !synced.dirty && renderTimerRef.current !== null) renderNow(synced.version);
     onBack();
-  }, [onBack, pageId, renderNow, runUpload]);
+  }, [liveMode, onBack, pageId, renderNow, runUpload]);
 
   const resolveKeepMine = useCallback(async () => {
     if (!storage.storage) return;
@@ -684,7 +814,7 @@ export function NotebookBoard({
   return (
     <div ref={setBoardRoot} className='relative h-full w-full'>
       <WhiteboardEditor
-        key={`${pageId}:${opened.source}`}
+        key={`${pageId}:${opened.source}:${boardGeneration}`}
         allowInsertBlankPages
         allowPaperSpacing
         allowPdfLayoutToggle
@@ -705,6 +835,8 @@ export function NotebookBoard({
         extraSelectionActions={readOnly ? undefined : extraSelectionActions}
         fileBridge={studyFileBridge}
         flushBeforeCloseRef={flushRef}
+        liveBoardRef={liveMode ? liveBoardRef : undefined}
+        onBoardChange={liveMode ? handleBoardChange : undefined}
         focusMode={focusMode}
         freeZoom={freeZoom}
         hideChrome={hideChrome}
@@ -789,6 +921,7 @@ export function NotebookBoard({
             </ActionButton>
           )}
         {!readOnly && <ClaudeFeedback className='pointer-events-auto' pageId={pageId} />}
+        {presence && <LivePeopleChip text={presence} />}
         {topRight && <div className='pointer-events-auto'>{topRight}</div>}
         {!readOnly && (
           <ActionButton

@@ -45,7 +45,12 @@ export interface UseWhiteboardHistoryProps {
   applyPageListChange?: (action: 'insert' | 'remove', entry: PageListEntry<WhiteboardPage>) => Promise<boolean> | boolean;
   /** Memory ceiling of one stack (UTF-16 code units of the strings its entries alone hold). */
   maxHistoryBytes?: number;
+  /** The user changed the board: a gesture was committed, or an undo / redo step applied. */
+  onUserChange?: () => void;
 }
+
+/** What {@link UseWhiteboardHistoryReturn.applyExternal} did. */
+export type ExternalApplyResult = 'applied' | 'off-canvas' | 'failed';
 
 export interface UseWhiteboardHistoryReturn {
   /** Resolves with the entry undone (null: nothing to undo, or it could not be applied). */
@@ -73,6 +78,13 @@ export interface UseWhiteboardHistoryReturn {
   objectCache: HistoryObjectCache;
   pause: () => void;
   resume: () => void;
+  /**
+   * Someone else changed page `pageId` (live co-editing): put the page's live objects into
+   * `makeTarget(current strings)` without scrolling to it, and restart its undo history there (undoing
+   * onto a state recorded before their change would delete their ink). `off-canvas` = the page is not on
+   * the canvas; the caller updates its stored JSON instead. Queued with undo / redo.
+   */
+  applyExternal: (pageId: string, makeTarget: (live: PageState) => PageState) => Promise<ExternalApplyResult>;
 }
 
 /** How often a pending checkpoint re-checks for the contact to lift. */
@@ -95,6 +107,7 @@ export function useWhiteboardHistory({
   createRestoreContext,
   applyPageListChange,
   maxHistoryBytes = DEFAULT_MAX_HISTORY_BYTES,
+  onUserChange,
 }: UseWhiteboardHistoryProps): UseWhiteboardHistoryReturn {
   const modelRef = useRef<BoardHistoryModel<WhiteboardPage> | null>(null);
 
@@ -120,6 +133,9 @@ export function useWhiteboardHistory({
   getScrollSessionRef.current = getScrollSession;
   createRestoreContextRef.current = createRestoreContext;
   applyPageListChangeRef.current = applyPageListChange;
+  const onUserChangeRef = useRef(onUserChange);
+
+  onUserChangeRef.current = onUserChange;
 
   const pausedRef = useRef(false);
   const applyingRef = useRef(false);
@@ -212,6 +228,7 @@ export function useWhiteboardHistory({
       capture().map(({ pageId, state }) => ({ pageId, state })),
     );
     updateFlags();
+    onUserChangeRef.current?.();
   }, [capture, clearGestureTimer, model, scope, updateFlags]);
 
   const noteMutation = useCallback(() => {
@@ -297,7 +314,7 @@ export function useWhiteboardHistory({
 
   /** Put page `pageId` into `target`. Scroll layout: brought into view first. */
   const restorePage = useCallback(
-    async (pageId: string, target: PageState): Promise<boolean> => {
+    async (pageId: string, target: PageState, reveal = true): Promise<boolean> => {
       const liveCanvas = canvasRef.current;
 
       if (!liveCanvas) return false;
@@ -305,7 +322,7 @@ export function useWhiteboardHistory({
       const session = getScrollSessionRef.current?.() ?? null;
 
       if (session) {
-        if (!(await session.revealPage(pageId))) return false;
+        if (reveal && !(await session.revealPage(pageId))) return false;
 
         const live = capture().find((page) => page.pageId === pageId);
 
@@ -439,10 +456,47 @@ export function useWhiteboardHistory({
       }
 
       updateFlags();
+      if (ok) onUserChangeRef.current?.();
 
       return ok ? entry : null;
     },
     [applyEntry, capture, commitNow, model, scope, updateFlags],
+  );
+
+  const external = useCallback(
+    async (pageId: string, makeTarget: (live: PageState) => PageState): Promise<ExternalApplyResult> => {
+      if (!canvasRef.current || pausedRef.current) return 'failed';
+
+      // The user's own last stroke is committed first, so it is in the live state the target builds on.
+      commitNow();
+
+      const live = capture().find((page) => page.pageId === pageId);
+
+      if (!live) return 'off-canvas';
+
+      const target = makeTarget(live.state);
+
+      applyingRef.current = true;
+
+      let ok = false;
+
+      try {
+        ok = target.length === live.state.length && target.every((value, index) => value === live.state[index]) ? true : await restorePage(pageId, target, false);
+      } catch {
+        ok = false;
+      } finally {
+        applyingRef.current = false;
+      }
+
+      // Applied or not, the page's undo history restarts from what is on the canvas now.
+      const now = capture().find((page) => page.pageId === pageId);
+
+      if (now) model.seedPage(pageId, now.state);
+      updateFlags();
+
+      return ok ? 'applied' : 'failed';
+    },
+    [capture, commitNow, model, restorePage, updateFlags],
   );
 
   // Steps run one after another: a quick double tap on undo is two undos, not one undo and a tap
@@ -459,6 +513,16 @@ export function useWhiteboardHistory({
     [step],
   );
   const undo = useCallback(() => enqueue('undo'), [enqueue]);
+  const applyExternal = useCallback(
+    (pageId: string, makeTarget: (live: PageState) => PageState) => {
+      const run = stepQueueRef.current.then(() => external(pageId, makeTarget));
+
+      stepQueueRef.current = run.catch(() => null);
+
+      return run;
+    },
+    [external],
+  );
   const redo = useCallback(() => enqueue('redo'), [enqueue]);
 
   const pause = useCallback(() => {
@@ -492,6 +556,7 @@ export function useWhiteboardHistory({
       objectCache,
       pause,
       resume,
+      applyExternal,
     }),
     [
       undo,
@@ -507,6 +572,7 @@ export function useWhiteboardHistory({
       objectCache,
       pause,
       resume,
+      applyExternal,
     ],
   );
 }
