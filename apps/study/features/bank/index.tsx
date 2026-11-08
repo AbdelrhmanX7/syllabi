@@ -86,7 +86,7 @@ export default function BankHome({
   className = "",
 }: BankHomeProps) {
   const aiOn = useAiEnabled();
-  const classesLoad = useLoad(listClasses, []);
+  const classesLoad = useLoad(listClasses, [], true, 'classes');
   const classes = useMemo(() => classesLoad.data ?? [], [classesLoad.data]);
   const [filters, setFilters] = useState<BankFilters>({
     ...EMPTY_FILTERS,
@@ -134,7 +134,7 @@ export default function BankHome({
     setCursor(page.next);
 
     return page.items;
-  }, [filters.classId]);
+  }, [filters.classId], true, 'questions');
   const items = useMemo(() => questions.data ?? [], [questions.data]);
 
   const loadMore = useCallback(async () => {

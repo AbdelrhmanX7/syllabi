@@ -5,6 +5,7 @@ import { CloudOff, LogIn } from 'lucide-react';
 import Link from 'next/link';
 
 import { BottomNav } from './BottomNav';
+import { OfflineBar } from './OfflineBar';
 import { Rail } from './Rail';
 import { UpdateBanner } from './UpdateBanner';
 
@@ -52,6 +53,7 @@ export function AppShell({ children, pathname }: { children: ReactNode; pathname
     <div className='st-shell st-full-h bg-st-bg flex w-screen overflow-hidden'>
       <Rail />
       <main className='relative flex min-w-0 flex-1 flex-col overflow-y-auto'>
+        <OfflineBar />
         {session.state === 'signed-out' && mode !== 'mock' && (
           <Link
             className='border-st-warn/30 bg-st-warn/10 text-st-warn flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2 text-sm md:px-6'

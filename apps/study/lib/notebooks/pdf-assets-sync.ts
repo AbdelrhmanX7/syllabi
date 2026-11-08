@@ -12,6 +12,7 @@ import { isStudyApiError } from '@/lib/api/errors';
 import { studyGet, studyPutRaw } from '@/lib/api/http';
 import { parseJwt, readSessionToken } from '@/lib/auth';
 import { getBackendSettingsSnapshot } from '@/lib/backend-settings';
+import { LOCAL_PAGE_PREFIX } from '@/lib/offline/local-pages';
 
 const enc = encodeURIComponent;
 const LIST_CHUNK = 100;
@@ -180,7 +181,8 @@ async function drain(): Promise<void> {
  * is empty (tests await it).
  */
 export function queuePdfAssetUpload(pageId: string, ids: readonly string[], storage: WhiteboardStorage): Promise<void> {
-  if (!ids.length || disabled) return running ?? Promise.resolve();
+  // A note made offline has no server page yet; its PDFs go up once it is opened under the server id.
+  if (!ids.length || disabled || pageId.startsWith(LOCAL_PAGE_PREFIX)) return running ?? Promise.resolve();
   const job = pending.get(pageId);
 
   if (job) {

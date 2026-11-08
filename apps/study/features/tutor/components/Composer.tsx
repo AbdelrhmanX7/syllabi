@@ -9,6 +9,8 @@ import { ArrowUp, Keyboard, Loader2, MessageCircle, Mic, PenLine, Square, Target
 import { canDictate } from '../lib/transcribe';
 import { useDictation } from '../useDictation';
 import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
+import { NeedsInternet } from '@/components/ui/NeedsInternet';
+import { useOnline } from '@/lib/offline/hooks';
 
 import { InkCanvas } from '@/features/bank';
 
@@ -78,7 +80,8 @@ export function Composer({
 
   useEffect(() => setMicAvailable(canDictate()), []);
 
-  const canSend = !streaming && (text.trim().length > 0 || (pen && !inkEmpty));
+  const online = useOnline();
+  const canSend = online && !streaming && (text.trim().length > 0 || (pen && !inkEmpty));
 
   const submit = useCallback(() => {
     if (!canSend) return;
@@ -243,6 +246,9 @@ export function Composer({
           >
             <Square className='h-4 w-4' />
           </button>
+        ) : !online ? (
+          // The tutor answers from the server: offline the question stays typed, ready for later.
+          <NeedsInternet className='shrink-0' />
         ) : (
           <button
             aria-label='Send'

@@ -8,6 +8,7 @@ import { AskSheet } from './AskSheet';
 
 import { ActionButton } from '@/components/ui/primitives';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { IfOnline } from '@/components/ui/NeedsInternet';
 
 export interface AskTutorButtonProps {
   classId?: string | null;
@@ -66,5 +67,9 @@ function AskTutorButtonInner({
 
 /** Hidden for accounts without AI (`useAiEnabled`). */
 export function AskTutorButton(props: Parameters<typeof AskTutorButtonInner>[0]) {
-  return useAiEnabled() ? <AskTutorButtonInner {...props} /> : null;
+  return useAiEnabled() ? (
+    <IfOnline label='Ask AI'>
+      <AskTutorButtonInner {...props} />
+    </IfOnline>
+  ) : null;
 }

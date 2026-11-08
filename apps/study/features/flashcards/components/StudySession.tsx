@@ -79,7 +79,10 @@ export function StudySession({
       if (value === 'again') missed.current.add(card.id);
 
       chain.current = chain.current
-        .then(() => gradeFlashcard(card, value, timeMs))
+        .then(async () => {
+          // Offline the grade is kept on the device and sent when the server is back.
+          await gradeFlashcard(card, value, timeMs);
+        })
         .catch((err: unknown) => setError(describeError(err, 'A grade didn’t save — that card stays due')));
       setTally((current) => tallyAdd(current, value));
       setFlipped(false);

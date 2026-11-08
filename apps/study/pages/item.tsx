@@ -17,6 +17,7 @@ import { NotebookBoard } from '@/components/notebook/NotebookBoard';
 import { useNotebookConceptMaps } from '@/features/conceptmaps/notes/NotebookConceptMaps';
 import { ActionButton, Badge, EmptyState, ErrorNote, LoadingRows, Surface } from '@/components/ui/primitives';
 import { createPage, getItem } from '@/lib/api/endpoints';
+import { createNotePage } from '@/lib/offline/jobs';
 import { effectiveDue } from '@/lib/due';
 import { describeError } from '@/lib/api/errors';
 import { studyKeys, useClasses, useItem, useMarkSeen, usePages } from '@/lib/api/hooks';
@@ -83,7 +84,8 @@ function useItemNotes(item: Item | undefined) {
     mutationFn: async () => {
       if (!item) throw new Error('No item');
       if (existing) return existing;
-      const page = await createPage({ classId: item.classId, itemId: item.id, title: `Notes · ${item.title}`, kind: 'note' });
+      // Offline: a note on this device at once, created on the server when it is back.
+      const page = await createNotePage({ classId: item.classId, itemId: item.id, title: `Notes · ${item.title}`, kind: 'note' });
 
       rememberPages([page]);
 
@@ -206,7 +208,7 @@ export default function ItemPage() {
   }, [item, router]);
 
   if (!itemId) return <EmptyState title='No item selected' />;
-  if (error) return <ErrorNote message={describeError(error)} onRetry={() => void refetch()} />;
+  if (error && !item) return <ErrorNote message={describeError(error)} onRetry={() => void refetch()} />;
   if (isLoading || !item) return <LoadingRows rows={6} />;
 
   // Video → the lectures feature's study view (player + transcript + synced notebook).

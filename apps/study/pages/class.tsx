@@ -40,7 +40,7 @@ import {
   SectionTitle,
   Surface,
 } from "@/components/ui/primitives";
-import { createPage } from "@/lib/api/endpoints";
+import { createNotePage } from "@/lib/offline/jobs";
 import { describeError } from "@/lib/api/errors";
 import {
   studyKeys,
@@ -254,7 +254,8 @@ export default function ClassPage() {
   const createNotebook = useMutation({
     mutationFn: async () => {
       const title = `${cls?.code ?? "Notes"} · ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date())}`;
-      const page = await createPage({ classId, title, kind: "note" });
+      // Offline: a note on this device at once, created on the server when it is back.
+      const page = await createNotePage({ classId, title, kind: "note" });
 
       rememberPages([page]);
 

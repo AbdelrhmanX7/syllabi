@@ -14,6 +14,8 @@ import { installStudyTransport } from '@/lib/api/client';
 import { retryUnlessAiQuota } from '@/lib/api/errors';
 import { useAuthInit } from '@/lib/auth';
 import { installPdfAssetMigrationHelper } from '@/lib/notebooks/pdf-assets-migrate';
+import { OfflineRoot } from '@/lib/offline/OfflineRoot';
+import { applyPersistDefaults } from '@/lib/offline/persist';
 import { IS_ANDROID_BUILD } from '@/lib/platform/runtime';
 import { installClickSounds } from '@/lib/sound/click';
 import '@/styles/globals.css';
@@ -25,15 +27,28 @@ installStudyTransport();
 installPdfAssetMigrationHelper();
 
 function makeQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 15_000,
         retry: retryUnlessAiQuota,
         refetchOnWindowFocus: false,
+        // Try once even offline (demo mode answers from the device); a network failure then pauses
+        // the query (data kept) until the server is back, instead of an error screen.
+        networkMode: 'offlineFirst',
+      },
+      mutations: {
+        // Mutations decide offline themselves (lib/offline/jobs queues what must not be lost); never
+        // park one silently in memory.
+        networkMode: 'always',
       },
     },
   });
+
+  // Saved-for-offline kinds stay in memory long enough to be restored and shown (lib/offline/persist).
+  applyPersistDefaults(client);
+
+  return client;
 }
 
 function Shell({ Component, pageProps }: { Component: AppProps['Component']; pageProps: AppProps['pageProps'] }) {
@@ -90,6 +105,7 @@ export default function App({ Component, pageProps }: AppProps) {
         />
       </Head>
       <QueryClientProvider client={queryClient}>
+        <OfflineRoot>
         <HeroUIProvider className='h-full w-full' locale='en-US' navigate={router.push}>
           <NextThemesProvider enableSystem attribute='class' defaultTheme='system' themes={['light', 'dark']}>
             <ToastProvider placement='top-right' />
@@ -98,6 +114,7 @@ export default function App({ Component, pageProps }: AppProps) {
             <Shell Component={Component} pageProps={pageProps} />
           </NextThemesProvider>
         </HeroUIProvider>
+        </OfflineRoot>
       </QueryClientProvider>
     </>
   );

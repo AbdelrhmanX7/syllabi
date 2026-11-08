@@ -25,6 +25,7 @@ import { Sheet } from '@/features/inbox/components/Sheet';
 import { useClasses } from '@/lib/api/hooks';
 import { describeError } from '@/lib/api/errors';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { IfOnline } from '@/components/ui/NeedsInternet';
 
 export { FLASHCARD_TAG, isFlashcard } from './lib/deck';
 
@@ -114,9 +115,11 @@ export default function FlashcardsHome({
           </p>
         </div>
         {aiOn && (
-          <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setAiOpen(true)}>
-            <Sparkles className='h-4 w-4' /> Make with AI
-          </ActionButton>
+          <IfOnline label='Make with AI'>
+            <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setAiOpen(true)}>
+              <Sparkles className='h-4 w-4' /> Make with AI
+            </ActionButton>
+          </IfOnline>
         )}
         <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setEditing({ card: null })}>
           <Plus className='h-4 w-4' /> New card
@@ -154,7 +157,7 @@ export default function FlashcardsHome({
         </div>
       )}
 
-      {cardsQuery.error ? (
+      {cardsQuery.error && !cardsQuery.data ? (
         <ErrorNote
           message={describeError(cardsQuery.error, 'Could not load your cards')}
           onRetry={() => void cardsQuery.refetch()}

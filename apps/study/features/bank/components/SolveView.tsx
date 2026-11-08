@@ -28,6 +28,8 @@ import { MatchingAnswer } from './MatchingAnswer';
 import { QuestionCard } from './QuestionCard';
 import { VerdictPanel } from './VerdictPanel';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { NeedsInternet } from '@/components/ui/NeedsInternet';
+import { useOnline } from '@/lib/offline/hooks';
 
 /**
  * The core screen: the question on top, the pen area below, «Check» sends the ink (or the typed /
@@ -83,6 +85,7 @@ export function SolveView({
   className = '',
 }: SolveViewProps) {
   const aiOn = useAiEnabled();
+  const online = useOnline();
   const katex = useKatex();
   const inkRef = useRef<InkCanvasHandle>(null);
   const startedAt = useRef(performance.now());
@@ -444,7 +447,10 @@ export function SolveView({
       )}
 
       <div className='sticky bottom-0 -mx-1 flex flex-wrap items-center gap-2 bg-st-bg/95 p-1'>
-        {!run.verdict ? (
+        {!run.verdict && !online ? (
+          // Checking an answer runs on the server: offline, say so instead of failing after the tap.
+          <NeedsInternet label='Check' />
+        ) : !run.verdict ? (
           <button
             className='flex h-14 flex-1 items-center justify-center gap-2 rounded-st border-2 border-st-accent-lip bg-st-accent px-6 text-base font-semibold text-st-accent-fg hover:bg-st-accent/90 disabled:opacity-40 sm:flex-none shadow-clay-accent transition-transform active:translate-y-[3px] active:shadow-none'
             disabled={!canCheck}
@@ -467,7 +473,7 @@ export function SolveView({
             <RefreshCw className='h-5 w-5' /> Try again
           </button>
         )}
-        {allowSimilar && aiOn ? (
+        {allowSimilar && aiOn && online ? (
           <button
             className='flex h-14 items-center justify-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-5 text-base font-medium text-st-fg hover:bg-st-accent-soft disabled:opacity-40 shadow-clay transition-transform active:translate-y-[3px] active:shadow-none'
             disabled={similarBusy}

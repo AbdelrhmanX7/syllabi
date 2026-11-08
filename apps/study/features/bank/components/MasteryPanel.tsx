@@ -31,7 +31,7 @@ export function barTone(mastery: number): string {
 }
 
 export function MasteryPanel({ classes, classId, onClassChange, onDrill, className = '' }: MasteryPanelProps) {
-  const mastery = useLoad(() => getMastery(classId ?? undefined), [classId]);
+  const mastery = useLoad(() => getMastery(classId ?? undefined), [classId], true, 'mastery');
   const topics = useMemo(() => [...(mastery.data?.topics ?? [])].sort((a, b) => a.mastery - b.mastery), [mastery.data]);
   const weak = topics.filter((t) => t.mastery < WEAK_THRESHOLD && t.attempts > 0);
   const overall = topics.length ? topics.reduce((sum, t) => sum + t.mastery, 0) / topics.length : 0;

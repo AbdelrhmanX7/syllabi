@@ -6,9 +6,9 @@ import type { Question } from '@/lib/api/types';
 import { FLASHCARD_TAG, gradeRating, isFlashcard, withFlashcardTag } from './lib/deck';
 import { tagAsFlashcard } from './lib/tag';
 
+import { recordSelfGrade } from '@/lib/offline/jobs';
 import {
   aiFlashcards,
-  attemptQuestion,
   createQuestions,
   deleteQuestion,
   listQuestions,
@@ -76,10 +76,13 @@ export const updateFlashcard = (card: Question, draft: CardDraft) =>
 
 export const deleteFlashcard = (card: Question) => deleteQuestion(card.id);
 
-/** Records a self-grade through the bank's attempt endpoint (no grader runs for `selfRating`). */
-export async function gradeFlashcard(card: Question, grade: Grade, timeMs: number): Promise<void> {
-  // An `error` frame throws from the transport.
-  await attemptQuestion(card.id, { timeMs, selfRating: gradeRating(grade) }, () => undefined);
+/**
+ * Records a self-grade through the bank's attempt endpoint (no grader runs for `selfRating`). Offline
+ * it is queued on the device and sent when the server is back (lib/offline/jobs).
+ */
+export async function gradeFlashcard(card: Question, grade: Grade, timeMs: number): Promise<'sent' | 'queued'> {
+  // An `error` frame (the server refusing it) throws from the transport.
+  return recordSelfGrade({ questionId: card.id, selfRating: gradeRating(grade), timeMs });
 }
 
 export type AiSource =

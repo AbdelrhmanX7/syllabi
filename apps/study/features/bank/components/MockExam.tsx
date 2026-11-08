@@ -183,8 +183,8 @@ function ExamSetup({
   onPractice?: () => void;
   onExit: () => void;
 }) {
-  const mastery = useLoad(() => getMastery(classId ?? undefined), [classId], Boolean(classId));
-  const history = useLoad(async () => (await listExams(classId ?? undefined)).map(toRow), [classId]);
+  const mastery = useLoad(() => getMastery(classId ?? undefined), [classId], Boolean(classId), 'mastery');
+  const history = useLoad(async () => (await listExams(classId ?? undefined)).map(toRow), [classId], true, 'exams');
   const drafts = useLoad(listExamDrafts, []);
   const [topics, setTopics] = useState<string[]>(initialTopics ?? []);
   const [count, setCount] = useState(10);
@@ -196,7 +196,7 @@ function ExamSetup({
   // has no blueprints). On by default when offered; the toggle pins it.
   const [realPinned, setRealPinned] = useState<boolean | null>(initialBlueprint ? true : null);
   const examsOnMock = useSampleRoute('/exams', 'POST');
-  const blueprint = useLoad(() => getBlueprint(classId!), [classId], Boolean(classId) && !examsOnMock);
+  const blueprint = useLoad(() => getBlueprint(classId!), [classId], Boolean(classId) && !examsOnMock, 'exam-blueprint');
   const realOffered = !examsOnMock && !blueprint.loading && !blueprint.error && Boolean(blueprint.data?.blueprint);
   const real = realOffered && (realPinned ?? true);
   const [busy, setBusy] = useState<string | null>(null);

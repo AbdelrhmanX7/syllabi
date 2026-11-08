@@ -56,8 +56,12 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
     },
     [classId, queryClient, recordNote],
   );
-  const [classes, setClasses] = useState<StudyClass[]>([]);
-  const [lectures, setLectures] = useState<LectureDto[] | null>(null);
+  // The last list shown is kept in the query cache (saved on the device for offline): it paints first,
+  // and stands in when the server cannot be reached.
+  const cacheKey = useMemo(() => ['study', 'lectures', classId ?? ''] as const, [classId]);
+  const cachedList = () => queryClient.getQueryData<{ classes: StudyClass[]; lectures: LectureDto[] }>(cacheKey);
+  const [classes, setClasses] = useState<StudyClass[]>(() => cachedList()?.classes ?? []);
+  const [lectures, setLectures] = useState<LectureDto[] | null>(() => cachedList()?.lectures ?? null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(classId ?? null);
   const [formOpen, setFormOpen] = useState(false);
@@ -84,11 +88,21 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
       setClasses(classList);
       setLectures(lectureList);
       setError(null);
+      queryClient.setQueryData(cacheKey, { classes: classList, lectures: lectureList });
     } catch (err) {
+      const cached = queryClient.getQueryData<{ classes: StudyClass[]; lectures: LectureDto[] }>(cacheKey);
+
+      if (cached) {
+        setClasses(cached.classes);
+        setLectures(cached.lectures);
+        setError(null);
+
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Could not load lectures');
       setLectures((current) => current ?? []);
     }
-  }, [classId]);
+  }, [cacheKey, classId, queryClient]);
 
   useEffect(() => {
     if (view.kind === 'list') void load();

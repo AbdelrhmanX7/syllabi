@@ -14,6 +14,7 @@ import { AttachToLectureButton, lectureNoteSeed, usePageLecture } from '@/featur
 import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
+import { isLocalPageId, pageRedirect } from '@/lib/offline/local-pages';
 import { useStudyBoardAi } from '@/features/tutor';
 import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareButton';
 import { PageVersionsButton, SharedEditChip } from '@/features/share/components/PageVersions';
@@ -59,10 +60,39 @@ export default function NotebookPage() {
     void router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
   }, [router]);
 
+  // A note made offline that the server has since created: its board lives under the server id now.
+  const redirectTo = isLocalPageId(pageId) ? pageRedirect(pageId) : null;
+
   useEffect(() => {
-    if (!pageId) return;
+    if (!redirectTo) return;
+    const query = { ...router.query, id: redirectTo };
+
+    void router.replace({ pathname: router.pathname, query });
+  }, [redirectTo, router]);
+
+  useEffect(() => {
+    if (!pageId || redirectTo) return;
     const cached = readCachedPage(pageId);
     let cancelled = false;
+
+    // Made offline, not on the server yet: the device's record is the page.
+    if (isLocalPageId(pageId)) {
+      setPage(
+        cached ?? {
+          id: pageId,
+          classId: classId || null,
+          itemId: null,
+          lectureId: null,
+          title: 'Notebook',
+          kind: 'note',
+          updatedAt: new Date().toISOString(),
+          version: 0,
+          thumbUrl: null,
+        },
+      );
+
+      return;
+    }
 
     // The cached record paints first; the backend's copy follows (it carries the typed body of a page
     // Claude wrote, which lists do not). An older backend without GET /pages/:id falls back to the list.
@@ -103,7 +133,7 @@ export default function NotebookPage() {
     return () => {
       cancelled = true;
     };
-  }, [classId, pageId]);
+  }, [classId, pageId, redirectTo]);
 
   const handleBack = useCallback(() => {
     if (page?.shared) void router.push('/shared/');
@@ -127,6 +157,9 @@ export default function NotebookPage() {
     },
     [page],
   );
+
+  // Moving to the server id: never mount the board on the old one (it would start a blank board there).
+  if (redirectTo) return null;
 
   if (!pageId || missing) {
     return (

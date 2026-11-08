@@ -8,7 +8,7 @@
 import type { SseFrame, StudyTransport } from './http';
 import type { StudyClass } from './types';
 
-import { StudyApiError, studyApiError } from './errors';
+import { NEEDS_INTERNET_MESSAGE, OFFLINE_CODE, StudyApiError, studyApiError } from './errors';
 import { readSse, setStudyTransport } from './http';
 import { createMockTransport } from './mock';
 import { rememberLiveClasses } from './mock/class-map';
@@ -16,6 +16,7 @@ import { markSample } from './sample';
 
 import { readSessionToken, STUDY_TOKEN_KEY, STUDY_USER_KEY } from '@/lib/auth';
 import { getBackendSettingsSnapshot, subscribeBackendSettings } from '@/lib/backend-settings';
+import { isOnline, reportNetworkFailure, reportNetworkSuccess } from '@/lib/offline/network';
 
 /**
  * Route prefixes the backend serves today.
@@ -224,9 +225,26 @@ function noteLiveClasses(method: string, path: string, result: unknown): void {
   }
 }
 
+/**
+ * `fetch` that tells the offline layer what happened: a request that never reached the server flips the
+ * app offline (Android WebViews keep `navigator.onLine` true on a dead network), any answer flips it back.
+ */
+async function liveFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch(url, init);
+
+    reportNetworkSuccess();
+
+    return res;
+  } catch (error) {
+    if (!(init.signal?.aborted ?? false)) reportNetworkFailure();
+    throw error;
+  }
+}
+
 const liveTransport: StudyTransport = {
   async json<T>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
-    const res = await fetch(`${studyBase()}${path}`, {
+    const res = await liveFetch(`${studyBase()}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
@@ -248,7 +266,7 @@ const liveTransport: StudyTransport = {
     return result;
   },
   async raw<T>(method: string, path: string, body: Blob | string, contentType: string): Promise<T> {
-    const res = await fetch(`${studyBase()}${path}`, {
+    const res = await liveFetch(`${studyBase()}${path}`, {
       method,
       headers: { Accept: 'application/json', 'Content-Type': contentType, ...authHeaders() },
       body,
@@ -262,14 +280,16 @@ const liveTransport: StudyTransport = {
     return (text ? JSON.parse(text) : undefined) as T;
   },
   async rawBlob(method: string, path: string, body: Blob, headers: Record<string, string>): Promise<Response> {
-    const res = await fetch(`${studyBase()}${path}`, { method, headers: { ...headers, ...authHeaders() }, body });
+    const res = await liveFetch(`${studyBase()}${path}`, { method, headers: { ...headers, ...authHeaders() }, body });
 
     if (!res.ok) await throwForResponse(res);
 
     return res;
   },
   async sse(path: string, body: unknown, onFrame: (frame: SseFrame) => void, signal?: AbortSignal): Promise<void> {
-    const res = await fetch(`${studyBase()}${path}`, {
+    // Streams are AI / grading: they need the server. Offline, say so at once instead of failing slowly.
+    if (!isOnline()) throw new StudyApiError(0, NEEDS_INTERNET_MESSAGE, OFFLINE_CODE);
+    const res = await liveFetch(`${studyBase()}${path}`, {
       method: 'POST',
       headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body ?? {}),

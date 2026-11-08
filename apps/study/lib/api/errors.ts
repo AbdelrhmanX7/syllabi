@@ -98,7 +98,15 @@ export function isAiQuotaError(error: unknown): boolean {
 
 /** React Query `retry`: once for a flaky network, never for an empty AI account. */
 export const retryUnlessAiQuota = (failureCount: number, error: unknown): boolean =>
-  failureCount < 1 && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error) && !isAiResting(error);
+  failureCount < 1 && !isOfflineError(error) && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error) && !isAiResting(error);
+
+/** An AI / online-only action tried while the device is offline: thrown before any request leaves. */
+export const OFFLINE_CODE = 'OFFLINE';
+export const NEEDS_INTERNET_MESSAGE = 'Needs internet — try again when you’re back online.';
+
+export function isOfflineError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as { code?: unknown }).code === OFFLINE_CODE;
+}
 
 export const NETWORK_MESSAGE = 'Lost connection to the server — check your internet and try again.';
 
@@ -141,6 +149,7 @@ export const NO_PROMPT_TERMS_MESSAGE = "Enter this map's concept list first";
 /** `network` replaces the generic lost-connection line where the caller can say what was lost. */
 export function describeError(error: unknown, fallback = 'Something went wrong', network = NETWORK_MESSAGE): string {
   if (isAiQuotaError(error)) return AI_QUOTA_MESSAGE;
+  if (isOfflineError(error)) return NEEDS_INTERNET_MESSAGE;
   if (isServerRestarting(error)) return SERVER_RESTARTING_MESSAGE;
   if ((error as { code?: unknown } | null)?.code === AI_BUDGET_CODE) return AI_BUDGET_MESSAGE;
   if ((error as { code?: unknown } | null)?.code === AI_DAILY_LIMIT_CODE) return AI_DAILY_LIMIT_MESSAGE;

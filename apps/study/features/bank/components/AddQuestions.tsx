@@ -14,6 +14,7 @@ import { BOARD_CHIP } from '@/components/ui/primitives';
 import { Chip } from './BankBrowser';
 import { QuestionCard } from './QuestionCard';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { IfOnline } from '@/components/ui/NeedsInternet';
 
 /**
  * Three ways in: a photo (camera or file → PNG → `/questions/extract`), a Canvas item / notebook
@@ -93,7 +94,7 @@ export function AddQuestionsModal({
   onAdded,
   onClose,
 }: AddQuestionsModalProps) {
-  const loaded = useLoad(listClasses, [], !givenClasses);
+  const loaded = useLoad(listClasses, [], !givenClasses, 'classes');
   const classes = givenClasses ?? loaded.data ?? [];
   const [classId, setClassId] = useState<string | null>(initialClassId ?? null);
   const aiOn = useAiEnabled();
@@ -516,5 +517,9 @@ function ManualForm({
 
 /** Hidden for accounts without AI (`useAiEnabled`). */
 export function ExtractButton(props: Parameters<typeof ExtractButtonInner>[0]) {
-  return useAiEnabled() ? <ExtractButtonInner {...props} /> : null;
+  return useAiEnabled() ? (
+    <IfOnline label='Make questions'>
+      <ExtractButtonInner {...props} />
+    </IfOnline>
+  ) : null;
 }

@@ -14,6 +14,7 @@ import { beginPageContentUpload, commitPageContent, getPageContent, putPageConte
 import { isStudyApiError } from '@/lib/api/errors';
 import { studyGet } from '@/lib/api/http';
 import { fetchJsonFromUrl, putToUrl } from '@/lib/api/upload';
+import { isLocalPageId } from '@/lib/offline/local-pages';
 
 export interface OpenNotebookOptions {
   pageId: string;
@@ -49,7 +50,8 @@ export async function openNotebookDocument({ pageId, title, storage, seed }: Ope
   remoteVersion: number | null;
 }> {
   const local = await storage.loadWhiteboard(pageId).catch(() => null);
-  const remote = await readRemoteContent(pageId);
+  // A note made offline (`local-…`) has no server copy yet: the device is all there is.
+  const remote = isLocalPageId(pageId) ? null : await readRemoteContent(pageId);
   let synced = readSyncedVersion(pageId);
 
   // The unsent mark is set the moment the board saves on the device (leaving the page saves it too), so
@@ -187,6 +189,8 @@ export function sameDocument(a: unknown, b: unknown): boolean {
  * (`STALE_VERSION`, with the server's `currentVersion`) means someone else wrote in between.
  */
 export async function uploadNotebookDocument(pageId: string, storage: WhiteboardStorage): Promise<UploadOutcome> {
+  // Not on the server yet (made offline): it goes up once the outbox has created the page.
+  if (isLocalPageId(pageId)) return { ok: false, reason: 'offline', message: 'Saved on this tablet — syncs when you’re online' };
   const doc = await storage.loadWhiteboard(pageId).catch(() => null);
 
   if (!doc) return { ok: false, reason: 'error', message: 'Nothing to upload' };

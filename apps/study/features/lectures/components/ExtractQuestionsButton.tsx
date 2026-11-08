@@ -6,6 +6,7 @@ import { extractLectureQuestions, generateFlashcards } from '../lib/api';
 
 import { isStudyApiError } from '@/lib/api/errors';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { IfOnline } from '@/components/ui/NeedsInternet';
 
 type State =
   | { kind: 'idle' }
@@ -119,10 +120,18 @@ function FlashcardsButtonInner({
 
 /** Hidden for accounts without AI (`useAiEnabled`). */
 export function ExtractQuestionsButton(props: Parameters<typeof ExtractQuestionsButtonInner>[0]) {
-  return useAiEnabled() ? <ExtractQuestionsButtonInner {...props} /> : null;
+  return useAiEnabled() ? (
+    <IfOnline label='Questions'>
+      <ExtractQuestionsButtonInner {...props} />
+    </IfOnline>
+  ) : null;
 }
 
 /** Hidden for accounts without AI (`useAiEnabled`). */
 export function FlashcardsButton(props: Parameters<typeof FlashcardsButtonInner>[0]) {
-  return useAiEnabled() ? <FlashcardsButtonInner {...props} /> : null;
+  return useAiEnabled() ? (
+    <IfOnline label='Flashcards'>
+      <FlashcardsButtonInner {...props} />
+    </IfOnline>
+  ) : null;
 }

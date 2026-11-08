@@ -12,6 +12,7 @@ import { aiFlashcards, extractQuestions } from '@/lib/api/endpoints';
 import { describeError } from '@/lib/api/errors';
 import { isSampleData } from '@/lib/api/sample';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { IfOnline } from '@/components/ui/NeedsInternet';
 
 /**
  * «Make questions» (`/questions/extract` from {libraryId}: a stored PDF/image is read page by page,
@@ -114,5 +115,9 @@ function LibraryAiButtonInner({ classId, libraryId, mode, pageRange }: LibraryAi
 
 /** Hidden for accounts without AI (`useAiEnabled`). */
 export function LibraryAiButton(props: Parameters<typeof LibraryAiButtonInner>[0]) {
-  return useAiEnabled() ? <LibraryAiButtonInner {...props} /> : null;
+  return useAiEnabled() ? (
+    <IfOnline label='AI'>
+      <LibraryAiButtonInner {...props} />
+    </IfOnline>
+  ) : null;
 }

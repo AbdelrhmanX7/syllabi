@@ -9,6 +9,7 @@ import { isMockRoute } from './client';
 import * as endpoints from './endpoints';
 
 import { isValidAdminToken, readSessionToken, useGetUserData } from '@/lib/auth';
+import { markSeenOfflineAware } from '@/lib/offline/jobs';
 import {
   getBackendSettingsServerSnapshot,
   getBackendSettingsSnapshot,
@@ -214,12 +215,12 @@ export const useMastery = (classId?: string) =>
     enabled: useStudyQueriesEnabled(),
   });
 
-/** Marks an item seen and refreshes everything that counts unseen items. */
+/** Marks an item seen (queued while offline) and refreshes everything that counts unseen items. */
 export function useMarkSeen() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: endpoints.markItemSeen,
+    mutationFn: markSeenOfflineAware,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: studyKeys.today });
       void queryClient.invalidateQueries({ queryKey: ['study', 'classes'] });

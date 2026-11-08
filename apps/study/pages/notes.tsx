@@ -18,7 +18,7 @@ import {
   Surface,
 } from "@/components/ui/primitives";
 import { notebookHref } from "@/features/lecturenotes/hooks";
-import { createPage } from "@/lib/api/endpoints";
+import { createNotePage } from "@/lib/offline/jobs";
 import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
 import { formatRelative } from "@/lib/format";
@@ -76,7 +76,8 @@ export default function NotesPage() {
   const create = useMutation({
     mutationFn: async () => {
       const title = `Note · ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date())}`;
-      const page = await createPage({ classId: null, title, kind: "note" });
+      // Offline: a note on this device at once, created on the server when it is back.
+      const page = await createNotePage({ classId: null, title, kind: "note" });
 
       rememberPages([page]);
 

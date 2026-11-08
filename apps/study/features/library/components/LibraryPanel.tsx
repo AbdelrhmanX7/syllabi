@@ -112,7 +112,7 @@ export function LibraryPanel({ classId, onOpen }: LibraryPanelProps) {
   const hits = query.length >= 2 ? (search.data ?? []) : [];
 
   if (library.isLoading) return <LoadingRows rows={6} />;
-  if (library.error) return <ErrorNote message={describeError(library.error)} onRetry={() => void library.refetch()} />;
+  if (library.error && !library.data) return <ErrorNote message={describeError(library.error)} onRetry={() => void library.refetch()} />;
   if (docs.length === 0)
     return (
       <EmptyState
