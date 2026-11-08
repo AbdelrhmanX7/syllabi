@@ -37,8 +37,66 @@ export function signInSwitch(
   return { saveUrl: authServer, clearForcedMock: current.storedMock === '1' };
 }
 
-/** Custom-scheme deep link the APK registers for Google sign-in (Tauri deep-link plugin, not installed yet). */
+/** Custom-scheme link the APK registers (tauri.conf.json → plugins.deep-link): Google sends the app back here. */
 export const APK_AUTH_DEEP_LINK = 'studio.syllabi.app://auth';
+
+/** Host whose emailed links open the APK (verified App Links; public/.well-known/assetlinks.json). */
+export const APP_LINK_HOST = 'app.syllabi.studio';
+
+const EMAIL_LINK_KINDS = new Set(['magic', 'verify', 'reset']);
+
+/** `magic`, `verify`, `reset` (or `callback` when allowed) from `auth/<kind>[/]`; null otherwise. */
+function authKind(path: string, allowCallback: boolean): string | null {
+  const match = /^\/?auth\/([a-z]+)\/?$/.exec(path);
+  const kind = match?.[1] ?? '';
+
+  return EMAIL_LINK_KINDS.has(kind) || (allowCallback && kind === 'callback') ? kind : null;
+}
+
+/**
+ * Where a link that opened the APK should go inside the app, or null to ignore it:
+ * - `https://app.syllabi.studio/auth/magic/?token=X` → `/auth/magic/?token=X` (same for verify / reset);
+ * - `studio.syllabi.app://auth#token=…` (Google's return) → `/auth/callback/#token=…`;
+ * - `studio.syllabi.app://auth/magic?token=X` → `/auth/magic/?token=X`.
+ * The custom scheme is split by hand: older Android WebViews parse `scheme://host` URLs of unknown
+ * schemes with an empty host, so `new URL().host` can't be trusted there.
+ */
+export function deepLinkToAppPath(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const link = raw.trim();
+  const scheme = `${APK_AUTH_DEEP_LINK.split('://')[0]}://`;
+
+  if (link.toLowerCase().startsWith(scheme)) {
+    const rest = link.slice(scheme.length);
+    const hashAt = rest.indexOf('#');
+    const beforeHash = hashAt >= 0 ? rest.slice(0, hashAt) : rest;
+    const hash = hashAt >= 0 ? rest.slice(hashAt) : '';
+    const queryAt = beforeHash.indexOf('?');
+    const path = queryAt >= 0 ? beforeHash.slice(0, queryAt) : beforeHash;
+    const query = queryAt >= 0 ? beforeHash.slice(queryAt) : '';
+    const [host, ...segments] = path.split('/');
+
+    if (host.toLowerCase() !== 'auth') return null;
+    const sub = segments.filter(Boolean);
+
+    if (sub.length === 0) return `/auth/callback/${query}${hash}`;
+    const kind = authKind(`auth/${sub.join('/')}`, true);
+
+    return kind ? `/auth/${kind}/${query}${hash}` : null;
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== APP_LINK_HOST) return null;
+  const kind = authKind(url.pathname, false);
+
+  return kind ? `/auth/${kind}/${url.search}${url.hash}` : null;
+}
 
 export interface AuthConfig {
   registration: 'open' | 'closed';

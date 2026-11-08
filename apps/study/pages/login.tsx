@@ -18,6 +18,7 @@ import {
 } from '@/features/auth/api';
 import { AuthCard, GoogleIcon, OrDivider, PasswordInput } from '@/features/auth/components/AuthCard';
 import {
+  APK_AUTH_DEEP_LINK,
   buildCallbackUrl,
   buildGoogleStartUrl,
   describeAuthError,
@@ -27,6 +28,7 @@ import {
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
 import { adminLogin } from '@/lib/auth';
+import { openInSystemBrowser } from '@/lib/platform/app-links';
 import { isTauri } from '@/lib/platform/runtime';
 
 type Tab = 'signin' | 'create';
@@ -176,11 +178,8 @@ function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onT
   const [error, setError] = useState<string | null>(null);
   const canRegister = config.registration === 'open';
   const creating = tab === 'create' && canRegister;
-  // TODO(apk): Google blocks OAuth inside embedded WebViews. The APK path is: open
-  // buildGoogleStartUrl(server, APK_AUTH_DEEP_LINK) in the system browser and catch the
-  // `studio.syllabi.app://auth#token=` deep link (tauri-plugin-deep-link + tauri-plugin-opener, not installed).
-  // Until then the Google button is web-only.
-  const showGoogle = config.google && !isTauri();
+  const showGoogle = config.google;
+  const [googleInBrowser, setGoogleInBrowser] = useState(false);
 
   useEffect(() => setError(null), [tab, view]);
 
@@ -188,8 +187,19 @@ function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onT
     return <EmailOnlyForm initialEmail={email} view={view} onBack={() => setView('form')} />;
   }
 
-  const startGoogle = () => {
-    window.location.href = buildGoogleStartUrl(authServer(), buildCallbackUrl(window.location.origin));
+  const startGoogle = async () => {
+    if (!isTauri()) {
+      window.location.href = buildGoogleStartUrl(authServer(), buildCallbackUrl(window.location.origin));
+
+      return;
+    }
+    // Google refuses sign-in inside the app's own web view: finish it in the browser, which sends the
+    // tablet back to the app (studio.syllabi.app://auth#token=…, routed by AppLinkRouter).
+    setError(null);
+    const opened = await openInSystemBrowser(buildGoogleStartUrl(authServer(), APK_AUTH_DEEP_LINK));
+
+    if (opened) setGoogleInBrowser(true);
+    else setError('Couldn’t open the browser for Google sign-in. Try again.');
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -234,9 +244,14 @@ function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onT
 
       {showGoogle && (
         <>
-          <ActionButton className='w-full' variant='secondary' onClick={startGoogle}>
+          <ActionButton className='w-full' variant='secondary' onClick={() => void startGoogle()}>
             <GoogleIcon /> Continue with Google
           </ActionButton>
+          {googleInBrowser && (
+            <p className='text-st-muted text-sm' role='status'>
+              Finish with Google in your browser. It brings you back here when you’re done.
+            </p>
+          )}
           <OrDivider />
         </>
       )}

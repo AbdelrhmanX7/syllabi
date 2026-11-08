@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  APK_AUTH_DEEP_LINK,
   buildCallbackUrl,
+  deepLinkToAppPath,
   OFFICIAL_SERVER,
   pickOfficialServer,
   resolveAuthServer,
@@ -125,4 +127,36 @@ test('sign-in switch: demo mode adopts the auth server and lifts a forced mock; 
     saveUrl: null,
     clearForcedMock: false,
   });
+});
+
+test('deepLinkToAppPath: emailed https links go to the matching in-app page, token kept', () => {
+  assert.equal(deepLinkToAppPath('https://app.syllabi.studio/auth/magic/?token=abc'), '/auth/magic/?token=abc');
+  assert.equal(deepLinkToAppPath('https://app.syllabi.studio/auth/verify?token=a.b-c'), '/auth/verify/?token=a.b-c');
+  assert.equal(deepLinkToAppPath('https://APP.syllabi.studio/auth/reset/?token=x'), '/auth/reset/?token=x');
+});
+
+test('deepLinkToAppPath: the Google return (custom scheme) goes to the callback page with its fragment', () => {
+  assert.equal(deepLinkToAppPath(`${APK_AUTH_DEEP_LINK}#token=h.p.s`), '/auth/callback/#token=h.p.s');
+  assert.equal(deepLinkToAppPath('studio.syllabi.app://auth/#error=access_denied'), '/auth/callback/#error=access_denied');
+  assert.equal(deepLinkToAppPath('studio.syllabi.app://auth?error=google_error'), '/auth/callback/?error=google_error');
+  assert.equal(deepLinkToAppPath('studio.syllabi.app://auth/magic?token=t1'), '/auth/magic/?token=t1');
+});
+
+test('deepLinkToAppPath: anything else is ignored', () => {
+  for (const link of [
+    'http://app.syllabi.studio/auth/magic/?token=abc',
+    'https://evil.example.com/auth/magic/?token=abc',
+    'https://app.syllabi.studio.evil.com/auth/magic/?token=abc',
+    'https://app.syllabi.studio/auth/callback/#token=abc',
+    'https://app.syllabi.studio/auth/magic/extra?token=abc',
+    'https://app.syllabi.studio/today/',
+    'studio.syllabi.app://other#token=abc',
+    'studio.syllabi.app://auth/unknown?token=abc',
+    'not a url',
+    '',
+    null,
+    42,
+  ]) {
+    assert.equal(deepLinkToAppPath(link), null, String(link));
+  }
 });

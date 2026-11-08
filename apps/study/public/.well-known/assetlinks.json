@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "studio.syllabi.app",
+      "sha256_cert_fingerprints": [
+        "DD:9F:3D:47:23:0F:BA:CE:26:C5:7E:F8:BB:07:D0:AA:2D:6B:0A:2C:2E:F4:DF:07:8B:B8:C6:BC:22:CC:ED:20"
+      ]
+    }
+  }
+]

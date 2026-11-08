@@ -62,6 +62,10 @@ async fn update_feed() -> Result<serde_json::Value, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Sign-in links (emailed magic/verify/reset links, the Google return) and the system browser
+        // for Google sign-in. Both are driven from the page; see features/auth/components/DeepLinkRouter.tsx.
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![shell_info, update_feed, youtube_captions::youtube_captions])
         .run(tauri::generate_context!())
         .expect("error while running Study");
