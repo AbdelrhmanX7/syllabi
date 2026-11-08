@@ -14,6 +14,10 @@ const FlashcardsHome = dynamic(() => import('@/features/flashcards'), {
 export default function FlashcardsPage() {
   const router = useRouter();
   const classId = typeof router.query.classId === 'string' ? router.query.classId : undefined;
+  const make =
+    router.query.make === 'page' || router.query.make === 'library' || router.query.make === 'lecture'
+      ? router.query.make
+      : undefined;
   const isSample = useSampleRoute('/questions');
 
   return (
@@ -22,7 +26,7 @@ export default function FlashcardsPage() {
         <title>Flashcards · Syllabi</title>
       </Head>
       {isSample && <SampleDataBanner className='mb-5' what='flashcards and reviews' />}
-      <FlashcardsHome classId={classId} />
+      <FlashcardsHome key={make ?? 'home'} classId={classId} make={make} />
     </>
   );
 }

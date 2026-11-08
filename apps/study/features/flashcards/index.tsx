@@ -38,7 +38,13 @@ const classLabel = (cls: StudyClass | undefined, fallback = 'Class') =>
  * `/flashcards` — decks by class, then topic (a card is a bank question tagged 'flashcard'), a
  * flip-and-grade study session on the bank's SRS, «New card» and «Make with AI».
  */
-export default function FlashcardsHome({ classId: initialClassId }: { classId?: string }) {
+export default function FlashcardsHome({
+  classId: initialClassId,
+  make,
+}: {
+  classId?: string;
+  make?: 'library' | 'page' | 'lecture';
+}) {
   const aiOn = useAiEnabled();
   const classesQuery = useClasses('all');
   const classes = useMemo(() => classesQuery.data ?? [], [classesQuery.data]);
@@ -47,7 +53,7 @@ export default function FlashcardsHome({ classId: initialClassId }: { classId?: 
   const [filter, setFilter] = useState<string | null>(initialClassId ?? null);
   const [view, setView] = useState<View>({ kind: 'decks' });
   const [editing, setEditing] = useState<Editing>(null);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(Boolean(make));
   const [openDeck, setOpenDeck] = useState<string | null>(null);
 
   const allDecks = useMemo(
@@ -84,7 +90,7 @@ export default function FlashcardsHome({ classId: initialClassId }: { classId?: 
       )}
       {aiOpen && aiOn && (
         <Sheet subtitle='Cards stream into the class decks' title='Make cards with AI' onClose={() => setAiOpen(false)}>
-          <AiMaker classes={classes} defaultClassId={pickClass} />
+          <AiMaker classes={classes} defaultClassId={pickClass} defaultKind={make} />
         </Sheet>
       )}
     </>

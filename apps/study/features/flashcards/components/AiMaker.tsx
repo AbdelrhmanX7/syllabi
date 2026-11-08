@@ -47,13 +47,15 @@ async function loadSources(kind: Kind, classId: string): Promise<AiSource[]> {
 export function AiMaker({
   classes,
   defaultClassId,
+  defaultKind = 'library',
 }: {
   classes: StudyClass[];
   defaultClassId?: string;
+  defaultKind?: Kind;
 }) {
   const queryClient = useQueryClient();
   const [classId, setClassId] = useState(defaultClassId ?? classes[0]?.id ?? '');
-  const [kind, setKind] = useState<Kind>('library');
+  const [kind, setKind] = useState<Kind>(defaultKind);
   const [running, setRunning] = useState<AiSource | null>(null);
   const [made, setMade] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);

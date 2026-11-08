@@ -3,7 +3,7 @@ import type { Item, Page } from '@/lib/api/types';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, ExternalLink, FileText, NotebookPen } from 'lucide-react';
+import { Download, ExternalLink, FileText, Layers, NotebookPen } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -24,6 +24,7 @@ import { daysUntil, formatBytes, formatDateTime, formatDue } from '@/lib/format'
 import { rememberPages } from '@/lib/notebooks/pages-cache';
 import { buildPdfNotebookDocument, restorePdfAsset } from '@/lib/notebooks/pdf-import';
 import { useStudyBoardAi } from '@/features/tutor';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 import { sanitizeCanvasHtml } from '@/lib/sanitize-html';
 
 // The lectures feature owns video study (player + transcript + synced notebook).
@@ -70,6 +71,31 @@ function useAnnotationPage(item: Item | undefined) {
   }, [pages.data]);
 
   return { page: existing ?? create.data ?? null, loading: pages.isLoading, create };
+}
+
+/** The handwritten notes page tied to this assignment / page / quiz (found or made on tap). */
+function useItemNotes(item: Item | undefined) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const pages = usePages(item ? { itemId: item.id } : {});
+  const existing = item ? (pages.data?.find((page) => page.itemId === item.id && page.kind === 'note') ?? null) : null;
+  const open = useMutation({
+    mutationFn: async () => {
+      if (!item) throw new Error('No item');
+      if (existing) return existing;
+      const page = await createPage({ classId: item.classId, itemId: item.id, title: `Notes · ${item.title}`, kind: 'note' });
+
+      rememberPages([page]);
+
+      return page;
+    },
+    onSuccess: (page) => {
+      if (item) void queryClient.invalidateQueries({ queryKey: studyKeys.pages(undefined, item.id) });
+      void router.push(notebookHref(page));
+    },
+  });
+
+  return { existing, open };
 }
 
 function PdfBoard({ item, page, onBack }: { item: Item; page: Page; onBack: () => void }) {
@@ -164,6 +190,8 @@ export default function ItemPage() {
   const markSeen = useMarkSeen();
   const seenRef = useRef<string | null>(null);
   const annotation = useAnnotationPage(item && isPdf(item) ? item : undefined);
+  const notes = useItemNotes(item && !isPdf(item) ? item : undefined);
+  const aiOn = useAiEnabled();
 
   useEffect(() => {
     if (item && !item.seenAt && seenRef.current !== item.id) {
@@ -231,6 +259,20 @@ export default function ItemPage() {
               contextLabel={item.title}
               label='Ask about this'
             />
+            {!isPdf(item) && (
+              <ActionButton disabled={notes.open.isPending} onClick={() => notes.open.mutate()}>
+                <NotebookPen className='h-4 w-4' /> {notes.existing ? 'Open my notes' : 'Take notes'}
+              </ActionButton>
+            )}
+            {notes.existing && aiOn && (
+              <ActionButton
+                onClick={() =>
+                  void router.push(`/flashcards/?classId=${encodeURIComponent(item.classId)}&make=page`)
+                }
+              >
+                <Layers className='h-4 w-4' /> Make flashcards
+              </ActionButton>
+            )}
             {(item.type === 'file' || item.type === 'page' || item.type === 'assignment') && (
               <ExtractButton classId={item.classId} itemId={item.id} label='Make questions' />
             )}
