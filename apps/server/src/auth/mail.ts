@@ -58,6 +58,12 @@ export const verifyEmailMail = (to: string, link: string): Mail =>
     link,
     expiry: "This link works once and expires in 48 hours.",
     footnote: "If you didn't create a Syllabi account, you can ignore this email.",
+    hero: "verify",
+    features: [
+      { title: "Notebooks", body: "Write by hand with your stylus; the AI can read your work and explain a step." },
+      { title: "Spaced repetition", body: "Questions and flashcards from your material, scheduled so you review at the right time." },
+      { title: "Everything due", body: "Classes, deadlines and reviews in one calendar, synced to every device." },
+    ],
   });
 
 export const magicLinkMail = (to: string, link: string): Mail =>
@@ -68,6 +74,7 @@ export const magicLinkMail = (to: string, link: string): Mail =>
     action: "Sign in",
     link,
     expiry: "This link works once and expires in 15 minutes.",
+    hero: "magic",
   });
 
 export const resetPasswordMail = (to: string, link: string): Mail =>
@@ -79,4 +86,5 @@ export const resetPasswordMail = (to: string, link: string): Mail =>
     link,
     expiry: "This link works once and expires in 1 hour.",
     footnote: "If you didn't ask for this, ignore this email. Your password stays the same.",
+    hero: "reset",
   });

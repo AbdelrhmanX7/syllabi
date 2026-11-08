@@ -11,7 +11,10 @@ const PAGE = "#F1F4FC";
 const CARD = "#FFFFFF";
 const LINE = "#D9E0F5";
 const FONT = "Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-const LOGO = "https://syllabi.studio/apple-touch-icon.png";
+const SITE = "https://syllabi.studio";
+const LOGO = `${SITE}/apple-touch-icon.png`;
+/** Hosted with the landing site (apps/site/public/email). */
+const asset = (name: string): string => `${SITE}/email/${name}`;
 
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -27,6 +30,31 @@ export interface MailContent {
   expiry: string;
   /** Shown under the card; defaults to the "didn't ask for this" line. */
   footnote?: string;
+  /** Illustration at the top of the card: "magic" | "verify" | "reset" (apps/site/public/email/<name>.png). */
+  hero?: "magic" | "verify" | "reset";
+  /** Optional "what you get" block under the button: an app preview and short feature lines. */
+  features?: { title: string; body: string }[];
+}
+
+function featuresBlock(features: { title: string; body: string }[]): string {
+  const rows = features
+    .map(
+      (f) => `<tr>
+          <td style="vertical-align:top;width:22px;padding:0 0 12px 0;"><div style="width:10px;height:10px;margin-top:6px;border-radius:5px;background:${BRAND};"></div></td>
+          <td style="vertical-align:top;padding:0 0 12px 0;font-family:${FONT};font-size:14px;line-height:1.55;color:${MUTED};"><strong style="color:${INK};">${esc(f.title)}.</strong> ${esc(f.body)}</td>
+        </tr>`,
+    )
+    .join("");
+  return `
+      <tr><td style="padding:16px 0 0 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CARD};border:2px solid ${LINE};border-bottom-width:5px;border-radius:16px;">
+          <tr><td style="padding:22px 28px 10px 28px;">
+            <p style="margin:0 0 14px 0;font-family:${FONT};font-size:16px;font-weight:800;color:${INK};">What's waiting for you</p>
+            <img src="${asset("app-today.jpg")}" width="456" alt="The Syllabi Today screen with sample classes" style="display:block;width:100%;max-width:456px;height:auto;border:1px solid ${LINE};border-radius:12px;margin:0 0 18px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+          </td></tr>
+        </table>
+      </td></tr>`;
 }
 
 export function renderMailHtml(c: MailContent): string {
@@ -52,7 +80,9 @@ export function renderMailHtml(c: MailContent): string {
           <td style="vertical-align:middle;padding-left:10px;font-family:${FONT};font-size:20px;font-weight:800;color:${INK};letter-spacing:-0.2px;">Syllabi</td>
         </tr></table>
       </td></tr>
-      <tr><td style="background:${CARD};border:2px solid ${LINE};border-bottom-width:5px;border-radius:16px;padding:28px 28px 24px 28px;">
+      <tr><td style="background:${CARD};border:2px solid ${LINE};border-bottom-width:5px;border-radius:16px;padding:0;overflow:hidden;">
+        ${c.hero ? `<img src="${asset(`${c.hero}.png`)}" width="516" alt="" style="display:block;width:100%;max-width:516px;height:auto;border:0;border-radius:14px 14px 0 0;">` : ""}
+        <div style="padding:26px 28px 24px 28px;">
         <h1 style="margin:0 0 10px 0;font-family:${FONT};font-size:22px;line-height:1.3;font-weight:800;color:${INK};">${esc(c.title)}</h1>
         <p style="margin:0 0 22px 0;font-family:${FONT};font-size:15px;line-height:1.6;color:${INK};">${esc(c.body)}</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -65,7 +95,8 @@ export function renderMailHtml(c: MailContent): string {
           Button not working? Paste this into your browser:<br>
           <a href="${link}" style="color:${BRAND};word-break:break-all;">${link}</a>
         </p>
-      </td></tr>
+        </div>
+      </td></tr>${c.features ? featuresBlock(c.features) : ""}
       <tr><td style="padding:16px 4px 0 4px;font-family:${FONT};font-size:12px;line-height:1.6;color:${MUTED};">
         ${esc(footnote)}<br>
         <a href="https://syllabi.studio" style="color:${MUTED};">syllabi.studio</a> · the open-source study app ·
