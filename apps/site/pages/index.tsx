@@ -9,6 +9,7 @@ import { Hero } from '~/sections/Hero';
 import { Motion } from '~/sections/Motion';
 import { Nav } from '~/sections/Nav';
 import { Notebooks } from '~/sections/Notebooks';
+import { Reminders } from '~/sections/Reminders';
 import { Organize } from '~/sections/Organize';
 import { SelfHost } from '~/sections/SelfHost';
 import { Seo } from '~/sections/Seo';
@@ -53,6 +54,7 @@ export default function Landing() {
       <Nav />
       <Motion>
         <Hero />
+        <Reminders />
         <Notebooks />
         <Study />
         <Organize />

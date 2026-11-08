@@ -6,6 +6,7 @@ import { LinkButton } from '@/components/ui/primitives';
 import { SIGN_IN, SIGN_UP } from '~/sections/links';
 
 const LINKS = [
+  { href: '/#reminders', label: 'Reminders' },
   { href: '/#notebooks', label: 'Notebooks' },
   { href: '/#study', label: 'Study' },
   { href: '/#organize', label: 'Organize' },
