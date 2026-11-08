@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { ThemedShot } from '~/sections/ThemedShot';
 import {
+  ArrowRight,
   CalendarRange,
   Download,
   Gift,
@@ -23,12 +24,12 @@ const FACTS: { icon: LucideIcon; label: string }[] = [
   { icon: MonitorSmartphone, label: 'Web, phone and Android tablet' },
   { icon: GraduationCap, label: 'Classes from Canvas' },
   { icon: Sparkles, label: 'Connect Claude or ChatGPT' },
-  { icon: Gift, label: 'Free, AI tutor included' },
+  { icon: Gift, label: 'Free to use' },
 ];
 
 const PROPS: { icon: LucideIcon; title: string; text: string; href: string; tone: Tone }[] = [
   { icon: PenLine, title: 'Write by hand', text: 'Notes the AI can read.', href: '#notebooks', tone: 'purple' },
-  { icon: Repeat2, title: 'Practice', text: 'Questions, flashcards, a free tutor.', href: '#study', tone: 'green' },
+  { icon: Repeat2, title: 'Practice', text: 'Questions, flashcards, a tutor.', href: '#study', tone: 'green' },
   { icon: CalendarRange, title: 'Stay on top', text: 'Every class and due date.', href: '#organize', tone: 'coral' },
   { icon: MonitorSmartphone, title: 'Every device', text: 'Snap on a phone, study on a tablet.', href: '#devices', tone: 'citrine' },
 ];
@@ -37,6 +38,17 @@ export function Hero() {
   return (
     <section aria-labelledby='hero-title' className='mx-auto max-w-6xl px-4 pb-4 pt-8 md:pb-6 md:pt-12'>
       <div className='max-w-3xl'>
+        <a
+          className='border-tone-green-fg/30 bg-tone-green text-tone-green-fg focus-visible:outline-st-accent mb-4 inline-flex max-w-full items-center gap-2 rounded-md border py-1.5 pl-1.5 pr-3 text-sm font-medium transition-[filter] duration-100 hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
+          href='#study'
+        >
+          <span className='bg-tone-green-fg text-tone-green inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-bold'>
+            <Sparkles aria-hidden className='h-3.5 w-3.5' />
+            New
+          </span>
+          <span className='min-w-0'>Free AI tutor for every student</span>
+          <ArrowRight aria-hidden className='h-4 w-4 shrink-0' />
+        </a>
         <h1
           className='font-display text-st-fg text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl'
           id='hero-title'
