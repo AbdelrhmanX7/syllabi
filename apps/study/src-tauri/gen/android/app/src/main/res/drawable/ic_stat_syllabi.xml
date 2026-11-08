@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon for reminders: the app's bookmark with the star cut out. Android draws it as a
+     white silhouette (colour comes from the notification's accent), so it is one white path. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M19,6 H45 Q50,6 50,11 V58 L32,46 L14,58 V11 Q14,6 19,6 Z M32,14 L34.82,21.12 L42.46,21.6 L36.57,26.48 L38.47,33.9 L32,29.8 L25.53,33.9 L27.43,26.48 L21.54,21.6 L29.18,21.12 Z" />
+</vector>

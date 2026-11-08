@@ -66,6 +66,8 @@ pub fn run() {
         // for Google sign-in. Both are driven from the page; see features/auth/components/DeepLinkRouter.tsx.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        // Reminders scheduled on the device; see lib/reminders/notify.ts.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![shell_info, update_feed, youtube_captions::youtube_captions])
         .run(tauri::generate_context!())
         .expect("error while running Study");

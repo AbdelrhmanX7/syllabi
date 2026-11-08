@@ -17,6 +17,7 @@
     "allow-update-feed",
     "allow-youtube-captions",
     "deep-link:default",
+    "notification:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }]

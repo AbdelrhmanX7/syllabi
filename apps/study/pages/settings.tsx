@@ -24,6 +24,7 @@ import { UpdateProgress } from '@/components/layout/UpdateBanner';
 import { NotebookPaperSection } from '@/components/settings/NotebookPaperSection';
 import { InkAutoColorSection } from '@/components/settings/InkAutoColorSection';
 import { PerfLogSection } from '@/components/settings/PerfLogSection';
+import { RemindersSection } from '@/components/settings/RemindersSection';
 import { WebUpdatesSection } from '@/components/settings/WebUpdatesSection';
 import { AccountSection } from '@/features/auth/components/AccountSection';
 import { HandwritingSection } from '@/features/handwriting';
@@ -659,6 +660,7 @@ export default function SettingsPage() {
         <CanvasSection />
         <McpSection />
         <PhoneInboxSection />
+        <RemindersSection />
         <ClassTimesSection />
         <NotebookPaperSection />
         <InkAutoColorSection />

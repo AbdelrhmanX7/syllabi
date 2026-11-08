@@ -8,6 +8,7 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { useRouter } from 'next/router';
 
 import { AppShell } from '@/components/layout/AppShell';
+import { RemindersAgent } from '@/components/layout/RemindersAgent';
 import { AppLinkRouter } from '@/features/auth/components/AppLinkRouter';
 import { installStudyTransport } from '@/lib/api/client';
 import { retryUnlessAiQuota } from '@/lib/api/errors';
@@ -90,6 +91,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <NextThemesProvider enableSystem attribute='class' defaultTheme='system' themes={['light', 'dark']}>
             <ToastProvider placement='top-right' />
             <AppLinkRouter />
+            <RemindersAgent />
             <Shell Component={Component} pageProps={pageProps} />
           </NextThemesProvider>
         </HeroUIProvider>

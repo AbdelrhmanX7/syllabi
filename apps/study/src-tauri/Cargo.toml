@@ -33,3 +33,7 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", 
 tauri-plugin-deep-link = "~2.4.10"
 # Opens Google sign-in in the system browser (Google refuses sign-in inside an embedded WebView).
 tauri-plugin-opener = "~2.5.5"
+# Reminders scheduled on the tablet (deadlines, flashcards, the student's own), fired by Android's alarm
+# service with the app closed; no push server. Driven from the page (lib/reminders/notify.ts).
+# Pinned to the last release that works with tauri 2.11 (2.5+ needs tauri 2.12).
+tauri-plugin-notification = "~2.4.0"

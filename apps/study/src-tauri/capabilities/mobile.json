@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "Study main window on Android: the bundled static export talks to the backend over HTTPS and keeps notes in IndexedDB, so the shell exposes only the core runtime, the app version and the fullscreen/focus window controls that exist on mobile, plus the `shell_info` build-identity command, `update_feed` (reads the release feed; the bucket has no CORS) `youtube_captions` (YouTube caption fetch from the device — the backend's IP is blocked by YouTube), the sign-in link that opened the app (`deep-link:default`) and opening https pages in the system browser (Google sign-in).",
+  "description": "Study main window on Android: the bundled static export talks to the backend over HTTPS and keeps notes in IndexedDB, so the shell exposes only the core runtime, the app version and the fullscreen/focus window controls that exist on mobile, plus the `shell_info` build-identity command, `update_feed` (reads the release feed; the bucket has no CORS) `youtube_captions` (YouTube caption fetch from the device — the backend's IP is blocked by YouTube), the sign-in link that opened the app (`deep-link:default`), reminders scheduled on the device (`notification:default`) and opening https pages in the system browser (Google sign-in).",
   "platforms": [
     "android",
     "iOS"
@@ -20,6 +20,7 @@
     "allow-update-feed",
     "allow-youtube-captions",
     "deep-link:default",
+    "notification:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }]

@@ -10,3 +10,6 @@ android-dist
 tsconfig.tsbuildinfo
 CLAUDE.local.md
 .playwright-mcp/
+
+# Local research reports
+outputs/
