@@ -6,7 +6,7 @@ import { MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-import { ALL_LINKS, RailItem, SignUpCta, isLinkActive } from './Rail';
+import { ALL_LINKS, RailItem, SignUpCta, isLinkActive, visibleLinks } from './Rail';
 import { SignOutButton } from './SignOutButton';
 
 import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
@@ -56,7 +56,7 @@ export function BottomNav() {
 
     return link ? [{ link, label: p.short ?? link.label }] : [];
   });
-  const more = ALL_LINKS.filter((l) => !primaryHrefs.has(l.href));
+  const more = visibleLinks(ALL_LINKS, session.state === 'signed-in' && mode !== 'mock').filter((l) => !primaryHrefs.has(l.href));
   const moreActive = more.some((l) => isLinkActive(l, pathname));
   const inboxInMore = more.some((l) => l.href === '/inbox/');
 

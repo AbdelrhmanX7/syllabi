@@ -58,19 +58,77 @@ register, login, magic link and forgot password. Email goes out through Resend (
   deep link (Google blocks OAuth inside embedded WebViews).
 - Phone-width layout (bottom navigation instead of the side rail) so the web app is usable on phones.
 
-## Sharing and collaboration (after accounts)
+## Sharing and collaboration
 
 Share study material the way Google Docs shares a document. What can be shared: a notebook (pages and ink), a
-flashcard deck, a question set, a concept map, a whole class's material.
+flashcard deck, a question set, a concept map. (A whole class's material: later.)
 
-1. **Share and fork.** Share with people by email or with a link, as *viewer*, *commenter* or *editor*. Anyone
-   who can view can **fork** (make their own copy in their account, keeping a "forked from" link). A
-   `Share` model holds `{resourceType, resourceId, ownerId, grants: [{userId|email, role}], link: {role|null,
-   token}}`; every study read and write checks ownership or a grant. "Shared with me" lists what others shared.
-2. **Edits and history.** Editors change the shared original; every change records who made it. Version
-   history lets the owner see and restore earlier versions; comments on pages and cards.
-3. **Live co-editing.** Several people on the same notebook page or deck at once, seeing each other's ink and
-   cursors live (CRDT over WebSockets, e.g. Yjs), with offline edits merging when a device reconnects.
+### Phase 1: share read-only + make a copy (shipped)
+
+Code: `apps/server/src/routes/share.ts` (routes), `src/services/share/access.ts` (who may read/write, one helper:
+`canAccess(caller, resource, 'read' | 'write')`), `src/services/share/resources.ts` (per type: ownership, title,
+snapshot, deep copy), `src/models/share.ts`. App: `apps/study/features/share` (sheet, `/shared` page, demo mock).
+
+**What a resource is.** Two of the four have no model of their own, so they are scoped queries:
+
+| Type | Stored as | `resourceId` |
+| --- | --- | --- |
+| `notebook` | one `StudyPage` row; board JSON in object storage | page id |
+| `deck` | the class's `StudyQuestion` rows tagged `flashcard` (+ `topic`) | class id (+ `topic`) |
+| `questions` | the class's other `StudyQuestion` rows (+ `topic`; none = whole class) | class id (+ `topic`) |
+| `conceptMap` | one `StudyConceptMap` row: its terms, lecture and week | map id |
+
+**Model.** `Share {resourceType, resourceId, topic, ownerId, title, grants: [{userId|null, email, role, addedAt}],
+link: {token, role} | null}`, collection `shares`, one row per resource (unique on owner + type + id + topic).
+`role` is `viewer | editor`; phase 1 hands out only `viewer`. The link token is 32 random bytes (base64url),
+stored as is so the owner can copy the link again; turning the link off and on makes a new one. Copies record
+where they came from in `study_share_forks {userId, resourceType, resourceId, topic, forkedFrom: {shareId,
+ownerName, title, resourceType, resourceId}}` (the app shows "Copied from Maya's Membranes").
+
+**API** (Bearer; mounted at `/share` and `/study/share`, since the app's transport puts live routes under `/study`):
+
+| Method | Path | Body | Result |
+| --- | --- | --- | --- |
+| POST | `/share` | `{resourceType, resourceId, topic?, emails?, link?}` | `201 {share}`; owner only; a second POST adds to the same share |
+| GET | `/share/mine?resourceType&resourceId&topic?` | – | `{share \| null}` (people + link) |
+| PATCH | `/share/:id` | `{addEmails?, removeEmails?, link?: boolean}` | `{share}`; owner only |
+| DELETE | `/share/:id` | – | `204`; stop sharing (owner only) |
+| GET | `/share/with-me` | – | `{items: [{id, resourceType, title, ownerName, role, sharedAt, updatedAt}]}` |
+| GET | `/share/forks` | – | `{items}`: where my copies came from |
+| GET | `/share/view/:idOrToken` | – | `{share, content}`: read-only snapshot |
+| POST | `/share/fork/:idOrToken` | – | `201 {resourceType, resourceId, topic, classId}`: deep copy into my account |
+
+**Rules.**
+- Every call needs a signed-in account, a link included (the app shows a sign-in prompt and comes back to
+  `/shared/?id=…` after signing in). `:idOrToken` is a 24-hex share id (owner or grant) or a 43-char link token.
+- A grant by email matches only a **verified** address (anyone can register an unverified account with any
+  address); on the first verified match the grant is pinned to that account. Strangers get `404`, never "exists
+  but not yours". A deleted resource disappears from "Shared with me" and its links stop working.
+- Adding people sends "X shared a notebook with you" (branded template, an Open button to `APP_URL/shared/?id=`),
+  needs a verified email, and is limited (20 addresses per call, 50 people per share, 100 invites a day per
+  account). Writes, views and copies have per-account rate limits too.
+- The snapshot never carries progress, grades or Canvas data: questions come with fresh stats and schedule and no
+  links into the owner's material; a concept map shares its terms, lecture and week only (no score, submission or
+  instructor notes).
+- A copy is independent of the original: new ids, the notebook's board JSON copied under the caller's own storage
+  prefix (so deleting the owner's account never breaks it), questions with fresh progress. Questions and concept
+  maps land in the caller's class with the same name, or a new manual class with that name. A copied concept map is
+  a practice map. Question images stay references to their public URL.
+- Known gaps: PDF backgrounds of a notebook live on the owner's device and do not travel with a share (ink and
+  paper do). Deleting an account removes the shares it owns and every grant naming it.
+
+### Phase 2: editing together (next)
+
+TODO, not built yet:
+- **Editor and commenter roles.** The role field already allows `editor`; `canAccess(..., 'write')` is the one
+  check every study write route adopts (today they check plain ownership). Editors change the original; every change
+  records who made it. Comments on pages and cards.
+- **Live co-editing.** Several people on the same notebook page or deck at once: Yjs CRDT documents over WebSockets
+  (notebook ink as a Y.Array of strokes per board page, deck / question edits as Y.Maps), presence (who is here,
+  cursors and the pen position) via the Yjs awareness protocol, and offline edits on a tablet merging when it
+  reconnects (Yjs updates queued in IndexedDB). The server keeps the merged document and still writes the board
+  JSON snapshot, so viewers, copies and the MCP keep working.
+- **Version history.** The owner sees and restores earlier versions (page versions are already immutable objects).
 
 ## Hosting (needs a decision)
 

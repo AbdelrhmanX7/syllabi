@@ -63,6 +63,8 @@ export const LIVE_ROUTES = [
   '/handwriting',
   // Office → PDF (#657): raw file in, PDF out.
   '/convert',
+  // Sharing (read-only share + make a copy): the server mounts it at /study/share too.
+  '/share',
 ] as const;
 
 /**

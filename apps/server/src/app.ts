@@ -8,6 +8,7 @@ import studyTelemetryRouter from "@/routes/study/telemetry";
 import { adminVerification, studyAccess } from "@/compat/auth";
 import authRouter from "@/auth/router";
 import accountsRouter from "@/auth/accounts-router";
+import shareRouter from "@/routes/share";
 import studyObjectProxyRouter from "@/routes/study/object-proxy";
 import { LOCAL_STORAGE_DIR, LOCAL_STORAGE_MOUNT, useLocalStorage, useStorageProxy } from "@/compat/s3";
 import { STUDY_BLOB_PATH, STUDY_CONVERT_PATH, STUDY_OWN_JSON_PARSER_PATH } from "@/services/study/storage";
@@ -21,7 +22,8 @@ import { logger } from "@/services/logger.service";
  *   2. MCP + OAuth server (own token auth)
  *   3. phone inbox (also accepts a drop token)
  *   4. perf telemetry (any signed-in session)
- *   5. /study behind adminVerification + studyAccess (owner or user; data is scoped per account)
+ *   5. /share (+ /study/share) sharing, signed in
+ *   6. /study behind adminVerification + studyAccess (owner or user; data is scoped per account)
  */
 export function createApp() {
   const app = express();
@@ -64,6 +66,9 @@ export function createApp() {
   app.use(studyMcpPublicRouter);
   app.use(studyInboxPublicRouter);
   app.use(studyTelemetryRouter);
+  // Sharing (routes/share.ts): its own prefix, before /study so the study router never sees it.
+  // Both paths: the app's transport puts every live route under /study.
+  app.use(["/share", "/study/share"], adminVerification, studyAccess, shareRouter);
   app.use("/study", adminVerification, studyAccess, studyRouter);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

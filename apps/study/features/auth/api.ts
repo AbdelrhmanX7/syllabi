@@ -195,8 +195,13 @@ export function useStoreSession() {
       api.defaults.headers.common['Authorization'] = `Bearer ${session.token}`;
       // A different account may have signed in: nothing cached belongs to it.
       queryClient.clear();
-      if (options.navigate !== false) await router.replace('/');
+      if (options.navigate !== false) await router.replace(safeNextPath(router.query.next));
     },
     [queryClient, router, setAuthToken],
   );
+}
+
+/** `/login/?next=/shared/?id=…`: where to land after signing in. Same-app paths only (no `//host`). */
+export function safeNextPath(next: unknown): string {
+  return typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/';
 }

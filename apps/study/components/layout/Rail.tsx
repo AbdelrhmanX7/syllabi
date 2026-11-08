@@ -18,6 +18,7 @@ import {
   Settings,
   Sparkles,
   UserPlus,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -36,6 +37,8 @@ export interface RailLink {
   label: string;
   icon: LucideIcon;
   match?: (pathname: string) => boolean;
+  /** Only with an account on a server (hidden in demo mode / signed out): `visibleLinks`. */
+  serverOnly?: boolean;
 }
 
 export const TOP_LINKS: RailLink[] = [
@@ -58,12 +61,18 @@ export const TOOL_LINKS: RailLink[] = [
   { href: '/lectures/', label: 'Lectures', icon: Mic },
   { href: '/tutor/', label: 'Tutor', icon: Sparkles },
   { href: '/search/', label: 'Search', icon: Search },
+  { href: '/shared/', label: 'Shared', icon: Users, serverOnly: true },
 ];
 
 export const SETTINGS_LINK: RailLink = { href: '/settings/', label: 'Settings', icon: Settings };
 
 /** Every nav destination in Rail order: the phone bottom bar and its More sheet derive from this. */
 export const ALL_LINKS: RailLink[] = [...TOP_LINKS, ...TOOL_LINKS, SETTINGS_LINK];
+
+/** Links for this session: `serverOnly` ones need a signed-in account on a server (not demo mode). */
+export function visibleLinks(links: RailLink[], onServer: boolean): RailLink[] {
+  return onServer ? links : links.filter((link) => !link.serverOnly);
+}
 
 /* ------------------------------------------------------------- collapse state (per device) */
 
@@ -318,7 +327,7 @@ export function Rail() {
 
         <div className='border-st-line my-2 border-t' />
 
-        {TOOL_LINKS.map((link) => (
+        {visibleLinks(TOOL_LINKS, signedIn && mode !== 'mock').map((link) => (
           <RailItem
             key={link.href}
             active={isActive(link)}

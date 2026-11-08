@@ -27,6 +27,7 @@ import { isDue } from "./lib/verdict";
 
 import { DividerTabs } from "@/components/ui/primitives";
 import { ConfirmSheet } from "@/components/ui/ConfirmSheet";
+import { ForkedFromNote, ShareButton } from "@/features/share/components/ShareButton";
 
 export { ExtractButton, AddQuestionsModal } from "./components/AddQuestions";
 export { QuestionCard } from "./components/QuestionCard";
@@ -279,7 +280,27 @@ export default function BankHome({
               ? "Loading…"
               : `${items.length} question${items.length === 1 ? "" : "s"} · ${dueCount} due`}
           </p>
+          {activeClass ? (
+            <ForkedFromNote
+              resourceId={activeClass.id}
+              resourceType="questions"
+              topic={filters.topic}
+            />
+          ) : null}
         </div>
+        {activeClass ? (
+          <ShareButton
+            className="h-12"
+            target={{
+              resourceType: "questions",
+              resourceId: activeClass.id,
+              topic: filters.topic,
+              title: filters.topic
+                ? `${filters.topic} (${activeClass.name})`
+                : `${activeClass.name} questions`,
+            }}
+          />
+        ) : null}
         <button
           className="flex h-12 items-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-4 text-sm font-medium text-st-fg hover:bg-st-accent-soft shadow-clay transition-transform active:translate-y-[3px] active:shadow-none"
           type="button"

@@ -20,6 +20,7 @@ import {
   LoadingRows,
   Surface,
 } from '@/components/ui/primitives';
+import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareButton';
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { useClasses } from '@/lib/api/hooks';
 import { describeError } from '@/lib/api/errors';
@@ -287,9 +288,18 @@ function DeckRow({
           <Play className='h-4 w-4' />
           <span className='hidden sm:inline'>{deck.due > 0 ? 'Study' : 'Study all'}</span>
         </ActionButton>
+        <ShareButton
+          iconOnly
+          className='min-h-9 w-9 shrink-0'
+          target={{ resourceType: 'deck', resourceId: deck.classId, topic: deck.topic, title: `${deck.topic} (${classTitle})` }}
+          variant='ghost'
+        />
       </div>
       {open && (
         <ul className='flex flex-col gap-1 pb-2 ps-7'>
+          <li>
+            <ForkedFromNote className='px-2' resourceId={deck.classId} resourceType='deck' topic={deck.topic} />
+          </li>
           {deck.cards.map((card) => (
             <li key={card.id}>
               <button

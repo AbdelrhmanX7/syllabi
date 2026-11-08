@@ -14,6 +14,7 @@ import { deleteUserObjects } from "@/services/study/storage";
 import { AuthTokenKind, generateRawToken, hashToken, RAW_TOKEN_RE, tokenExpiry } from "@/auth/tokens";
 import { OWNER_ROLE_FILTER, isOwnerRole, publicRole } from "@/auth/roles";
 import { logger } from "@/services/logger.service";
+import { deleteSharesOf } from "@/services/share/access";
 
 /** `user` in every /auth response. */
 export function publicAccount(admin: IAdmin | Record<string, any>) {
@@ -88,6 +89,9 @@ export async function isLastOwner(admin: { _id: unknown; role?: string | null })
  */
 export async function deleteAccount(userId: string): Promise<void> {
   const id = new Types.ObjectId(userId);
+  const account = await Admin.findById(id, { email: 1 }).lean<{ email?: string | null }>();
+  // Shares are keyed by ownerId (not swept below): drop the user's shares and every grant naming them.
+  await deleteSharesOf(userId, account?.email ?? null);
   await deleteUserObjects(userId);
   for (const model of studyModels()) {
     const field = model.schema.path("userId") ? "userId" : model.schema.path("user") ? "user" : null;

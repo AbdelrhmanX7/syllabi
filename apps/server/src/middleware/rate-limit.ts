@@ -33,6 +33,12 @@ function defaultRedis(): RedisLike {
   return shared;
 }
 
+/** Close the shared limiter connection (tests, so the process can exit). */
+export function closeRateLimitRedis(): void {
+  shared?.disconnect();
+  shared = null;
+}
+
 /**
  * Redis fixed-window limiter. Counts requests per (keyPrefix, key, window bucket).
  *

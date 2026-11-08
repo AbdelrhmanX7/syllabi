@@ -15,6 +15,7 @@ import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { useStudyBoardAi } from '@/features/tutor';
+import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareButton';
 
 // «Make questions» from this page's ink — the bank feature owns the extract flow (client-only: canvas).
 const ExtractButton = dynamic(() => import('@/features/bank').then((mod) => mod.ExtractButton), { ssr: false });
@@ -173,6 +174,8 @@ export default function NotebookPage() {
                 <AttachToLectureButton classId={page.classId} page={page} />
               )}
               {conceptMaps.topRight}
+              <ForkedFromNote board resourceId={page.id} resourceType='notebook' />
+              <ShareButton board target={{ resourceType: 'notebook', resourceId: page.id, title: page.title || 'Notebook' }} />
               <ExtractButton chip classId={page.classId ?? undefined} label='Make questions' pageId={page.id} />
             </div>
           }

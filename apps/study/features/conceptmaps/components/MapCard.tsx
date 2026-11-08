@@ -8,6 +8,7 @@ import { formatScore, mapTitle } from '../lib/score';
 
 import { ActionButton, Badge, Surface } from '@/components/ui/primitives';
 import { MapLectureNotes } from '@/features/lecturenotes/components/NoteLinks';
+import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareButton';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -31,13 +32,22 @@ export function MapCard({ map, onPractice, onCompare, onQuestions, questionsBusy
 
   return (
     <Surface as='article' className='flex flex-col gap-3 p-4'>
-      <header className='min-w-0'>
-        <p className='text-st-muted flex flex-wrap items-center gap-1.5 text-xs font-medium uppercase tracking-wide'>
-          {practice ? 'Practice' : map.number !== null ? `Map ${map.number}` : 'Concept map'}
-          {map.dueAt && <span>· {formatDate(map.dueAt)}</span>}
-          {map.examReview && <Badge tone='accent'>Exam review</Badge>}
-        </p>
-        <h3 className='text-st-fg mt-0.5 text-sm font-semibold [overflow-wrap:anywhere]'>{mapTitle(map)}</h3>
+      <header className='flex min-w-0 items-start gap-2'>
+        <div className='min-w-0 flex-1'>
+          <p className='text-st-muted flex flex-wrap items-center gap-1.5 text-xs font-medium uppercase tracking-wide'>
+            {practice ? 'Practice' : map.number !== null ? `Map ${map.number}` : 'Concept map'}
+            {map.dueAt && <span>· {formatDate(map.dueAt)}</span>}
+            {map.examReview && <Badge tone='accent'>Exam review</Badge>}
+          </p>
+          <h3 className='text-st-fg mt-0.5 text-sm font-semibold [overflow-wrap:anywhere]'>{mapTitle(map)}</h3>
+          <ForkedFromNote className='mt-0.5' resourceId={map.id} resourceType='conceptMap' />
+        </div>
+        <ShareButton
+          iconOnly
+          className='-mr-1 -mt-1 min-h-9 w-9 shrink-0'
+          target={{ resourceType: 'conceptMap', resourceId: map.id, title: mapTitle(map) }}
+          variant='ghost'
+        />
       </header>
 
       {map.promptTerms.length > 0 && (

@@ -53,6 +53,8 @@ import {
   patchPageFields,
   withClassMeetings,
 } from '@/features/lecturenotes/mock';
+// Sharing: /share (demo classmates + make a copy through this transport); undefined = not its path.
+import { shareMockRoutes } from '@/features/share/mock';
 // Perf telemetry: /telemetry/perf (POST batches, GET the owner read); undefined = not its path.
 import { perfMockRoutes } from '@/lib/perf/mock';
 // Auto-colour cloud classifier: /ai/ink-classify; undefined = not its path.
@@ -749,6 +751,10 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
   const handwriting = handwritingMockRoutes.json(method, path, body, headers);
 
   if (handwriting) return handwriting.value;
+
+  const share = shareMockRoutes.json(method, path, body);
+
+  if (share) return share.value;
 
   const perf = perfMockRoutes.json(method, path, body);
 

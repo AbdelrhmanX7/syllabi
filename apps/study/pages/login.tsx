@@ -12,6 +12,7 @@ import {
   loginWithPassword,
   register,
   requestMagicLink,
+  safeNextPath,
   useAuthConfig,
   useStoreSession,
 } from '@/features/auth/api';
@@ -308,7 +309,7 @@ export default function LoginPage() {
   }, [router.isReady, router.query.tab]);
 
   useEffect(() => {
-    if (session.state === 'signed-in') void router.replace('/');
+    if (session.state === 'signed-in') void router.replace(safeNextPath(router.query.next));
   }, [router, session.state]);
 
   const creating = tab === 'create' && config.data?.registration === 'open';

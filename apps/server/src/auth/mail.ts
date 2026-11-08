@@ -88,3 +88,24 @@ export const resetPasswordMail = (to: string, link: string): Mail =>
     footnote: "Didn't ask for this? Just ignore this email. Your password stays the same.",
     hero: "reset",
   });
+
+const SHARE_NOUN: Record<string, string> = {
+  notebook: "a notebook",
+  deck: "a flashcard deck",
+  questions: "a question set",
+  conceptMap: "a concept map",
+};
+
+/** "X shared a notebook with you" (POST/PATCH /share). View-only; the button opens /shared/?id=. */
+export const shareInviteMail = (to: string, fromName: string, resourceType: string, title: string, link: string): Mail => {
+  const noun = SHARE_NOUN[resourceType] ?? "something";
+  return build(to, `${fromName} shared ${noun} with you on Syllabi`, {
+    preheader: `${fromName} shared “${title}” with you.`,
+    title: `${fromName} shared ${noun} with you`,
+    body: `“${title}” is ready to view. You can make your own copy to study and edit.`,
+    action: "Open",
+    link,
+    expiry: `Sign in to Syllabi with ${to} to open it.`,
+    footnote: "Don't know who this is? Just ignore this email.",
+  });
+};
