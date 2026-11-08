@@ -22,6 +22,10 @@
   <a href="https://buymeacoffee.com/AbdelrhmanX7"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFC93C"></a>
 </p>
 
+<p align="center">
+  <img src="apps/site/public/shots/today.png" alt="Syllabi Today screen with sample classes" width="860">
+</p>
+
 ## What it does
 
 | | |
