@@ -80,8 +80,8 @@ export function NotebookPickerSheet({
   }, [classes, item.classId, pages.data, q]);
 
   useEffect(() => {
-    if (!classId && classes?.length === 1) setClassId(classes[0].id);
-  }, [classId, classes]);
+    if (isPdf && !classId && classes?.length === 1) setClassId(classes[0].id);
+  }, [classId, classes, isPdf]);
 
   const createNote = async () => {
     setBusy(true);
@@ -98,7 +98,7 @@ export function NotebookPickerSheet({
         void queryClient.invalidateQueries({ queryKey: ['study', 'pages'] });
         void router.push(`/item/?id=${encodeURIComponent(result.itemId)}&annotate=1`);
       } else {
-        const page = await createPage({ classId, title: name ?? 'Photo from phone', kind: 'note' });
+        const page = await createPage({ classId: classId || null, title: name ?? 'Photo from phone', kind: 'note' });
 
         rememberPages([page]);
         void queryClient.invalidateQueries({ queryKey: ['study', 'pages'] });
@@ -134,11 +134,27 @@ export function NotebookPickerSheet({
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
-          <ActionButton disabled={!classId} loading={busy} variant='primary' onClick={() => void createNote()}>
+          <ActionButton disabled={isPdf && !classId} loading={busy} variant='primary' onClick={() => void createNote()}>
             <Plus className='h-4 w-4' /> New note
           </ActionButton>
         </div>
         <div className='flex flex-wrap gap-1.5'>
+          {!isPdf && (
+            <button
+              aria-pressed={!classId}
+              className={cn(
+                'inline-flex min-h-8 items-center gap-2 rounded-sm border px-3 text-xs font-medium',
+                !classId
+                  ? 'bg-st-accent text-st-accent-fg border-st-accent-lip'
+                  : 'border-st-line text-st-fg hover:bg-st-raised',
+              )}
+              disabled={busy}
+              type='button'
+              onClick={() => setClassId('')}
+            >
+              No class
+            </button>
+          )}
           {orderedClasses.map((cls) => (
             <button
               key={cls.id}

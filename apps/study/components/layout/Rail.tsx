@@ -12,6 +12,7 @@ import {
   Library,
   Mic,
   Network,
+  NotebookPen,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -56,6 +57,7 @@ export const TOP_LINKS: RailLink[] = [
 ];
 
 export const TOOL_LINKS: RailLink[] = [
+  { href: '/notes/', label: 'Notes', icon: NotebookPen },
   { href: '/inbox/', label: 'Inbox', icon: Inbox },
   { href: '/bank/', label: 'Question Bank', icon: BookOpen },
   { href: '/flashcards/', label: 'Flashcards', icon: GalleryVerticalEnd },

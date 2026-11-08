@@ -632,12 +632,12 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
   server.registerTool(
     "add_note_page",
     {
-      description: "Create a typed notebook page (kind note) in a class. The markdown is stored as the page's text (searchable; usable by create_flashcards). The handwriting board starts empty.",
-      inputSchema: { classId: oid, title: z.string().min(1).max(200), markdown: z.string().min(1).max(200_000) },
+      description: "Create a typed notebook page (kind note) in a class, or with no class (omit classId) for a plain note. The markdown is stored as the page's text (searchable; usable by create_flashcards). The handwriting board starts empty.",
+      inputSchema: { classId: oid.optional(), title: z.string().min(1).max(200), markdown: z.string().min(1).max(200_000) },
       annotations: WRITE,
     },
     async ({ classId, title, markdown }) => {
-      const created = await run(createPage, { body: { classId, title, kind: "note" } }, "add_note_page");
+      const created = await run(createPage, { body: { classId: classId ?? null, title, kind: "note" } }, "add_note_page");
       if (created.status !== 201) return fromInvoked(created);
       const text = await run(putPageOcr, { params: { id: created.body.id }, body: { text: markdown } }, "add_note_page");
       if (text.status >= 400) return fromInvoked(text);
