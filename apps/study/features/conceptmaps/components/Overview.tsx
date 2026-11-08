@@ -4,23 +4,15 @@ import type { ConceptMapRecord } from '../types';
 import { useMemo, useState } from 'react';
 import { GraduationCap, ListChecks, Network, PenLine } from 'lucide-react';
 
-import { applyOverviewFilter, averageScore, gradedScores, groupByWeek, scoreTrend } from '../lib/score';
+import { applyOverviewFilter, groupByWeek } from '../lib/score';
 
 import { MapCard } from './MapCard';
 
-import {
-  ActionButton,
-  EmptyState,
-  ErrorNote,
-  FilterChip,
-  LoadingRows,
-  Surface,
-  TrendIcon,
-} from '@/components/ui/primitives';
+import { ActionButton, EmptyState, ErrorNote, FilterChip, LoadingRows, Surface } from '@/components/ui/primitives';
 
 /**
  * The class's maps by week, the exam short-answer drill on top (every exam short answer comes from
- * these maps), progress stats, and her exam picks one tap away.
+ * these maps), one inline line of counts, and her exam picks one tap away. Maps are study tools, not grades.
  */
 export interface OverviewProps {
   maps: ConceptMapRecord[];
@@ -41,21 +33,10 @@ export interface OverviewProps {
 const FILTERS: { id: OverviewFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'exam', label: 'For the exam' },
-  { id: 'ungraded', label: 'Not graded yet' },
   { id: 'practice', label: 'Practice' },
 ];
 
-function Stat({ label, value, extra }: { label: string; value: string; extra?: React.ReactNode }) {
-  return (
-    <Surface className='flex flex-col gap-0.5 px-4 py-3'>
-      <span className='text-st-muted text-xs font-medium uppercase tracking-wide'>{label}</span>
-      <span className='text-st-fg flex items-center gap-2 text-2xl font-semibold tabular-nums'>
-        {value}
-        {extra}
-      </span>
-    </Surface>
-  );
-}
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 export function Overview({
   maps,
@@ -72,9 +53,6 @@ export function Overview({
 }: OverviewProps) {
   const [filter, setFilter] = useState<OverviewFilter>('all');
   const assigned = useMemo(() => maps.filter((map) => map.source !== 'practice'), [maps]);
-  const scores = useMemo(() => gradedScores(maps), [maps]);
-  const average = averageScore(assigned);
-  const trend = scoreTrend(scores);
   const examCount = assigned.filter((map) => map.examReview).length;
   const visible = useMemo(() => applyOverviewFilter(maps, filter), [maps, filter]);
   const weeks = useMemo(() => groupByWeek(visible), [visible]);
@@ -105,7 +83,7 @@ export function Overview({
               : 'Redraw each map from memory, then check your links. None is marked for review, so the drill goes through all.'}
           </p>
         </div>
-        <div className='flex shrink-0 flex-wrap gap-2'>
+        <div className='flex min-w-0 max-w-full flex-wrap gap-3'>
           <ActionButton className='min-h-11' disabled={drillCount === 0} variant='primary' onClick={onDrill}>
             <PenLine className='h-4 w-4' /> Start drill ({drillCount})
           </ActionButton>
@@ -121,24 +99,23 @@ export function Overview({
         </div>
       </Surface>
 
-      <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
-        <Stat extra={<TrendIcon trend={trend} />} label='Average' value={average === null ? '—' : `${average} / 10`} />
-        <Stat label='Graded' value={`${scores.length} / ${assigned.length}`} />
-        <Stat label='Exam picks' value={String(examCount)} />
-        <Stat label='Practice runs' value={String(maps.length - assigned.length)} />
-      </div>
-
-      <div className='flex flex-wrap gap-2'>
-        {FILTERS.map((item) => (
-          <FilterChip
-            key={item.id}
-            active={filter === item.id}
-            count={counts[item.id]}
-            onClick={() => setFilter(item.id)}
-          >
-            {item.label}
-          </FilterChip>
-        ))}
+      <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+        <p className='text-st-muted text-sm tabular-nums'>
+          {plural(assigned.length, 'map')} · {examCount} for the exam ·{' '}
+          {plural(maps.length - assigned.length, 'practice run')}
+        </p>
+        <div className='flex flex-wrap gap-2'>
+          {FILTERS.map((item) => (
+            <FilterChip
+              key={item.id}
+              active={filter === item.id}
+              count={counts[item.id]}
+              onClick={() => setFilter(item.id)}
+            >
+              {item.label}
+            </FilterChip>
+          ))}
+        </div>
       </div>
 
       {weeks.length === 0 ? (

@@ -6,9 +6,9 @@ import { MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-import { ALL_LINKS, RailItem, isLinkActive } from './Rail';
+import { ALL_LINKS, RailItem, SignUpCta, isLinkActive } from './Rail';
 
-import { useResolvedMode } from '@/hooks/useBackendSettings';
+import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { useInbox } from '@/features/inbox/store';
@@ -27,7 +27,7 @@ function BarIcon({ icon: Icon, active }: { icon: RailLink['icon']; active: boole
   return (
     <span
       className={cn(
-        'flex h-7 w-12 items-center justify-center rounded-full transition-colors',
+        'flex h-7 w-12 items-center justify-center rounded-md transition-colors',
         active && 'bg-st-accent-soft text-st-accent',
       )}
     >
@@ -47,6 +47,7 @@ export function BottomNav() {
   const { unread } = useInbox();
   const mode = useResolvedMode();
   const session = useSession();
+  const { backendUrl } = useBackendSettings();
 
   const primaryHrefs = new Set(PRIMARY.map((p) => p.href));
   const primary = PRIMARY.flatMap((p) => {
@@ -105,6 +106,8 @@ export function BottomNav() {
           ]
             .filter(Boolean)
             .join(' · ')}
+          // Demo mode: the sign-up button sits in the sheet's footer (outside the scroll box, so its lip is never cut).
+          footer={backendUrl ? undefined : <SignUpCta />}
           title='More'
           onClose={() => setMoreOpen(false)}
         >

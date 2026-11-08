@@ -83,7 +83,7 @@ function ClassPlanRow({ entry, cls }: { entry: TodayAPlanEntry; cls: StudyClass 
   const status = isRequirementStatus(entry.status) ? REQUIREMENT_META[entry.status] : null;
 
   return (
-    <li className='border-st-line border-b last:border-b-0'>
+    <li className='border-st-line border-b py-0.5 last:border-b-0'>
       <Link
         className='hover:bg-st-raised flex min-h-14 items-center gap-3 px-4 py-3 transition-colors'
         href={aPlanHref(entry.classId)}
@@ -122,7 +122,7 @@ function HighAnnouncementRow({
   const nextAction = announcement.actions.find((action) => action.dueAt) ?? announcement.actions[0];
 
   return (
-    <li className='border-st-line border-b last:border-b-0'>
+    <li className='border-st-line border-b py-0.5 last:border-b-0'>
       <Link
         className='hover:bg-st-raised flex flex-col gap-1 px-4 py-3 transition-colors'
         href={itemHref({ id: announcement.itemId })}
@@ -152,7 +152,7 @@ function HighAnnouncementRow({
 /** Live `/today.warnings`: a policy item due within 48 h and not handed in. Real data — no Sample chip. */
 function WarningRow({ warning, cls }: { warning: TodayWarning; cls: StudyClass | undefined }) {
   return (
-    <li className='border-st-line border-b last:border-b-0'>
+    <li className='border-st-line border-b py-0.5 last:border-b-0'>
       <Link
         className='hover:bg-st-raised flex items-start gap-3 px-4 py-3 transition-colors'
         href={itemHref({ id: warning.itemId })}

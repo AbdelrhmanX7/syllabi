@@ -3,22 +3,17 @@ import { Network, PenLine } from 'lucide-react';
 import Link from 'next/link';
 
 import { useConceptMaps } from '../hooks';
-import { averageScore, byNumber, formatScore, gradedScores, mapTitle, scoreTone, scoreTrend } from '../lib/score';
+import { byNumber, mapTitle } from '../lib/score';
 
-import { Badge, LinkButton, Surface, TrendIcon } from '@/components/ui/primitives';
+import { LinkButton, Surface } from '@/components/ui/primitives';
 
-/** The small card on a class page: progress at a glance and the next map to practise. */
+/** The small card on a class page: how many maps, and the next map to practise. Maps are study tools, not grades. */
 export function ConceptMapsPanel({ classId, className = '' }: { classId: string; className?: string }) {
   const maps = useConceptMaps(classId);
   const list = useMemo(() => maps.data ?? [], [maps.data]);
   const assigned = useMemo(() => list.filter((map) => map.source !== 'practice'), [list]);
-  const average = averageScore(assigned);
-  const trend = scoreTrend(gradedScores(list));
   const examReview = assigned.filter((map) => map.examReview);
-  const next =
-    [...assigned].sort((a, b) => byNumber(b, a)).find((map) => map.score === null) ??
-    examReview[0] ??
-    assigned[assigned.length - 1];
+  const next = examReview[0] ?? [...assigned].sort((a, b) => byNumber(b, a))[0];
   const href = `/concept-maps/?classId=${encodeURIComponent(classId)}`;
 
   return (
@@ -35,17 +30,10 @@ export function ConceptMapsPanel({ classId, className = '' }: { classId: string;
         <div className='bg-st-raised h-12 animate-pulse rounded' />
       ) : (
         <>
-          <div className='flex items-baseline gap-4'>
-            <span className='text-st-fg flex items-center gap-1.5 text-2xl font-semibold tabular-nums'>
-              {average === null ? '—' : `${average}`}
-              <span className='text-st-muted text-sm font-medium'>/ 10</span>
-              <TrendIcon trend={trend} />
-            </span>
-            <span className='text-st-muted text-xs'>
-              {gradedScores(list).length}/{assigned.length} graded
-              {examReview.length > 0 && ` · ${examReview.length} for the exam`}
-            </span>
-          </div>
+          <p className='text-st-muted text-sm tabular-nums'>
+            {assigned.length} map{assigned.length === 1 ? '' : 's'}
+            {examReview.length > 0 && ` · ${examReview.length} for the exam`}
+          </p>
           {next && (
             <div className='rounded-st border-st-line flex items-center gap-3 border px-3 py-2'>
               <div className='min-w-0 flex-1'>
@@ -57,7 +45,6 @@ export function ConceptMapsPanel({ classId, className = '' }: { classId: string;
                   <p className='text-st-muted truncate text-xs'>{next.promptTerms.join(' · ')}</p>
                 )}
               </div>
-              <Badge tone={scoreTone(next.score, next.maxScore)}>{formatScore(next.score, next.maxScore)}</Badge>
               <LinkButton
                 className='min-h-9 px-3 text-xs'
                 href={`${href}&practice=${encodeURIComponent(next.id)}`}

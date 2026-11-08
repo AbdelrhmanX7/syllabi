@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 import { classHref } from '@/components/classes/ClassCard';
+import { LinkButton } from '@/components/ui/primitives';
 import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
 import { useInbox } from '@/features/inbox/store';
@@ -91,6 +92,27 @@ export function RailItem({
   );
 }
 
+/**
+ * Demo-mode call to action: nothing leaves this device until there is an account on a server. A real
+ * clay button (full width) with a one-line hint under it — the lip needs the 8px below it, so the hint
+ * sits `mt-2` past the 4px lip.
+ */
+export function SignUpCta({ className }: { className?: string }) {
+  return (
+    <div className={cn('flex flex-col', className)}>
+      <LinkButton
+        className='w-full'
+        href='/login/?tab=create'
+        variant='primary'
+      >
+        <UserPlus className='h-4 w-4 shrink-0' />
+        <span className='truncate'>Create account</span>
+      </LinkButton>
+      <p className='text-st-muted mt-2 truncate text-center text-xs'>Keep your data on every device</p>
+    </div>
+  );
+}
+
 export function Rail() {
   const router = useRouter();
   const pathname = router.pathname.replace(/\/$/, '') || '/';
@@ -171,14 +193,7 @@ export function Rail() {
         <RailItem active={pathname === '/settings'} link={SETTINGS_LINK} />
         {/* Demo mode: nothing leaves this device until there is an account on a server. */}
         {!backendUrl ? (
-          <Link
-            className='text-st-accent mt-2 flex items-center gap-1.5 px-3 text-xs font-semibold underline-offset-2 hover:underline'
-            href='/login/?tab=create'
-            title='Create an account to keep your data'
-          >
-            <UserPlus className='h-3.5 w-3.5 shrink-0' />
-            <span className='min-w-0 truncate whitespace-nowrap'>Sign up to keep your data</span>
-          </Link>
+          <SignUpCta className='mt-2' />
         ) : (
           <p className='text-st-muted mt-2 truncate px-3 text-xs'>
             {session.state === 'signed-in'

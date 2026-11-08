@@ -21,7 +21,7 @@ export default function ConceptMapsPage() {
       <Head>
         <title>Concept Maps · Syllabi</title>
       </Head>
-      {isSample && <SampleDataBanner className='mb-5' what='concept maps and grading' />}
+      {isSample && <SampleDataBanner className='mb-5' what='class data' />}
       <ConceptMapsHome classId={classId} />
     </>
   );
