@@ -48,3 +48,11 @@ Budget 3–4 GB RAM; animate transforms/opacity only, no heavy blur.
 - No wasted vertical space (dense, inline one-line facts). No avatars/initial tiles. No solid black
   (#000) fills/text/borders. No gradient blobs. Designed components from `@repo/ui` only (no hand-rolled
   pills/tabs/stars). Every destructive action opens a confirm modal.
+
+## Writing (replies, UI text, pages, emails, README)
+- Plain everyday words, like talking to a student friend. No tech or stack names in anything users read (no
+  framework/tool/protocol names, no "spaced repetition", "MCP", "self-hostable" etc.); say what it does for them.
+- Replies to the owner: what changed and what they need to do, 1–3 short lines. No file paths, commit ids, tool
+  names or env vars unless asked.
+- Short sentences, no filler, no hype, no "AI-sounding" phrasing.
+
