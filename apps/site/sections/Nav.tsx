@@ -1,38 +1,36 @@
-import { Download, Github } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 import { LinkButton } from '@/components/ui/primitives';
 
-const RELEASES = 'https://github.com/AbdelrhmanX7/syllabi/releases';
-const REPO = 'https://github.com/AbdelrhmanX7/syllabi';
+import { SIGN_IN, SIGN_UP } from '~/sections/links';
 
 const LINKS = [
   { href: '/#notebooks', label: 'Notebooks' },
   { href: '/#study', label: 'Study' },
   { href: '/#organize', label: 'Organize' },
+  { href: '/#ai', label: 'Your AI' },
+  { href: '/#devices', label: 'Devices' },
   { href: '/#self-host', label: 'Self-host' },
 ] as const;
 
 export function Nav() {
   return (
-    <header className='border-b border-st-line bg-st-bg'>
-      <nav
-        aria-label='Main'
-        className='mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4'
-      >
+    <header className='border-st-line bg-st-bg border-b'>
+      <nav aria-label='Main' className='mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4'>
         <a
           aria-label='Syllabi home'
-          className='flex shrink-0 items-center gap-2 rounded-st focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-st-accent'
+          className='focus-visible:outline-st-accent flex shrink-0 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
           href='/'
         >
           <img alt='' height={28} src='/logo-mark.svg' width={28} />
-          <span className='font-display text-lg font-bold text-st-fg'>Syllabi</span>
+          <span className='font-display text-st-fg text-lg font-bold'>Syllabi</span>
         </a>
 
-        <ul className='hidden items-center gap-1 md:flex'>
+        <ul className='hidden items-center gap-1 lg:flex'>
           {LINKS.map((link) => (
             <li key={link.href}>
               <a
-                className='rounded-st px-3 py-2 text-sm font-medium text-st-muted transition-colors duration-100 hover:text-st-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-st-accent'
+                className='text-st-muted hover:text-st-fg focus-visible:outline-st-accent rounded-md px-2.5 py-2 text-sm font-medium transition-colors duration-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
                 href={link.href}
               >
                 {link.label}
@@ -41,14 +39,13 @@ export function Nav() {
           ))}
         </ul>
 
-        <div className='flex shrink-0 items-center gap-3'>
-          <LinkButton className='px-3 sm:px-4' href={REPO} variant='secondary'>
-            <Github aria-hidden className='h-4 w-4' />
-            <span className='sr-only sm:not-sr-only'>GitHub</span>
+        <div className='flex shrink-0 items-center gap-2 sm:gap-3'>
+          <LinkButton className='hidden px-3 sm:inline-flex' href={SIGN_IN} variant='ghost'>
+            Sign in
           </LinkButton>
-          <LinkButton className='px-3 sm:px-4' href={RELEASES} variant='primary'>
-            <Download aria-hidden className='h-4 w-4' />
-            Download
+          <LinkButton className='px-3 sm:px-4' href={SIGN_UP} variant='primary'>
+            Open Syllabi
+            <ArrowRight aria-hidden className='h-4 w-4' />
           </LinkButton>
         </div>
       </nav>

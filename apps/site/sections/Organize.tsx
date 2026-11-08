@@ -4,10 +4,13 @@ import { CalendarDays, CalendarRange, GraduationCap, Library } from 'lucide-reac
 
 import { Badge, Surface } from '@/components/ui/primitives';
 
+import { TONE, type Tone } from '~/sections/tone';
+
 interface Point {
   icon: LucideIcon;
   title: string;
   isNew?: boolean;
+  tone: Tone;
   text: string;
 }
 
@@ -15,33 +18,38 @@ const POINTS: Point[] = [
   {
     icon: GraduationCap,
     title: 'Classes from Canvas',
-    text: 'Grades, assignments, quizzes, files, pages and announcements sync into one place. Add manual classes for anything not on Canvas.',
+    tone: 'blue',
+    text: 'Your grades, assignments, quizzes, files and announcements in one place. Not on Canvas? Add the class yourself.',
   },
   {
     icon: CalendarDays,
     title: 'Today',
+    tone: 'citrine',
     text: 'One screen with what is due and what to review next.',
   },
   {
     icon: CalendarRange,
     title: 'Calendar',
+    tone: 'coral',
     isNew: true,
     text: 'Week and month views of due dates, exams, class times and reviews, each in its class colour. Tap any entry to open it.',
   },
   {
     icon: Library,
     title: 'Library',
+    tone: 'green',
     text: 'Every file and reading from every class, in one searchable list.',
   },
 ];
 
 export function Organize() {
   return (
-    <section aria-labelledby='organize-title' className='scroll-mt-16 py-10 md:py-14' id='organize'>
+    <section aria-labelledby='organize-title' className='scroll-mt-4 py-8 md:py-10' data-reveal id='organize'>
       <div className='mx-auto max-w-6xl px-4'>
         <div className='mb-6 max-w-2xl'>
+          <Badge className={TONE.coral.badge}>Organize</Badge>
           <h2
-            className='font-display text-st-fg text-2xl font-bold leading-tight md:text-3xl'
+            className='font-display text-st-fg mt-3 text-2xl font-bold leading-tight md:text-3xl'
             id='organize-title'
           >
             Stay on top of the semester
@@ -51,51 +59,38 @@ export function Organize() {
           </p>
         </div>
 
-        <div className='grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]'>
-          <div className='flex min-w-0 flex-col gap-6'>
-            <ul className='divide-st-line flex flex-col divide-y'>
-              {POINTS.map(({ icon: Icon, title, isNew, text }) => (
-                <li key={title} className='flex gap-3 py-3 first:pt-0'>
-                  <span className='bg-st-accent-soft text-st-accent rounded-st mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center'>
-                    <Icon aria-hidden className='h-4 w-4' />
-                  </span>
-                  <div className='min-w-0'>
-                    <h3 className='text-st-fg flex flex-wrap items-center gap-2 text-base font-semibold'>
-                      {title}
-                      {isNew && <Badge tone='accent'>New</Badge>}
-                    </h3>
-                    <p className='text-st-muted mt-0.5 text-sm leading-snug'>{text}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+        <div className='grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-8'>
+          <ul className='divide-st-line flex flex-col divide-y'>
+            {POINTS.map(({ icon: Icon, title, isNew, text, tone }) => (
+              <li key={title} className='flex gap-3 py-3 first:pt-0' data-reveal-item>
+                <span className={`${TONE[tone].tile} mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md`}>
+                  <Icon aria-hidden className='h-5 w-5' />
+                </span>
+                <div className='min-w-0'>
+                  <h3 className='text-st-fg flex flex-wrap items-center gap-2 text-base font-semibold'>
+                    {title}
+                    {isNew && <Badge className={TONE.coral.badge}>New</Badge>}
+                  </h3>
+                  <p className='text-st-muted mt-0.5 text-sm leading-snug'>{text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
 
-            <Surface className='hidden p-2 lg:block'>
-              <div className='border-st-line rounded-st overflow-hidden border'>
+          <div className='min-w-0'>
+            <div className='min-w-0' data-reveal-item>
+              <Surface className='p-2 md:p-3'>
                 <img
-                  alt='Classes screen: a card per class with its colour, code, grade and what is due'
-                  className='block h-auto w-full'
+                  alt='Calendar week view with class times, due dates, exams and reviews, each coloured by class'
+                  className='border-st-line block h-auto w-full rounded-md border'
                   height={800}
                   loading='lazy'
-                  src='/shots/classes.png'
+                  src='/shots/calendar.png'
                   width={1280}
                 />
-              </div>
-            </Surface>
-          </div>
-
-          <Surface className='min-w-0 p-2 md:p-3'>
-            <div className='border-st-line rounded-st overflow-hidden border'>
-              <img
-                alt='Calendar month view with assignment due dates, exams, class times and reviews, each coloured by class'
-                className='block h-auto w-full'
-                height={800}
-                loading='lazy'
-                src='/shots/calendar.png'
-                width={1280}
-              />
+              </Surface>
             </div>
-          </Surface>
+          </div>
         </div>
       </div>
     </section>

@@ -1,5 +1,29 @@
 @import '../../study/styles/globals.css';
 
+/* Site-only secondary hues (the app's citrine, green, coral and a concept-map purple), each a flat
+   soft wash + a strong ink that clears 4.5:1 on that wash, on the page and on a card, in both themes.
+   Blue (--st-accent) stays the primary / call-to-action colour. */
+:root {
+  --tone-citrine-bg: 255 243 209;
+  --tone-citrine-fg: 133 84 0;
+  --tone-green-bg: 220 245 233;
+  --tone-green-fg: 20 107 70;
+  --tone-coral-bg: 253 228 224;
+  --tone-coral-fg: 176 46 33;
+  --tone-purple-bg: 240 231 253;
+  --tone-purple-fg: 107 38 184;
+}
+.dark {
+  --tone-citrine-bg: 58 48 22;
+  --tone-citrine-fg: 255 201 60;
+  --tone-green-bg: 16 56 44;
+  --tone-green-fg: 79 214 156;
+  --tone-coral-bg: 72 30 36;
+  --tone-coral-fg: 255 140 126;
+  --tone-purple-bg: 52 36 96;
+  --tone-purple-fg: 216 182 254;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -7,4 +31,9 @@ html {
   html {
     scroll-behavior: auto;
   }
+}
+
+/* The page colour also paints past the body (HeroUI paints :root white otherwise). */
+html:root {
+  background-color: rgb(var(--st-bg));
 }

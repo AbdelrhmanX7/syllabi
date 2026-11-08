@@ -8,8 +8,12 @@ file (plus optional private helpers named `sections/<Section>.*.tsx`). Never edi
 `pages/*`, configs, `BRIEF.md` or `apps/study/*`.
 
 ## Product facts (only claim these)
+- **Hosted web app** at https://app.syllabi.studio with free accounts (email/password, Google). Primary CTA =
+  sign up (`/login/?tab=create`); "Try the demo" = the app root; Android APK and self-hosting are secondary.
+- **MCP server**: Claude, ChatGPT/Codex and other MCP clients can read classes, items, notebook pages and the
+  question bank, add questions/flashcards, draw on pages, make study plans. Sharing/collaboration is PLANNED only.
 - Syllabi: open-source (MIT) study app for students on **Android tablets** (Tauri 2 APK) and the **web**.
-  Built for real student tablets like the Samsung Galaxy Tab A7 (800×1280) — fast on 3–4 GB RAM, works on
+  Tested on a Samsung Galaxy Tab S9 Ultra; written to stay light on cheaper tablets — 3–4 GB RAM,
   older Android WebViews.
 - **Classes from Canvas**: grades, assignments, quizzes, files, pages, announcements in one place; manual
   (non-Canvas) classes too. Today screen = what's due and what to review.
