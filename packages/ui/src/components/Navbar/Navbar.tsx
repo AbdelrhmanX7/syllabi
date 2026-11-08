@@ -410,7 +410,7 @@ export function NavbarMenuToggle(props: NavbarMenuToggleProps) {
       aria-expanded={ctx.isMenuOpen}
       aria-label={ariaLabel ?? (ctx.isMenuOpen ? 'Close menu' : 'Open menu')}
       className={cn(
-        'inline-flex h-9 w-9 items-center justify-center rounded-[12px]',
+        'inline-flex h-9 w-9 items-center justify-center rounded-md',
         // The one pressable thing on the bar, so the only thing here with a
         // press ladder. Travel equals `depth - lip`, so its bottom edge does
         // not move: rest 0/4, hover 2/2, active 3/1.
@@ -509,7 +509,7 @@ export function NavbarMenu(props: NavbarMenuProps) {
               'clay-panel [background-color:var(--card-bg)] p-4',
               // Edge-anchored, exactly like a Drawer: only the inward edge is
               // ever seen, so only it gets a rim and a radius.
-              'border-l-[3px] border-[color:var(--clay-edge)] rounded-l-[24px]',
+              'border-l-[3px] border-[color:var(--clay-edge)] rounded-l-lg',
               'flex flex-col gap-1',
               'end-0',
               ctx.classNames?.menu,

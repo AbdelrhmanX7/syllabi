@@ -116,7 +116,7 @@ export function BankExtractSheet({
                 key={cls.id}
                 aria-pressed={classId === cls.id}
                 className={cn(
-                  'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium',
+                  'inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-medium',
                   classId === cls.id
                     ? 'bg-st-accent text-st-accent-fg border-st-accent-lip'
                     : 'border-st-line text-st-fg hover:bg-st-raised',

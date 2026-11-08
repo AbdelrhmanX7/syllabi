@@ -235,7 +235,7 @@ const PRESS = 'transition-[transform,box-shadow] duration-100 active:translate-y
 const SURFACE = 'bg-[rgb(var(--st-surface,255_255_255))] text-ink';
 
 const chipClass = (selected: boolean, disabled = false) =>
-  `inline-flex h-8 items-center rounded-full border-2 px-3 text-xs font-semibold ${PRESS} ${
+  `inline-flex h-8 items-center rounded-sm border-2 px-3 text-xs font-semibold ${PRESS} ${
     selected
       ? 'border-[rgb(var(--st-accent,47_91_234))] bg-[rgb(var(--st-accent-soft,227_233_253))] text-ink shadow-[0_3px_0_rgb(var(--st-accent,47_91_234))]'
       : `border-[rgb(var(--st-clay-edge,205_209_224))] ${SURFACE} ${LIP}`
@@ -476,12 +476,12 @@ function ConceptReview({
               const isAccepted = accepted.has(suggestion.id);
 
               return (
-                <li key={suggestion.id} className='border-ink/10 flex items-start gap-2 rounded-lg border px-2 py-1.5 text-xs leading-5'>
+                <li key={suggestion.id} className='border-ink/10 flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs leading-5'>
                   {suggestion.fix ? (
                     <button
                       aria-pressed={isAccepted}
                       aria-label={isAccepted ? t('ai.concept.unaccept') : t('ai.concept.accept')}
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border ${
                         isAccepted ? 'border-ink bg-citrine' : 'border-ink/30 bg-paper'
                       }`}
                       type='button'
@@ -631,7 +631,7 @@ function SentImage({ session }: { session: Extract<PanelSession, { mode: 'ask' }
       <button className='block w-full' title={t('ai.enlarge')} type='button' onClick={() => setLarge((value) => !value)}>
         <img
           alt={t('ai.sent.alt')}
-          className={`border-ink/10 mx-auto rounded-lg border bg-white object-contain ${large ? 'max-h-[60vh]' : 'max-h-28'}`}
+          className={`border-ink/10 mx-auto rounded-md border bg-white object-contain ${large ? 'max-h-[60vh]' : 'max-h-28'}`}
           src={session.previewUrl}
         />
       </button>
@@ -985,7 +985,7 @@ function ChatThread({
       </div>
     </div>
   );
-  const chipButton = `inline-flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold ${EDGE} ${SURFACE} ${LIP} ${PRESS}`;
+  const chipButton = `inline-flex h-9 items-center gap-1 rounded-md px-3 text-xs font-bold ${EDGE} ${SURFACE} ${LIP} ${PRESS}`;
 
   return (
     <div className='space-y-1.5'>
@@ -1111,12 +1111,12 @@ function ChatComposer({
       }}
     >
       {quote ? (
-        <div className='bg-ink/5 text-ink/70 flex items-center gap-1.5 rounded-lg py-0.5 pe-0.5 ps-2 text-[11px]'>
+        <div className='bg-ink/5 text-ink/70 flex items-center gap-1.5 rounded-md py-0.5 pe-0.5 ps-2 text-[11px]'>
           <TextQuote aria-hidden className='h-3 w-3 shrink-0' />
           <span className='min-w-0 flex-1 truncate' title={quote}>
             {quote}
           </span>
-          <button aria-label={t('ai.chat.unquote')} className='hover:bg-ink/10 rounded-md p-1' type='button' onClick={onClearQuote}>
+          <button aria-label={t('ai.chat.unquote')} className='hover:bg-ink/10 rounded-sm p-1' type='button' onClick={onClearQuote}>
             <X aria-hidden className='h-3 w-3' />
           </button>
         </div>
@@ -1795,7 +1795,7 @@ function AnalyzeBody({ session, service, actions }: { session: Extract<PanelSess
 
   return (
     <div className='space-y-3'>
-      <img alt={t('ai.currentPage')} className='border-ink/10 bg-paper mx-auto max-h-24 rounded-lg border object-contain' src={session.previewUrl} />
+      <img alt={t('ai.currentPage')} className='border-ink/10 bg-paper mx-auto max-h-24 rounded-md border object-contain' src={session.previewUrl} />
       {!online ? <p className='text-xs text-[#e11d48]'>{offlineReason}</p> : null}
       {state.status === 'running' && !analysis ? (
         <div className='flex items-center justify-between gap-2'>
@@ -1926,7 +1926,7 @@ function LayoutPreview({ layout }: { layout: PageLayout }) {
   const { w, h } = layout.page;
 
   return (
-    <svg aria-label={t('ai.remake.previewAria')} className='border-ink/15 mx-auto max-h-72 w-full rounded-lg border bg-white' role='img' viewBox={`0 0 ${w} ${h}`}>
+    <svg aria-label={t('ai.remake.previewAria')} className='border-ink/15 mx-auto max-h-72 w-full rounded-md border bg-white' role='img' viewBox={`0 0 ${w} ${h}`}>
       {layout.blocks.map((block, index) => {
         const x = block.bbox.x * w;
         const y = block.bbox.y * h;
@@ -2134,7 +2134,7 @@ function RemakeBody({ session, service, actions }: { session: Extract<PanelSessi
 
   return (
     <div className='space-y-3'>
-      <img alt={t('ai.currentPage')} className='border-ink/10 bg-paper mx-auto max-h-24 rounded-lg border object-contain' src={session.previewUrl} />
+      <img alt={t('ai.currentPage')} className='border-ink/10 bg-paper mx-auto max-h-24 rounded-md border object-contain' src={session.previewUrl} />
       <div className='flex flex-wrap gap-1'>
         <button
           aria-pressed={effective === 'image'}
@@ -2421,14 +2421,14 @@ export function BoardAiPanel({ session, service, actions, style, className = '',
         <button
           aria-expanded={!collapsed}
           aria-label={t(collapsed ? 'ai.panel.expand' : 'ai.panel.collapse')}
-          className='hover:bg-ink/5 rounded-lg p-1'
+          className='hover:bg-ink/5 rounded-md p-1'
           title={t(collapsed ? 'ai.panel.expand' : 'ai.panel.collapse')}
           type='button'
           onClick={() => setCollapsed((value) => !value)}
         >
           {collapsed ? <ChevronDown aria-hidden className='h-4 w-4' /> : <ChevronUp aria-hidden className='h-4 w-4' />}
         </button>
-        <button aria-label={t('ai.close')} className='hover:bg-ink/5 rounded-lg p-1' type='button' onClick={onClose}>
+        <button aria-label={t('ai.close')} className='hover:bg-ink/5 rounded-md p-1' type='button' onClick={onClose}>
           <X aria-hidden className='h-4 w-4' />
         </button>
       </div>

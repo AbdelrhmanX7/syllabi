@@ -70,9 +70,9 @@ const ICON_ONLY_SIZE: Record<HeroUISize, string> = {
 // Clay's ladder, written out — the JIT cannot read a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[12px]',
-  md: 'rounded-[16px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

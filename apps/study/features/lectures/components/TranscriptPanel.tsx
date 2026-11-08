@@ -153,7 +153,7 @@ export function TranscriptPanel({ segments, currentSec = 0, clock, onSeek }: Tra
         {/* Over the list, not in the flow: showing it never shifts a line. */}
         {follow.mode === 'paused' && !searching && (
           <button
-            className='absolute bottom-3 left-1/2 h-9 -translate-x-1/2 rounded-full border-2 border-st-accent-lip bg-st-accent px-4 text-sm font-medium text-st-accent-fg hover:bg-st-accent/90 shadow-clay-accent transition-transform active:translate-y-[3px] active:shadow-none'
+            className='absolute bottom-3 left-1/2 h-9 -translate-x-1/2 rounded-md border-2 border-st-accent-lip bg-st-accent px-4 text-sm font-medium text-st-accent-fg hover:bg-st-accent/90 shadow-clay-accent transition-transform active:translate-y-[3px] active:shadow-none'
             type='button'
             onClick={() => dispatch({ type: 'resume' })}
           >
@@ -177,7 +177,7 @@ interface TranscriptRowProps {
 const TranscriptRow = memo(function TranscriptRow({ index, segment, active, onSeek }: TranscriptRowProps) {
   return (
     <button
-      className={`flex w-full gap-3 rounded-lg px-3 py-2 text-left text-base leading-relaxed transition-colors [contain-intrinsic-size:auto_64px] [content-visibility:auto] ${
+      className={`flex w-full gap-3 rounded-md px-3 py-2 text-left text-base leading-relaxed transition-colors [contain-intrinsic-size:auto_64px] [content-visibility:auto] ${
         active
           ? 'bg-st-warn/10 text-st-fg'
           : 'text-st-fg hover:bg-st-raised'

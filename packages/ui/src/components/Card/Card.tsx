@@ -233,7 +233,7 @@ export const Card = React.forwardRef<HTMLElement, CardProps>(function Card(
     <Component
       ref={ref}
       className={cn(
-        'relative overflow-hidden rounded-[24px]',
+        'relative overflow-hidden rounded-lg',
         // Only transform and box-shadow animate. Animating the fill would make a
         // hover read as a colour change rather than a movement.
         'transition-[transform,box-shadow] duration-200 motion-reduce:transition-none',

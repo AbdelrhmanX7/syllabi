@@ -75,7 +75,7 @@ export function QuestionCard({
             {studyClass.code || studyClass.name}
           </span>
         ) : null}
-        <span className='rounded-full bg-st-raised px-2 py-0.5 text-st-fg'>
+        <span className='rounded-sm bg-st-raised px-2 py-0.5 text-st-fg'>
           {question.topic}
         </span>
         {question.subtopic ? <span className='text-st-muted'>{question.subtopic}</span> : null}
@@ -114,11 +114,11 @@ export function QuestionCard({
 
       <div className={`flex flex-wrap items-center gap-2 text-xs ${variant === 'list' ? 'mt-auto pt-3' : 'mt-3'}`}>
         {question.stats.attempts > 0 ? (
-          <span className={`rounded-full px-2 py-0.5 font-medium ${tone.bg} ${tone.text}`}>
+          <span className={`rounded-sm px-2 py-0.5 font-medium ${tone.bg} ${tone.text}`}>
             {resultLabel(question.stats.lastResult)} · {question.stats.correct}/{question.stats.attempts}
           </span>
         ) : (
-          <span className='rounded-full bg-st-raised px-2 py-0.5 text-st-muted'>
+          <span className='rounded-sm bg-st-raised px-2 py-0.5 text-st-muted'>
             New
           </span>
         )}

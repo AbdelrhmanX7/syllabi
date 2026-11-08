@@ -162,13 +162,11 @@ const scrapbookPreset = {
         'sk-hair': '1.5px',
       },
       borderRadius: {
-        // Scrapbook keeps corners flat. These are the only sane values.
-        // CLAY ALIASES — was the scrapbook's 4/6/8 ladder, now clay's chunkier
-        // 14/18/20. 151 app files use `rounded-sk*`; repointing migrates them
-        // all without an edit. Matches CLAY_RADIUS in components/clay.ts.
-        'sk-sm': '14px',
-        sk: '18px',
-        'sk-lg': '20px',
+        // Clay aliases on the ONE radius ladder (scrapbook.css --radius-*: sm 8 / md 12 / lg 16). The app's
+        // tailwind config maps Tailwind's own steps onto the same three.
+        'sk-sm': 'var(--radius-md)',
+        sk: 'var(--radius-lg)',
+        'sk-lg': 'var(--radius-lg)',
       },
       fontFamily: {
         // Body text — IBM Plex Sans (the bundled "IBM Plex Sans Arabic" family,

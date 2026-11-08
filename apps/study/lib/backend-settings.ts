@@ -128,6 +128,11 @@ export function getMockMode(): MockMode {
   return getBackendSettingsSnapshot().mockMode;
 }
 
+/** The raw stored choice ('1' forced mock, '0' forced live, null auto), whatever demo mode computes. */
+export function getStoredMockMode(): string | null {
+  return readStorage(MOCK_MODE_STORAGE_KEY);
+}
+
 export function saveMockMode(mode: MockMode): void {
   writeStorage(MOCK_MODE_STORAGE_KEY, mode === 'mock' ? '1' : mode === 'live' ? '0' : null);
   publish();

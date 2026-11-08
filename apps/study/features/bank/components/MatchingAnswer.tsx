@@ -167,7 +167,7 @@ export function MatchingAnswer({
                     {!disabled ? (
                       <button
                         aria-label={`Clear match for item ${i + 1}`}
-                        className='-me-1 flex h-8 w-8 items-center justify-center rounded-lg hover:bg-st-accent-fg/15'
+                        className='-me-1 flex h-8 w-8 items-center justify-center rounded-md hover:bg-st-accent-fg/15'
                         type='button'
                         onClick={() => onChange(clearMatch(value, left))}
                       >

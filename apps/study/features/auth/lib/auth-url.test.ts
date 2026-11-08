@@ -3,6 +3,11 @@ import { test } from 'node:test';
 
 import {
   buildCallbackUrl,
+  OFFICIAL_SERVER,
+  pickOfficialServer,
+  resolveAuthServer,
+  signInSwitch,
+  SYLLABI_HOSTED_SERVER,
   buildGoogleStartUrl,
   describeAuthError,
   isLegacyAuthStatus,
@@ -91,4 +96,33 @@ test('validateCredentials', () => {
   assert.match(validateCredentials('a@b.co', 'short') ?? '', /8 characters/);
   assert.equal(validateCredentials('a@b.co', 'longenough'), null);
   assert.equal(validateCredentials('a@b.co', 'x', 1), null);
+});
+
+test('official server: hosted default, overridable by NEXT_PUBLIC_DEFAULT_API, trailing slash trimmed', () => {
+  assert.equal(SYLLABI_HOSTED_SERVER, 'https://api.syllabi.studio');
+  assert.equal(pickOfficialServer(undefined), SYLLABI_HOSTED_SERVER);
+  assert.equal(pickOfficialServer('   '), SYLLABI_HOSTED_SERVER);
+  assert.equal(pickOfficialServer('https://study.example.org/'), 'https://study.example.org');
+  assert.equal(OFFICIAL_SERVER, pickOfficialServer(process.env.NEXT_PUBLIC_DEFAULT_API));
+});
+
+test('auth server: the configured backend wins, demo mode falls back to the official server', () => {
+  assert.equal(resolveAuthServer('https://mine.example.com/', 'https://official.test'), 'https://mine.example.com');
+  assert.equal(resolveAuthServer('', 'https://official.test'), 'https://official.test');
+  assert.equal(resolveAuthServer('  '), OFFICIAL_SERVER);
+});
+
+test('sign-in switch: demo mode adopts the auth server and lifts a forced mock; a configured device is left alone', () => {
+  assert.deepEqual(signInSwitch({ backendUrl: '', storedMock: '1' }, 'https://official.test'), {
+    saveUrl: 'https://official.test',
+    clearForcedMock: true,
+  });
+  assert.deepEqual(signInSwitch({ backendUrl: '', storedMock: null }, 'https://official.test'), {
+    saveUrl: 'https://official.test',
+    clearForcedMock: false,
+  });
+  assert.deepEqual(signInSwitch({ backendUrl: 'https://mine.example.com', storedMock: '1' }, 'https://mine.example.com'), {
+    saveUrl: null,
+    clearForcedMock: false,
+  });
 });

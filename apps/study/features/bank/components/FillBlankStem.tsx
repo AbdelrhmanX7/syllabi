@@ -147,7 +147,7 @@ function BlankInput({
         autoCapitalize='off'
         autoComplete='off'
         autoCorrect='off'
-        className={`h-10 rounded-lg border-b-2 border-dashed px-2 text-center text-[0.95em] text-st-fg outline-none disabled:opacity-90 ${tone}`}
+        className={`h-10 rounded-md border-b-2 border-dashed px-2 text-center text-[0.95em] text-st-fg outline-none disabled:opacity-90 ${tone}`}
         disabled={disabled}
         enterKeyHint='next'
         placeholder={String(index + 1)}

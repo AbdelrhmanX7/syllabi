@@ -29,12 +29,14 @@ import { AccountSection } from '@/features/auth/components/AccountSection';
 import { HandwritingSection } from '@/features/handwriting';
 import { PhoneInboxSection } from '@/features/inbox';
 import { ClassTimesSection } from '@/features/lecturenotes/components/ClassTimes';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { SampleDataBanner } from '@/components/ui/SampleDataBanner';
 import {
   ActionButton,
   Badge,
   ErrorNote,
   Field,
+  FilterChip,
   INPUT_CLASS,
   LoadingRows,
   SectionTitle,
@@ -109,6 +111,7 @@ function CanvasSection() {
   });
   const sync = useMutation({ mutationFn: startCanvasSync, onSuccess: () => void refresh() });
   const disconnect = useMutation({ mutationFn: deleteCanvasConnection, onSuccess: () => void refresh() });
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const data = status.data;
   const expiryDays = daysUntil(data?.tokenExpiresAt);
   const expiring = expiryDays !== null && expiryDays < 7;
@@ -151,13 +154,25 @@ function CanvasSection() {
               {expiring && ' — paste a new token below before it lapses.'}
             </p>
           </div>
-          <div className='flex flex-wrap gap-2 sm:col-span-2'>
+          <div className='flex flex-wrap gap-3 sm:col-span-2'>
             <ActionButton loading={sync.isPending || data.syncing} variant='primary' onClick={() => sync.mutate()}>
               <RefreshCw className='h-4 w-4' /> Sync now
             </ActionButton>
-            <ActionButton loading={disconnect.isPending} variant='danger' onClick={() => disconnect.mutate()}>
+            <ActionButton loading={disconnect.isPending} variant='danger' onClick={() => setConfirmDisconnect(true)}>
               <Unplug className='h-4 w-4' /> Disconnect
             </ActionButton>
+            {confirmDisconnect && (
+              <ConfirmSheet
+                danger
+                confirmLabel='Disconnect'
+                title='Disconnect Canvas?'
+                onClose={() => setConfirmDisconnect(false)}
+                onConfirm={() => disconnect.mutate()}
+              >
+                Syncing stops and the saved token is removed. Your classes and notes stay; paste a token again to
+                reconnect.
+              </ConfirmSheet>
+            )}
           </div>
         </div>
       )}
@@ -288,36 +303,31 @@ function McpConnections() {
                   </span>
                 )}
               </span>
-              {confirming === connection.id ? (
-                <span className='flex items-center gap-2'>
-                  <span className='text-st-muted text-xs'>Disconnect {connection.clientName}?</span>
-                  <ActionButton
-                    className='min-h-9 px-3 text-xs'
-                    loading={disconnect.isPending && disconnect.variables === connection.id}
-                    variant='danger'
-                    onClick={() => disconnect.mutate(connection.id)}
-                  >
-                    Confirm
-                  </ActionButton>
-                  <ActionButton className='min-h-9 px-3 text-xs' onClick={() => setConfirming(null)}>
-                    Cancel
-                  </ActionButton>
-                </span>
-              ) : (
-                <ActionButton
-                  className='min-h-9 px-3 text-xs'
-                  variant='danger'
-                  onClick={() => {
-                    disconnect.reset();
-                    setConfirming(connection.id);
-                  }}
-                >
-                  <Unplug className='h-3.5 w-3.5' /> Disconnect
-                </ActionButton>
-              )}
+              <ActionButton
+                className='min-h-9 px-3 text-xs'
+                loading={disconnect.isPending && disconnect.variables === connection.id}
+                variant='danger'
+                onClick={() => {
+                  disconnect.reset();
+                  setConfirming(connection.id);
+                }}
+              >
+                <Unplug className='h-3.5 w-3.5' /> Disconnect
+              </ActionButton>
             </li>
           ))}
         </ul>
+      )}
+      {confirming && (
+        <ConfirmSheet
+          danger
+          confirmLabel='Disconnect'
+          title={`Disconnect ${connections.data?.find((c) => c.id === confirming)?.clientName ?? 'this app'}?`}
+          onClose={() => setConfirming(null)}
+          onConfirm={() => disconnect.mutate(confirming)}
+        >
+          The app loses access to your study data until you connect it again.
+        </ConfirmSheet>
       )}
       {disconnect.error && <ErrorNote message={describeError(disconnect.error)} />}
     </div>
@@ -388,20 +398,20 @@ function McpSection() {
               New key “{fresh.name}” — copy it now, it will not be shown again.
             </p>
             <div className='mt-2 flex flex-wrap items-center gap-2'>
-              <code className='bg-st-surface text-st-fg min-w-0 flex-1 select-all break-all rounded-md px-3 py-2 font-mono text-xs'>
+              <code className='bg-st-surface text-st-fg min-w-0 flex-1 select-all break-all rounded-sm px-3 py-2 font-mono text-xs'>
                 {fresh.secret}
               </code>
               <CopyButton label='Copy key' text={fresh.secret} />
             </div>
             <div className='mt-2 flex flex-wrap items-start gap-2'>
-              <pre className='bg-st-surface text-st-fg min-w-0 flex-1 select-all whitespace-pre-wrap break-all rounded-md px-3 py-2 font-mono text-xs'>
+              <pre className='bg-st-surface text-st-fg min-w-0 flex-1 select-all whitespace-pre-wrap break-all rounded-sm px-3 py-2 font-mono text-xs'>
                 {command}
               </pre>
               <CopyButton label='Copy command' text={command} />
             </div>
           </div>
         ) : (
-          <pre className='bg-st-raised text-st-muted mt-3 whitespace-pre-wrap break-all rounded-md px-3 py-2 font-mono text-xs'>
+          <pre className='bg-st-raised text-st-muted mt-3 whitespace-pre-wrap break-all rounded-sm px-3 py-2 font-mono text-xs'>
             {command}
           </pre>
         )}
@@ -593,17 +603,11 @@ function BackendSection() {
             has not shipped yet is answered by the built-in mock. Force mock to work offline with sample classes.
           </p>
         </div>
-        <div className='border-st-line bg-st-surface flex items-center gap-1 rounded-full border p-1' role='group'>
+        <div className='flex flex-wrap gap-2' role='group'>
           {(['auto', 'mock', 'live'] as const).map((option) => (
-            <button
-              key={option}
-              aria-pressed={settings.mockMode === option}
-              className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-medium capitalize ${settings.mockMode === option ? 'bg-st-accent text-st-accent-fg' : 'text-st-fg hover:bg-st-raised'}`}
-              type='button'
-              onClick={() => setMode(option)}
-            >
+            <FilterChip key={option} active={settings.mockMode === option} onClick={() => setMode(option)}>
               {option === 'auto' ? 'Auto' : option === 'mock' ? 'Force mock' : 'Force live'}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -626,22 +630,16 @@ export default function SettingsPage() {
       </Head>
       <PageHeader
         actions={
-          <div className='border-st-line bg-st-surface flex items-center gap-1 rounded-full border p-1'>
+          <div className='flex flex-wrap gap-2' role='group'>
             {(['light', 'dark', 'system'] as const).map((option) => (
-              <button
-                key={option}
-                aria-pressed={mounted && theme === option}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium capitalize ${mounted && theme === option ? 'bg-st-accent text-st-accent-fg' : 'text-st-fg hover:bg-st-raised'}`}
-                type='button'
-                onClick={() => setTheme(option)}
-              >
+              <FilterChip key={option} active={mounted && theme === option} onClick={() => setTheme(option)}>
                 {option === 'light' ? (
                   <Sun className='h-3.5 w-3.5' />
                 ) : option === 'dark' ? (
                   <Moon className='h-3.5 w-3.5' />
                 ) : null}
-                {option}
-              </button>
+                <span className='capitalize'>{option}</span>
+              </FilterChip>
             ))}
           </div>
         }

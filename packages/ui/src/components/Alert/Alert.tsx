@@ -77,10 +77,10 @@ export interface AlertProps extends Omit<React.HTMLAttributes<HTMLDivElement>, '
 // template literal, so an interpolated arbitrary `rounded-` value generates no class.
 const RADIUS_CLASS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
-  full: 'rounded-[24px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
+  full: 'rounded-lg',
 };
 
 /**
@@ -313,7 +313,7 @@ export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert
           className={cn(
             'inline-flex shrink-0 items-center justify-center',
             // A rim, but NO lip: the chip is inert, and a lip says "push me".
-            !hideIconWrapper && 'mt-0.5 h-8 w-8 rounded-[10px] border-[2px] border-[color:var(--clay-edge)]',
+            !hideIconWrapper && 'mt-0.5 h-8 w-8 rounded-md border-[2px] border-[color:var(--clay-edge)]',
             classNames?.iconWrapper,
           )}
           style={
@@ -357,7 +357,7 @@ export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert
             // thing that gets tier 1: a small clay key with a real press. Depth
             // 4 with a 3px travel, so its bottom edge stays put and only the lip
             // closes — the same invariant as every other clay control.
-            'clay-btn relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]',
+            'clay-btn relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
             'border-[2px] border-[color:var(--clay-edge)]',
             'transition-[transform,box-shadow] duration-200',
             'cursor-pointer hover:translate-y-[2px] active:translate-y-[3px]',

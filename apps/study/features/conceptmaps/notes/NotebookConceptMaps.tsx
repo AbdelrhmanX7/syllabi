@@ -194,7 +194,7 @@ function DrawReferenceButton({
     <div className='flex items-center gap-2'>
       {(status || error) && (
         <span
-          className={`bg-st-surface/90 border-st-clay-edge shadow-clay border-2 max-w-[16rem] truncate rounded-full px-3 py-1 text-xs ${error ? 'text-st-danger' : 'text-st-muted'}`}
+          className={`bg-st-surface/90 border-st-clay-edge shadow-clay border-2 max-w-[16rem] truncate rounded-sm px-3 py-1 text-xs ${error ? 'text-st-danger' : 'text-st-muted'}`}
           title={error ?? status ?? undefined}
         >
           {error ?? status}
@@ -277,7 +277,7 @@ export function PageConceptStrip({
           <Network className='text-st-accent h-4 w-4' />
           <span className='truncate'>{mapTitle(map)}</span>
           <span
-            className={`rounded-full px-2 py-0.5 tabular-nums ${placed === total ? 'bg-st-ok/15 text-st-ok' : 'bg-st-raised text-st-muted'}`}
+            className={`rounded-sm px-2 py-0.5 tabular-nums ${placed === total ? 'bg-st-ok/15 text-st-ok' : 'bg-st-raised text-st-muted'}`}
           >
             {placed}/{total}
           </span>
@@ -293,7 +293,7 @@ export function PageConceptStrip({
                 <button
                   key={term}
                   aria-pressed={on}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium ${
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium ${
                     on ? 'border-st-ok/50 bg-st-ok/10 text-st-ok' : 'border-st-line bg-st-surface text-st-fg hover:bg-st-raised'
                   }`}
                   disabled={auto}

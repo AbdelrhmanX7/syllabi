@@ -20,7 +20,7 @@ export function ConceptStrip({ chips, onToggle }: ConceptStripProps) {
   return (
     <div className='flex min-w-0 items-start gap-2'>
       <span
-        className={`mt-2 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${
+        className={`mt-2 shrink-0 rounded-sm px-2.5 py-1 text-xs font-semibold tabular-nums ${
           total > 0 && placed === total ? 'bg-st-ok/15 text-st-ok' : 'bg-st-raised text-st-muted'
         }`}
         title='Terms placed on your map'
@@ -37,7 +37,7 @@ export function ConceptStrip({ chips, onToggle }: ConceptStripProps) {
             <button
               key={chip.term}
               aria-pressed={on}
-              className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 on
                   ? 'border-st-ok/50 bg-st-ok/10 text-st-ok'
                   : missing

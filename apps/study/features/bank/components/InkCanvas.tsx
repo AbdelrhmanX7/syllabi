@@ -439,7 +439,7 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
         ) : null}
         <button
           aria-label='Add writing space'
-          className='absolute bottom-2 right-2 flex h-10 items-center gap-1 rounded-full bg-st-raised px-3 text-xs font-medium text-st-muted hover:bg-st-raised'
+          className='absolute bottom-2 right-2 flex h-10 items-center gap-1 rounded-md bg-st-raised px-3 text-xs font-medium text-st-muted hover:bg-st-raised'
           type='button'
           onClick={() => setHeight((h) => h + GROW_STEP)}
         >

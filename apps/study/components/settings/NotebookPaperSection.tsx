@@ -8,14 +8,14 @@ import {
   PAPER_SPACING_MM_MIN,
 } from '@repo/whiteboard-core';
 
-import { SectionTitle, Surface } from '@/components/ui/primitives';
+import { Slider } from '@repo/ui';
+
+import { FilterChip, SectionTitle, Surface } from '@/components/ui/primitives';
+import { ToggleRow } from '@/components/ui/Toggle';
 import { saveBoardThemeSetting, useBoardThemeSetting } from '@/lib/notebooks/board-theme';
 import { savePaperSpacingDefault, usePaperSpacingDefaults } from '@/lib/notebooks/paper-settings';
 import { saveNotebookFillScreen, useNotebookFillScreen } from '@/lib/notebooks/fill-screen';
 import { saveHidePenShortcuts, useHidePenShortcuts } from '@/lib/notebooks/pen-shortcuts-button';
-
-const CHIP =
-  'inline-flex min-h-11 items-center justify-center rounded-full border px-3 text-xs font-medium tabular-nums transition-colors';
 
 function SpacingRow({
   type,
@@ -28,9 +28,6 @@ function SpacingRow({
   presets: readonly PaperSpacingPreset[];
   value: number | undefined;
 }) {
-  const chip = (active: boolean) =>
-    `${CHIP} ${active ? 'border-st-accent-lip bg-st-accent text-st-accent-fg' : 'border-st-line text-st-fg hover:bg-st-raised'}`;
-
   return (
     <div className='flex flex-col gap-3 py-3' data-paper-row={type}>
       <div className='flex items-center justify-between gap-3'>
@@ -40,35 +37,30 @@ function SpacingRow({
         </span>
       </div>
       <div className='flex flex-wrap gap-2' role='group'>
-        <button
-          aria-pressed={value === undefined}
-          className={chip(value === undefined)}
-          type='button'
-          onClick={() => savePaperSpacingDefault(type, null)}
-        >
+        <FilterChip active={value === undefined} onClick={() => savePaperSpacingDefault(type, null)}>
           Default
-        </button>
+        </FilterChip>
         {presets.map((preset) => (
-          <button
+          <FilterChip
             key={preset.id}
-            aria-pressed={value !== undefined && Math.abs(value - preset.mm) < 0.05}
-            className={chip(value !== undefined && Math.abs(value - preset.mm) < 0.05)}
-            type='button'
+            active={value !== undefined && Math.abs(value - preset.mm) < 0.05}
             onClick={() => savePaperSpacingDefault(type, preset.mm)}
           >
-            <span className='capitalize'>{preset.id}</span>&nbsp;· {preset.mm} mm
-          </button>
+            <span className='capitalize'>{preset.id}</span>
+            <span className='text-st-muted text-xs tabular-nums'>{preset.mm} mm</span>
+          </FilterChip>
         ))}
       </div>
-      <input
+      <Slider
+        hideValue
         aria-label={`${label} spacing in millimetres`}
-        className='accent-st-fg h-8 w-full'
-        max={PAPER_SPACING_MM_MAX}
-        min={PAPER_SPACING_MM_MIN}
+        color='primary'
+        maxValue={PAPER_SPACING_MM_MAX}
+        minValue={PAPER_SPACING_MM_MIN}
+        size='sm'
         step={0.1}
-        type='range'
         value={value ?? 7.9}
-        onChange={(event) => savePaperSpacingDefault(type, Number(event.target.value))}
+        onChange={(next) => savePaperSpacingDefault(type, Array.isArray(next) ? next[0] : next)}
       />
     </div>
   );
@@ -92,15 +84,9 @@ function BoardThemeRow() {
       </div>
       <div className='flex flex-wrap gap-2' role='group'>
         {BOARD_THEMES.map((option) => (
-          <button
-            key={option.id}
-            aria-pressed={value === option.id}
-            className={`${CHIP} ${value === option.id ? 'border-st-accent-lip bg-st-accent text-st-accent-fg' : 'border-st-line text-st-fg hover:bg-st-raised'}`}
-            type='button'
-            onClick={() => saveBoardThemeSetting(option.id)}
-          >
+          <FilterChip key={option.id} active={value === option.id} onClick={() => saveBoardThemeSetting(option.id)}>
             {option.label}
-          </button>
+          </FilterChip>
         ))}
       </div>
     </div>
@@ -128,34 +114,18 @@ export function NotebookPaperSection() {
         <BoardThemeRow />
         <SpacingRow label='Lined paper' presets={LINED_SPACING_PRESETS} type='lined' value={defaults.lined} />
         <SpacingRow label='Grid and dot paper' presets={GRID_SPACING_PRESETS} type='grid' value={defaults.grid} />
-        <label className='flex min-h-11 cursor-pointer items-center justify-between gap-3 py-3'>
-          <span>
-            <span className='text-st-fg block text-sm font-medium'>Fill the screen</span>
-            <span className='text-st-muted block text-xs'>
-              Notebook pages open as wide as the screen, without grey side margins.
-            </span>
-          </span>
-          <input
-            checked={fillScreen}
-            className='accent-st-fg h-5 w-5'
-            type='checkbox'
-            onChange={(event) => saveNotebookFillScreen(event.target.checked)}
-          />
-        </label>
-        <label className='flex min-h-11 cursor-pointer items-center justify-between gap-3 py-3'>
-          <span>
-            <span className='text-st-fg block text-sm font-medium'>Pen shortcuts button</span>
-            <span className='text-st-muted block text-xs'>
-              The floating button on the board. The S Pen side button still opens the menu.
-            </span>
-          </span>
-          <input
-            checked={!hidePenShortcuts}
-            className='accent-st-fg h-5 w-5'
-            type='checkbox'
-            onChange={(event) => saveHidePenShortcuts(!event.target.checked)}
-          />
-        </label>
+        <ToggleRow
+          checked={fillScreen}
+          hint='Notebook pages open as wide as the screen, without grey side margins.'
+          label='Fill the screen'
+          onChange={saveNotebookFillScreen}
+        />
+        <ToggleRow
+          checked={!hidePenShortcuts}
+          hint='The floating button on the board. The S Pen side button still opens the menu.'
+          label='Pen shortcuts button'
+          onChange={(on) => saveHidePenShortcuts(!on)}
+        />
       </div>
     </Surface>
   );

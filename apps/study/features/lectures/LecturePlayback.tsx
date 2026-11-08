@@ -194,7 +194,7 @@ export function LecturePlayback({ lectureId, onBack, startAtSec }: LecturePlayba
       <header className='flex flex-wrap items-center gap-3 border-b border-st-line px-4 py-3'>
         {onBack && (
           <button
-            className='h-10 rounded-lg px-3 text-sm hover:bg-st-raised'
+            className='h-10 rounded-md px-3 text-sm hover:bg-st-raised'
             type='button'
             onClick={onBack}
           >
@@ -321,14 +321,14 @@ export function LecturePlayback({ lectureId, onBack, startAtSec }: LecturePlayba
               {playing ? 'Pause' : 'Play'}
             </button>
             <button
-              className='h-10 rounded-lg px-2 text-sm tabular-nums hover:bg-st-raised'
+              className='h-10 rounded-md px-2 text-sm tabular-nums hover:bg-st-raised'
               type='button'
               onClick={() => seekMs(Math.max(0, currentMs - 10_000))}
             >
               −10s
             </button>
             <button
-              className='h-10 rounded-lg px-2 text-sm tabular-nums hover:bg-st-raised'
+              className='h-10 rounded-md px-2 text-sm tabular-nums hover:bg-st-raised'
               type='button'
               onClick={() => seekMs(currentMs + 10_000)}
             >

@@ -61,7 +61,7 @@ export function ClaudeFeedback({ pageId, className }: { pageId: string; classNam
         onClick={() => setOpen(true)}
       >
         <Sparkles className='text-st-accent h-3.5 w-3.5' /> <span data-chip-label>Claude</span>
-        <span className='bg-st-accent text-st-accent-fg rounded-full px-1.5 text-[10px] font-semibold leading-4'>
+        <span className='bg-st-accent text-st-accent-fg rounded-sm px-1.5 text-[10px] font-semibold leading-4'>
           {items.length}
         </span>
       </ActionButton>

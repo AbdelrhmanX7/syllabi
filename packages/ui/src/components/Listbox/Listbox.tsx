@@ -533,7 +533,7 @@ export function ListboxItem(props: ListboxItemProps) {
     // A literal, not `rounded-sk-sm`: that alias is a temporary compat shim pointing at the
     // clay radius, and anything depending on it loses its corners silently the day it goes.
     // Select and Autocomplete already hard-code 14 to match this item.
-    'relative flex cursor-pointer items-center gap-2 px-4 py-3 text-[14px] font-bold rounded-[14px]',
+    'relative flex cursor-pointer items-center gap-2 px-4 py-3 text-[14px] font-bold rounded-md',
     'transition-colors duration-[80ms] outline-none',
     'border-[1.5px] border-transparent',
     !isSelected && 'text-ink',
@@ -572,7 +572,7 @@ export function ListboxItem(props: ListboxItemProps) {
         <kbd
           className={cn(
             // `border-line/40` would emit no CSS (`line` isn't an rgb triplet) — mix the alpha.
-            'bg-paper text-ink/70 font-hand inline-flex h-5 shrink-0 items-center justify-center rounded-[3px] border border-[color-mix(in_oklch,var(--line)_40%,transparent)] px-1 text-[10px] font-bold',
+            'bg-paper text-ink/70 font-hand inline-flex h-5 shrink-0 items-center justify-center rounded-sm border border-[color-mix(in_oklch,var(--line)_40%,transparent)] px-1 text-[10px] font-bold',
             classNames?.shortcut,
             ctx.itemClasses?.shortcut,
           )}

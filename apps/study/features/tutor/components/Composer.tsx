@@ -126,7 +126,7 @@ export function Composer({
           {quickPrompts.map((prompt) => (
             <button
               key={prompt.label}
-              className='border-st-line bg-st-bg text-st-fg hover:bg-st-raised inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium'
+              className='border-st-line bg-st-bg text-st-fg hover:bg-st-raised inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium'
               disabled={streaming}
               type='button'
               onClick={() => applyPrompt(prompt)}
@@ -150,7 +150,7 @@ export function Composer({
 
       <div className='flex flex-wrap items-end gap-2 lg:flex-nowrap'>
         <div className='mr-auto flex shrink-0 items-center gap-1 lg:mr-0'>
-          <div aria-label='Mode' className='border-st-line bg-st-bg flex rounded-full border p-0.5' role='group'>
+          <div aria-label='Mode' className='border-st-line bg-st-bg flex rounded-md border p-0.5' role='group'>
             {MODES.map((entry) => {
               const Icon = entry.icon;
               const active = entry.id === mode;
@@ -160,7 +160,7 @@ export function Composer({
                   key={entry.id}
                   aria-pressed={active}
                   className={cn(
-                    'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors',
+                    'inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors',
                     active ? 'bg-st-accent text-st-accent-fg' : 'text-st-fg hover:bg-st-raised',
                   )}
                   disabled={streaming}
@@ -211,7 +211,7 @@ export function Composer({
           (recording ? (
             <button
               aria-label='Stop recording'
-              className='bg-st-danger text-st-accent-fg inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium tabular-nums'
+              className='bg-st-danger text-st-accent-fg inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium tabular-nums'
               type='button'
               onClick={dictation.stop}
             >

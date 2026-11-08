@@ -409,12 +409,12 @@ export function NotesWorkspace({ classId, map, draft = null, onClose, onMapCreat
             </p>
           </div>
           {narrow && (
-            <div className='border-st-line flex shrink-0 rounded-full border p-0.5'>
+            <div className='border-st-line flex shrink-0 rounded-md border p-0.5'>
               {(['notes', 'map'] as const).map((item) => (
                 <button
                   key={item}
                   aria-pressed={view === item}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium ${
                     view === item ? 'bg-st-accent text-st-accent-fg' : 'text-st-fg'
                   }`}
                   type='button'
@@ -576,7 +576,7 @@ export function NotesWorkspace({ classId, map, draft = null, onClose, onMapCreat
                   <button
                     key={id}
                     aria-pressed={side === id}
-                    className={`min-h-9 rounded-full px-3 text-sm font-medium ${
+                    className={`min-h-9 rounded-md px-3 text-sm font-medium ${
                       side === id ? 'bg-st-accent text-st-accent-fg' : 'text-st-fg hover:bg-st-raised'
                     }`}
                     type='button'
@@ -654,7 +654,7 @@ function SideButton({
   return (
     <button
       aria-pressed={active}
-      className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${
+      className={`inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium ${
         active ? 'border-st-accent-lip bg-st-accent text-st-accent-fg' : 'border-st-line bg-st-surface text-st-fg hover:bg-st-raised'
       }`}
       type='button'

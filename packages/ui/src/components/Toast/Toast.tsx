@@ -182,10 +182,10 @@ const CHIP_KIND = clayKindFor('default', true);
 // Clay's radius ladder, written out — the JIT cannot see through a template literal.
 const RADIUS_CLASS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
-  full: 'rounded-[24px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
+  full: 'rounded-lg',
 };
 
 interface SurfaceTokens {
@@ -468,7 +468,7 @@ function ToastView({ toast, index: _index, defaults }: ToastViewProps) {
             aria-hidden
             className={cn(
               // A rim, but NO lip: the chip is inert, and a lip says "push me".
-              'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]',
+              'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
               'border-[2px] border-[color:var(--clay-edge)]',
               classNames?.icon,
             )}
@@ -515,7 +515,7 @@ function ToastView({ toast, index: _index, defaults }: ToastViewProps) {
             className={cn(
               // The only pressable thing on a toast, so the only thing that gets
               // tier 1. Depth 4, travel 3 — bottom edge fixed, lip closes.
-              'clay-btn relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]',
+              'clay-btn relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
               'border-[2px] border-[color:var(--clay-edge)]',
               'transition-[transform,box-shadow] duration-200',
               'cursor-pointer hover:translate-y-[2px] active:translate-y-[3px]',
@@ -550,7 +550,7 @@ function ToastView({ toast, index: _index, defaults }: ToastViewProps) {
             // solid bar in the severity colour: a groove with something moving
             // in it, which is the same object metaphor as the rest of the
             // language and also finally ties the progress bar to the severity.
-            'clay-field mt-3 h-[6px] w-full overflow-hidden rounded-[14px]',
+            'clay-field mt-3 h-[6px] w-full overflow-hidden rounded-md',
             classNames?.progressTrack,
           )}
           style={
@@ -561,7 +561,7 @@ function ToastView({ toast, index: _index, defaults }: ToastViewProps) {
           }
         >
           <div
-            className={cn('h-full rounded-[14px]', classNames?.progressIndicator)}
+            className={cn('h-full rounded-md', classNames?.progressIndicator)}
             style={{
               background: variant === 'solid' ? CLAY_LABEL[color] : CLAY_FILL[color],
               animation: `sk-toast-progress ${timeout}ms linear forwards`,

@@ -153,7 +153,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold leading-5",
+        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-xs font-semibold leading-5",
         BADGE_TONE[tone],
         className,
       )}
@@ -252,7 +252,7 @@ export const BOARD_CHIP_OVERRIDE = "pointer-events-auto h-9 min-h-9 min-w-9 gap-
 
 // Clay button (the @repo/ui look): tinted fill, a same-hue edge, and a solid lip straight DOWN that the press sinks into.
 const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] border-2 px-4 text-sm font-semibold transition-[transform,box-shadow,background-color] duration-100 active:translate-y-[3px] active:shadow-none disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-st-accent";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border-2 px-4 text-sm font-semibold transition-[transform,box-shadow,background-color] duration-100 active:translate-y-[3px] active:shadow-none disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-st-accent";
 
 export const BUTTON_VARIANT = {
   primary:
@@ -266,7 +266,7 @@ export const BUTTON_VARIANT = {
   ghost:
     "border-transparent text-st-fg hover:bg-st-raised active:translate-y-0",
   danger:
-    "border-st-danger-lip bg-st-danger text-white shadow-clay-danger hover:brightness-110",
+    "border-st-danger-lip bg-st-danger text-st-danger-fg shadow-clay-danger hover:brightness-110",
 } as const;
 
 export type ButtonVariant = keyof typeof BUTTON_VARIANT;
@@ -336,7 +336,7 @@ export function FilterChip({
       className={cn(
         // Clay chip: 32px, same-hue edge + short straight lip; selected = soft accent (several rows of
         // solid-blue «All» chips shouted over the content).
-        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 px-3 text-[13px] font-semibold transition-[transform,box-shadow,border-color] duration-100 active:translate-y-[2px] active:shadow-none",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-sm border-2 px-3 text-[13px] font-semibold transition-[transform,box-shadow,border-color] duration-100 active:translate-y-[2px] active:shadow-none",
         active
           ? "border-st-accent bg-st-accent-soft text-st-fg shadow-[0_3px_0_rgb(var(--st-accent))]"
           : "border-st-clay-edge bg-st-surface text-st-fg shadow-[0_3px_0_rgb(var(--st-clay-edge))] hover:border-st-accent",
@@ -439,7 +439,7 @@ export function DividerTabs<K extends string>({
               {typeof tab.count === "number" && (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 text-xs",
+                    "rounded-sm px-1.5 text-xs",
                     active
                       ? "bg-st-star text-st-star-fg"
                       : "bg-st-line text-st-muted",

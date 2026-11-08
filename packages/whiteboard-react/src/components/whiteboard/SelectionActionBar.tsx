@@ -416,7 +416,7 @@ export function PasteChip({ at, onPaste }: PasteChipProps) {
       onPointerUp={stop}
     >
       <button
-        className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold'
+        className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex h-11 items-center gap-2 rounded-md px-4 text-sm font-semibold'
         data-testid='wb-paste-chip'
         type='button'
         onClick={onPaste}

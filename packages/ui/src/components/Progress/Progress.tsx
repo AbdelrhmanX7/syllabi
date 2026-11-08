@@ -26,9 +26,9 @@ const LINEAR_HEIGHT: Record<HeroUISize, string> = {
 
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[3px]',
-  md: 'rounded-[5px]',
-  lg: 'rounded-[14px]',
+  sm: 'rounded-sm',
+  md: 'rounded-sm',
+  lg: 'rounded-md',
   full: 'rounded-full',
 };
 

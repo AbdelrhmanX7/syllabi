@@ -13,6 +13,16 @@
    apps that wrap a region with `<div className="sk">`.
    ============================================================ */
 :root {
+  /* ---- Radius ladder — the ONLY corner radii (owner rule: nothing «very rounded» next to «square»).
+     sm  8px  chips, badges, tags, small toggles, inline code, thumbnails
+     md 12px  buttons, inputs, selects, list rows, tiles, segmented groups
+     lg 16px  cards, panels, modals, sheets, popovers
+     `rounded-full` only on true circles (dots, round icon buttons) and on thin bars/tracks.
+     Tailwind's sm/DEFAULT/md → sm, lg/xl → md, 2xl/3xl → lg (tailwind.preset.js), so every class lands here. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
   --ink: #18204a;
   --paper: #fbfaf6;
   --paper-2: #f1eee4;
@@ -605,7 +615,7 @@
   color: var(--sk-btn-fg);
   background: var(--sk-btn-bg);
   border: 2.5px solid var(--sk-btn-line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   user-select: none;
   box-shadow: 4px 4px 0 var(--sk-btn-shadow);
@@ -748,7 +758,7 @@
   padding: 0 14px;
   background: var(--surface-1);
   border: 2.5px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -823,7 +833,7 @@
   font-family: inherit;
   font-weight: 800;
   font-size: 13px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-shadow: 2px 2px 0 var(--shadow-c);
   transform: rotate(var(--sk-chip-rot));
   cursor: pointer;
@@ -914,7 +924,7 @@
   color: var(--sk-badge-fg);
   font-weight: 800;
   font-size: 11px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-family: inherit;
 }
 /* The `2px 2px 0` diagonal and `transform: rotate(var(--sk-badge-rot))` are
@@ -947,7 +957,7 @@
   position: relative;
   background: var(--surface-1);
   border: 2.5px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   box-shadow: 5px 5px 0 var(--sk-card-shadow-color);
   transform: rotate(var(--sk-card-rot));
 }
@@ -972,7 +982,7 @@
   position: relative;
   background: var(--surface-2);
   border: 2.5px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   box-shadow: 6px 6px 0 var(--shadow-c);
   padding: 28px 22px 22px;
   max-width: 440px;
@@ -1140,7 +1150,7 @@
    restyling their own frame is how you end up with 42 different frames. */
 .clay-stage {
   background: var(--surface-0);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   border: 3px solid var(--clay-stage-edge, color-mix(in srgb, var(--surface-0) 90%, hsl(var(--heroui-foreground))));
   box-shadow:
     0 8px 0 color-mix(in srgb, var(--surface-0) 80%, hsl(var(--heroui-foreground))),
@@ -1162,7 +1172,7 @@
    theme even though a shadow must not. */
 .clay-well {
   background: var(--surface-0);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   border: 3px solid color-mix(in srgb, var(--surface-0) 90%, hsl(var(--heroui-foreground)));
   /* Two-sided, for the reason in `components/clay.ts`: in dark, --shadow-c is
      already darker than --surface-0, so the top shadow alone moves ~4 luma and

@@ -36,9 +36,9 @@ const SIZE: Record<HeroUISize, { box: string; label: string }> = {
 // a 24px box is a circle, which is the radio's job, not this one's.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[7px]',
-  md: 'rounded-[9px]',
-  lg: 'rounded-[11px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-md',
   full: 'rounded-full',
 };
 

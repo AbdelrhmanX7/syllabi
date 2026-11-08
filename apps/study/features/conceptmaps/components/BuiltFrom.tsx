@@ -38,7 +38,7 @@ export function BuiltFrom({ provenance, className }: { provenance?: Provenance |
         {groups.map((group) => (
           <button
             key={group.kind}
-            className='border-st-line bg-st-raised text-st-fg hover:border-st-accent/50 rounded-full border px-2 py-0.5 leading-5'
+            className='border-st-line bg-st-raised text-st-fg hover:border-st-accent/50 rounded-sm border px-2 py-0.5 leading-5'
             type='button'
             onClick={() => setOpen(true)}
           >

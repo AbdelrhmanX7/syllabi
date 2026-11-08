@@ -117,7 +117,7 @@ export function InkAutoColorLayer({ canvas, config, penColor, inkTool, readOnly,
           {MENU_CLASSES.map((cls) => (
             <button
               key={cls}
-              className='flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'
+              className='flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'
               type='button'
               onClick={() => void controllerRef.current?.overrideSelection(cls)}
             >
@@ -134,7 +134,7 @@ export function InkAutoColorLayer({ canvas, config, penColor, inkTool, readOnly,
       {selected === 0 ? (
         <button
           aria-busy={paint === 'running'}
-          className='pointer-events-auto absolute bottom-20 start-3 z-30 flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-[14px] font-medium text-neutral-900 shadow-sm active:bg-neutral-100 disabled:opacity-70 dark:border-white/10 dark:bg-neutral-900 dark:text-neutral-100 dark:active:bg-neutral-800'
+          className='pointer-events-auto absolute bottom-20 start-3 z-30 flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-[14px] font-medium text-neutral-900 shadow-sm active:bg-neutral-100 disabled:opacity-70 dark:border-white/10 dark:bg-neutral-900 dark:text-neutral-100 dark:active:bg-neutral-800'
           data-ink-color-page
           dir={dir}
           disabled={paint === 'running'}

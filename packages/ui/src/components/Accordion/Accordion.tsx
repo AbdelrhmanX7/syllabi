@@ -258,7 +258,7 @@ export function Accordion(props: AccordionProps) {
           'flex w-full flex-col',
           variant === 'splitted' && 'gap-4',
           variant === 'bordered' &&
-            'clay-surface divide-[color:var(--clay-edge)] overflow-hidden rounded-[20px] border-[3px] border-[color:var(--clay-edge)] divide-y-[2px]',
+            'clay-surface divide-[color:var(--clay-edge)] overflow-hidden rounded-lg border-[3px] border-[color:var(--clay-edge)] divide-y-[2px]',
           fullWidth ? 'w-full' : 'w-fit',
           className,
         )}
@@ -353,7 +353,7 @@ export function AccordionItem(props: AccordionItemProps) {
         );
       case 'shadow':
       case 'splitted':
-        return cn('clay-surface relative rounded-[18px] border-[3px] border-[color:var(--clay-edge)]');
+        return cn('clay-surface relative rounded-lg border-[3px] border-[color:var(--clay-edge)]');
       case 'bordered':
         return 'relative bg-transparent';
     }
@@ -451,7 +451,7 @@ export function AccordionItem(props: AccordionItemProps) {
           {startContent ? (
             <span
               className={cn(
-                'clay-surface flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border-[3px] border-[color:var(--clay-edge)]',
+                'clay-surface flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-[3px] border-[color:var(--clay-edge)]',
                 classNames?.startContent,
                 slot.startContent,
               )}

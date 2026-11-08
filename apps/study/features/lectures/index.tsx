@@ -216,7 +216,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
             </div>
             <div className='flex justify-end gap-2'>
               <button
-                className='h-11 rounded-lg px-4 text-sm hover:bg-st-raised'
+                className='h-11 rounded-md px-4 text-sm hover:bg-st-raised'
                 type='button'
                 onClick={() => setFormOpen(false)}
               >
@@ -251,7 +251,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
               Upload what was saved
             </button>
             <button
-              className='h-10 rounded-lg px-3 text-st-warn hover:bg-st-warn/10'
+              className='h-10 rounded-md px-3 text-st-warn hover:bg-st-warn/10'
               type='button'
               onClick={() => void getLectureQueue().discard(session.lectureId)}
             >
@@ -276,7 +276,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
               Try again
             </button>
             <button
-              className='h-10 rounded-lg px-3 hover:bg-st-danger/10'
+              className='h-10 rounded-md px-3 hover:bg-st-danger/10'
               type='button'
               onClick={() => void getLectureQueue().discard(session.lectureId)}
             >
@@ -313,7 +313,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
               return (
                 <button
                   key={id ?? 'all'}
-                  className={`h-9 rounded-full border px-4 text-sm ${
+                  className={`h-9 rounded-md border px-4 text-sm ${
                     active
                       ? 'border-st-accent-lip bg-st-accent text-st-accent-fg'
                       : 'border-st-line text-st-fg hover:bg-st-raised'
@@ -372,7 +372,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
                           {isNoSpeech(lecture) ? ' · No speech detected' : ''}
                         </p>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_TONE[lecture.status]}`}>
+                      <span className={`rounded-sm px-2.5 py-1 text-xs font-medium ${STATUS_TONE[lecture.status]}`}>
                         {LECTURE_STATUS_LABEL[lecture.status]}
                       </span>
                     </button>

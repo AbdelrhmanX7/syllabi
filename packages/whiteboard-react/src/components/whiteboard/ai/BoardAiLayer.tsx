@@ -315,7 +315,7 @@ function LassoOverlay({ mode, onModeChange, onFinish, onCancel }: LassoOverlayPr
       </svg>
       <div className='pointer-events-none absolute inset-x-0 bottom-6 flex justify-center px-4'>
         <div
-          className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold'
+          className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs font-semibold'
           dir={dir}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -324,7 +324,7 @@ function LassoOverlay({ mode, onModeChange, onFinish, onCancel }: LassoOverlayPr
           <span className='bg-ink/15 mx-1 h-4 w-px' />
           <button
             aria-pressed={mode === 'free'}
-            className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${mode === 'free' ? 'bg-citrine' : ''}`}
+            className={`flex items-center gap-1 rounded-sm px-2 py-0.5 ${mode === 'free' ? 'bg-citrine' : ''}`}
             type='button'
             onClick={() => onModeChange('free')}
           >
@@ -333,7 +333,7 @@ function LassoOverlay({ mode, onModeChange, onFinish, onCancel }: LassoOverlayPr
           </button>
           <button
             aria-pressed={mode === 'rect'}
-            className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${mode === 'rect' ? 'bg-citrine' : ''}`}
+            className={`flex items-center gap-1 rounded-sm px-2 py-0.5 ${mode === 'rect' ? 'bg-citrine' : ''}`}
             type='button'
             onClick={() => onModeChange('rect')}
           >
@@ -2235,7 +2235,7 @@ export function BoardAiLayer({
           className={`pointer-events-none absolute inset-x-0 z-[41] flex justify-center px-4 ${typeof notice === 'string' ? 'top-16' : ''}`}
           style={typeof notice === 'string' ? undefined : notice.style}
         >
-          <div className='border-sk border-ink bg-paper text-ink shadow-sk rounded-full px-3 py-1.5 text-xs font-semibold' dir={dir} role='status'>
+          <div className='border-sk border-ink bg-paper text-ink shadow-sk rounded-sm px-3 py-1.5 text-xs font-semibold' dir={dir} role='status'>
             {typeof notice === 'string' ? notice : notice.text}
           </div>
         </div>

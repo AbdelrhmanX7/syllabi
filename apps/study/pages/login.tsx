@@ -1,12 +1,13 @@
 import type { AuthConfig } from '@/features/auth/lib/auth-url';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, LogIn, Mail, Server, UserPlus, Wand2 } from 'lucide-react';
+import { ArrowLeft, LogIn, Mail, UserPlus, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-import { ActionButton, DividerTabs, ErrorNote, Field, INPUT_CLASS, LinkButton, LoadingRows } from '@/components/ui/primitives';
+import { ActionButton, DividerTabs, ErrorNote, Field, INPUT_CLASS, LoadingRows } from '@/components/ui/primitives';
 import {
+  authServer,
   forgotPassword,
   loginWithPassword,
   register,
@@ -18,7 +19,6 @@ import { AuthCard, GoogleIcon, OrDivider, PasswordInput } from '@/features/auth/
 import {
   buildCallbackUrl,
   buildGoogleStartUrl,
-  DEFAULT_SERVER_URL,
   describeAuthError,
   parseLoginTab,
   validateCredentials,
@@ -26,7 +26,6 @@ import {
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
 import { adminLogin } from '@/lib/auth';
-import { saveBackendUrlOverride } from '@/lib/backend-settings';
 import { isTauri } from '@/lib/platform/runtime';
 
 type Tab = 'signin' | 'create';
@@ -57,26 +56,6 @@ function EmailInput({ value, onChange }: { value: string; onChange: (value: stri
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-    </div>
-  );
-}
-
-/** Demo mode: no server to sign in to. Offer the hosted server when the build names one. */
-function NoServer() {
-  return (
-    <div className='flex flex-col gap-3'>
-      <p className='text-st-fg text-sm'>Sign-in needs a Syllabi server. Right now the app runs on sample data.</p>
-      {DEFAULT_SERVER_URL ? (
-        <ActionButton className='w-full' variant='primary' onClick={() => saveBackendUrlOverride(DEFAULT_SERVER_URL)}>
-          <Server className='h-4 w-4' /> Use the Syllabi server ({hostOf(DEFAULT_SERVER_URL)})
-        </ActionButton>
-      ) : null}
-      <LinkButton className='w-full' href='/settings/' variant={DEFAULT_SERVER_URL ? 'secondary' : 'primary'}>
-        <Server className='h-4 w-4' /> Add my own server
-      </LinkButton>
-      <Link className='text-st-muted text-center text-sm underline underline-offset-2' href='/'>
-        Keep exploring the demo
-      </Link>
     </div>
   );
 }
@@ -188,7 +167,6 @@ function EmailOnlyForm({ view, initialEmail, onBack }: { view: 'magic' | 'forgot
 
 function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onTab: (tab: Tab) => void }) {
   const storeSession = useStoreSession();
-  const { backendUrl } = useBackendSettings();
   const [view, setView] = useState<View>('form');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -210,7 +188,7 @@ function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onT
   }
 
   const startGoogle = () => {
-    window.location.href = buildGoogleStartUrl(backendUrl, buildCallbackUrl(window.location.origin));
+    window.location.href = buildGoogleStartUrl(authServer(), buildCallbackUrl(window.location.origin));
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -336,8 +314,8 @@ export default function LoginPage() {
   const creating = tab === 'create' && config.data?.registration === 'open';
   let body: React.ReactNode;
 
-  if (!backendUrl) body = <NoServer />;
-  else if (config.isPending) body = <LoadingRows rows={3} />;
+  // No server configured (demo mode): the form signs in to / creates an account on the official server.
+  if (config.isPending) body = <LoadingRows rows={3} />;
   else if (config.isError)
     body = (
       <ErrorNote
@@ -345,22 +323,31 @@ export default function LoginPage() {
         onRetry={() => void config.refetch()}
       />
     );
-  else if (config.data.legacy) body = <LegacyForm host={hostOf(backendUrl)} />;
+  else if (config.data.legacy) body = <LegacyForm host={hostOf(authServer())} />;
   else body = <AccountForm config={config.data} tab={tab} onTab={setTab} />;
 
   return (
     <AuthCard
-      subtitle={backendUrl ? (creating ? 'Your notes follow you to every device.' : 'Welcome back.') : undefined}
+      subtitle={creating ? 'Your notes follow you to every device.' : 'Welcome back.'}
       title={creating ? 'Create your account' : 'Sign in to Syllabi'}
     >
       {body}
-      {backendUrl && (
+      {backendUrl ? (
         <p className='text-st-muted border-st-line mt-5 flex items-center gap-2 border-t pt-3 text-xs'>
           <span className='min-w-0 truncate' title={backendUrl}>
             Server: <span className='font-mono'>{hostOf(backendUrl)}</span>
           </span>
           <Link className='ml-auto shrink-0 underline underline-offset-2' href='/settings/'>
             Change
+          </Link>
+        </p>
+      ) : (
+        <p className='text-st-muted border-st-line mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm'>
+          <Link className='underline underline-offset-2' href='/'>
+            Keep exploring the demo
+          </Link>
+          <Link className='ml-auto underline underline-offset-2' href='/settings/'>
+            Use my own server
           </Link>
         </p>
       )}

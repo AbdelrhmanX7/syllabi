@@ -214,10 +214,10 @@ const ROW_RULE = (clayVars(TABLE_FILL, { kind: clayKindFor('default') }) as Reco
 // step below Card's 24px.
 const RADIUS_MAP: Record<NonNullable<TableProps['radius']>, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[10px]',
-  md: 'rounded-[14px]',
-  lg: 'rounded-[18px]',
-  full: 'rounded-[18px]',
+  sm: 'rounded-md',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
+  full: 'rounded-lg',
 };
 
 export function Table(props: TableProps) {
@@ -868,7 +868,7 @@ export function TableBody<T = unknown>(props: TableBodyProps<T>) {
             <div
               className={cn(
                 'mx-4 my-6 flex items-center justify-center px-6 py-10',
-                'rounded-[14px] border-2 border-dashed',
+                'rounded-md border-2 border-dashed',
                 // /70, not /60: a warm palette's lighter ink is a lighter ink, so the same
                 // alpha reads 3.90:1 there against 4.98:1 in the default palette.
                 'text-ink/70 text-[14px] font-bold',

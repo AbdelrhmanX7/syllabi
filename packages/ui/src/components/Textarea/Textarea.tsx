@@ -23,10 +23,10 @@ export type TextareaVariant = 'flat' | 'bordered' | 'underlined' | 'faded';
 // Clay's radius ladder, written out — the JIT cannot see through a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
-  full: 'rounded-[20px]', // textareas don't go round
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
+  full: 'rounded-lg', // textareas don't go round
 };
 
 const FG = 'hsl(var(--heroui-foreground))';

@@ -66,7 +66,7 @@ const StrokeSettingsComponent: React.FC<StrokeSettingsProps> = ({
       {/* Preview Line */}
       {/* The preview is a strip of PAPER: ink colours are chosen for the white page, so a black nib on
           a dark-theme panel would vanish here while drawing perfectly well on the board. */}
-      <div className='bg-default-100 flex items-center justify-center rounded-lg p-3 dark:bg-white'>
+      <div className='bg-default-100 flex items-center justify-center rounded-md p-3 dark:bg-white'>
         <svg className='h-16 w-full' viewBox='0 0 180 72'>
           <line
             stroke={settings.color}

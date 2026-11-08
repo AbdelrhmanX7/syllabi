@@ -59,7 +59,7 @@ export function TermChecklist({
           <button
             key={term}
             aria-pressed={on}
-            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors disabled:cursor-default ${tone}`}
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors disabled:cursor-default ${tone}`}
             disabled={disabled || graded}
             title={
               graded
@@ -79,7 +79,7 @@ export function TermChecklist({
       <span aria-hidden className='bg-st-line mx-1 h-5 w-px' />
       <button
         aria-pressed={defined}
-        className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+        className={`inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
           defined
             ? 'border-st-accent bg-st-accent/10 text-st-accent'
             : 'border-st-accent/40 bg-st-surface text-st-fg hover:bg-st-raised'

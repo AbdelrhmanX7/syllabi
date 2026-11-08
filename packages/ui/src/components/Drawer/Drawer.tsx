@@ -147,27 +147,27 @@ const panelClay = (placement: 'top' | 'right' | 'bottom' | 'left'): React.CSSPro
 
 const RADIUS_CLASS_LEFT: Record<DrawerRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-r-[10px]',
-  md: 'rounded-r-[16px]',
-  lg: 'rounded-r-[24px]',
+  sm: 'rounded-r-md',
+  md: 'rounded-r-lg',
+  lg: 'rounded-r-lg',
 };
 const RADIUS_CLASS_RIGHT: Record<DrawerRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-l-[10px]',
-  md: 'rounded-l-[16px]',
-  lg: 'rounded-l-[24px]',
+  sm: 'rounded-l-md',
+  md: 'rounded-l-lg',
+  lg: 'rounded-l-lg',
 };
 const RADIUS_CLASS_TOP: Record<DrawerRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-b-[10px]',
-  md: 'rounded-b-[16px]',
-  lg: 'rounded-b-[24px]',
+  sm: 'rounded-b-md',
+  md: 'rounded-b-lg',
+  lg: 'rounded-b-lg',
 };
 const RADIUS_CLASS_BOTTOM: Record<DrawerRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-t-[10px]',
-  md: 'rounded-t-[16px]',
-  lg: 'rounded-t-[24px]',
+  sm: 'rounded-t-md',
+  md: 'rounded-t-lg',
+  lg: 'rounded-t-lg',
 };
 
 export function Drawer(props: DrawerProps) {

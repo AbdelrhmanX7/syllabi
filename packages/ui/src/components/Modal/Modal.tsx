@@ -217,7 +217,7 @@ export function Modal({
                 // at 3px with the clay edge, not 0px.
                 'border-[3px] border-[color:var(--clay-edge)]',
                 SIZE[size],
-                sheet ? 'rounded-t-[24px] sm:rounded-[24px]' : 'rounded-[24px]',
+                sheet ? 'rounded-t-lg sm:rounded-lg' : 'rounded-lg',
                 isBottom && 'sm:mb-6',
                 className,
                 classNames?.base,

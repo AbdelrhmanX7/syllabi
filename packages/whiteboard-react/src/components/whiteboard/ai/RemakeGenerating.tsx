@@ -344,7 +344,7 @@ export function RemakeStatusCard({ draft, statusLine, onCancel, onBack }: Remake
 
         <div className='mt-2.5 flex items-center justify-between gap-2'>
           {onBack ? (
-            <button className='text-ink/70 hover:text-ink flex items-center gap-1 rounded-lg px-1 py-1 text-[11px] font-semibold' disabled={finishing} type='button' onClick={onBack}>
+            <button className='text-ink/70 hover:text-ink flex items-center gap-1 rounded-md px-1 py-1 text-[11px] font-semibold' disabled={finishing} type='button' onClick={onBack}>
               <ArrowLeft aria-hidden className='h-3.5 w-3.5' />
               {t('ai.gen.backToOriginal')}
             </button>

@@ -25,7 +25,7 @@ function LiveChip({ mode }: { mode: ReturnType<typeof useInbox>['mode'] }) {
   const live = mode === 'sse';
 
   return (
-    <span className='border-st-line bg-st-surface text-st-muted inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium'>
+    <span className='border-st-line bg-st-surface text-st-muted inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium'>
       <Radio className={live ? 'text-st-ok h-3.5 w-3.5' : 'h-3.5 w-3.5'} />
       {live ? 'Live' : mode === 'poll' ? 'Checking every 10 s' : mode === 'connecting' ? 'Connecting…' : 'Offline'}
     </span>
@@ -54,7 +54,7 @@ function InboxCard({
       >
         <InboxThumb className='aspect-[4/3] w-full' item={item} />
         {unread && (
-          <span className='bg-st-accent text-st-bg absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold'>
+          <span className='bg-st-accent text-st-bg absolute left-2 top-2 rounded-sm px-2 py-0.5 text-[11px] font-semibold'>
             New
           </span>
         )}

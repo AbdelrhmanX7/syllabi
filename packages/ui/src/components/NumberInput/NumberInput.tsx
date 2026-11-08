@@ -52,9 +52,9 @@ const SIZE: Record<HeroUISize, string> = {
 // Clay's radius ladder, written out — the JIT cannot see through a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 
@@ -381,7 +381,7 @@ export const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
    * in, so no `::before` band is needed: the touch target is the field's height.
    */
   const stepperBtn = cn(
-    'clay-btn inline-flex select-none items-center justify-center rounded-[8px]',
+    'clay-btn inline-flex select-none items-center justify-center rounded-sm',
     STEPPER_SIZE[size],
     'border-[2px] border-[color:var(--clay-edge)]',
     'transition-[transform,box-shadow] duration-200 motion-reduce:transition-none',

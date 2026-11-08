@@ -102,7 +102,7 @@ export function HsvPicker({ value, onChange }: { value: string; onChange: (hex: 
     <div className='flex flex-col gap-3'>
       <div
         {...sv}
-        className='border-ink relative h-32 w-full cursor-crosshair touch-none overflow-hidden rounded-[10px] border-[1.5px]'
+        className='border-ink relative h-32 w-full cursor-crosshair touch-none overflow-hidden rounded-md border-[1.5px]'
         style={{
           background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h} 100% 50%))`,
         }}

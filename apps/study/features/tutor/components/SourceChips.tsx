@@ -53,7 +53,7 @@ export function SourceChips({ sources, classId }: { sources: TutorSource[]; clas
         return (
           <li key={`${source.kind}:${source.id}:${index}`}>
             <Link
-              className='border-st-line bg-st-surface text-st-fg hover:bg-st-raised inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium'
+              className='border-st-line bg-st-surface text-st-fg hover:bg-st-raised inline-flex max-w-[260px] items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium'
               href={sourceHref(source, classId)}
               title={source.snippet || `${SOURCE_KIND_LABEL[source.kind]} · ${source.title}`}
               onClick={(event) => {

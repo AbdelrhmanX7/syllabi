@@ -1,9 +1,11 @@
 import type { InkClass } from '@repo/whiteboard-react/auto-color';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { DEFAULT_INK_PALETTE, INK_CLASSES } from '@repo/whiteboard-react/auto-color';
 
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ActionButton, FilterChip, SectionTitle, Surface } from '@/components/ui/primitives';
+import { ToggleRow } from '@/components/ui/Toggle';
 import { downloadInkModels, useInkModels } from '@/lib/ink/models';
 import { nativeInkRecognizer } from '@/lib/ink/nativeRecognizer';
 import { devicePhraseMemory } from '@/lib/ink/phrase-memory';
@@ -29,33 +31,6 @@ const subscribeMemory = (listener: () => void) => {
 
   return () => memoryListeners.delete(listener);
 };
-
-function Toggle({
-  checked,
-  label,
-  hint,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  hint: string;
-  onChange: (on: boolean) => void;
-}) {
-  return (
-    <label aria-label={label} className='flex min-h-11 cursor-pointer items-center justify-between gap-3 py-3'>
-      <span>
-        <span className='text-st-fg block text-sm font-medium'>{label}</span>
-        <span className='text-st-muted block text-xs'>{hint}</span>
-      </span>
-      <input
-        checked={checked}
-        className='accent-st-fg h-5 w-5 shrink-0'
-        type='checkbox'
-        onChange={(event) => onChange(event.target.checked)}
-      />
-    </label>
-  );
-}
 
 function ClassColorRow({ cls, value }: { cls: InkClass; value: string | null | undefined }) {
   const fallback = DEFAULT_INK_PALETTE[cls];
@@ -108,6 +83,7 @@ export function InkAutoColorSection() {
     () => 0,
   );
   const supported = nativeInkRecognizer !== null;
+  const [confirmForget, setConfirmForget] = useState(false);
 
   return (
     <Surface className='p-5'>
@@ -115,7 +91,7 @@ export function InkAutoColorSection() {
         Auto-colour
       </SectionTitle>
       <div className='divide-st-line divide-y'>
-        <Toggle
+        <ToggleRow
           checked={settings.enabled}
           hint={
             supported
@@ -220,16 +196,28 @@ export function InkAutoColorSection() {
                 <ActionButton
                   className='min-h-9 shrink-0 px-3 text-xs'
                   variant='danger'
-                  onClick={() => {
-                    memory.clear();
-                    memoryListeners.forEach((listener) => listener());
-                  }}
+                  onClick={() => setConfirmForget(true)}
                 >
                   Forget
                 </ActionButton>
               )}
+              {confirmForget && (
+                <ConfirmSheet
+                  danger
+                  confirmLabel='Forget'
+                  title='Forget your corrections?'
+                  onClose={() => setConfirmForget(false)}
+                  onConfirm={() => {
+                    memory.clear();
+                    memoryListeners.forEach((listener) => listener());
+                  }}
+                >
+                  The {remembered} phrase{remembered === 1 ? '' : 's'} you corrected go back to automatic colours. This
+                  can&apos;t be undone.
+                </ConfirmSheet>
+              )}
             </div>
-            <Toggle
+            <ToggleRow
               checked={settings.debug}
               hint='Shows what was read, its kind and the time for each word on the board. The performance log gets kinds and times only, never the text.'
               label='Debug overlay'

@@ -32,7 +32,7 @@ import { HEROUI_COLOR_TEXT, INK } from '../tokens';
  * `LinkColor` includes `'foreground'`, which has no CLAY_FILL and so no fill
  * semantic to paint a slab with.
  *
- * What IS clay here: the focus ring's radius. See the `rounded-[14px]` note.
+ * What IS clay here: the focus ring's radius. See the `rounded-md` note.
  * ---------------------------------------------------------------------------
  */
 
@@ -196,7 +196,7 @@ export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(function Link
         // button's 18px curve. At 14px the ring follows it. Inline, 14px on a
         // ~21px line box hugs the word as a lozenge instead of stamping a box
         // over it.
-        'rounded-[14px]',
+        'rounded-md',
         className,
         classNames?.base,
       )}

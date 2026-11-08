@@ -449,7 +449,7 @@ export function VideoStudy({ item: initialItem, itemId, onBack, startAtSec }: Vi
         {notesOpen && (
           <button
             aria-expanded={transcriptOpen}
-            className='mb-1 h-8 rounded-lg px-2 text-sm text-st-muted hover:bg-st-raised'
+            className='mb-1 h-8 rounded-md px-2 text-sm text-st-muted hover:bg-st-raised'
             type='button'
             onClick={() => setTranscriptOpen((open) => !open)}
           >
@@ -495,7 +495,7 @@ export function VideoStudy({ item: initialItem, itemId, onBack, startAtSec }: Vi
       <header className='flex items-center gap-3 border-b border-st-line px-4 py-3'>
         {onBack && (
           <button
-            className='h-10 rounded-lg px-3 text-sm hover:bg-st-raised'
+            className='h-10 rounded-md px-3 text-sm hover:bg-st-raised'
             type='button'
             onClick={onBack}
           >
@@ -505,7 +505,7 @@ export function VideoStudy({ item: initialItem, itemId, onBack, startAtSec }: Vi
         <h1 className='min-w-0 flex-1 truncate text-base font-semibold'>{item?.title ?? 'Video'}</h1>
         {notesError && <span className='text-sm text-st-danger'>{notesError}</span>}
         {notesOpen && (
-          <div className='flex shrink-0 rounded-lg bg-st-raised/70 p-0.5' role='group'>
+          <div className='flex shrink-0 rounded-md bg-st-raised/70 p-0.5' role='group'>
             {VIEW_LABELS[wide ? 'wide' : 'narrow'].map(([key, label]) => (
               <button
                 key={key}

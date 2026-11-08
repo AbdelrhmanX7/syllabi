@@ -136,7 +136,7 @@ const PageThumbnail: React.FC<{
       onMouseLeave={() => setIsHovered(false)}
     >
       <button
-        className={`relative h-20 w-[140px] cursor-pointer overflow-hidden rounded-lg border-2 bg-white transition-all ${
+        className={`relative h-20 w-[140px] cursor-pointer overflow-hidden rounded-md border-2 bg-white transition-all ${
           isDropTarget
             ? 'border-sky-400 ring-2 ring-sky-200'
             : isCurrent
@@ -474,7 +474,7 @@ const PageManager: React.FC<PageManagerProps> = ({
       >
         <div className='relative flex items-center justify-center'>
           <FileText className='h-4 w-4' />
-          <span className='bg-default-800 absolute -bottom-3 rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-white'>
+          <span className='bg-default-800 absolute -bottom-3 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold text-white'>
             {pages.length}
           </span>
         </div>

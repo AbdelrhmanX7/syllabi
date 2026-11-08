@@ -40,7 +40,7 @@ export const Skeleton = React.forwardRef<HTMLElement, SkeletonProps>(function Sk
         // placeholder has to read as absent content. The dashed ink border is
         // scrapbook; a 1px solid separator rim keeps the block's extent legible
         // in dark, where the fill is only 1.11:1 against the card.
-        'rounded-[10px] bg-paper-2 relative block overflow-hidden border-[1px]',
+        'rounded-md bg-paper-2 relative block overflow-hidden border-[1px]',
         !disableAnimation && '[animation:sk-pulse-soft_1.6s_ease-in-out_infinite]',
         className,
         classNames?.base,

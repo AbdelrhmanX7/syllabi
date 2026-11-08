@@ -302,4 +302,5 @@ export const CLAY_RIM = (clayVars(CLAY_FILL.default, { kind: 'control' }) as Rec
 ] as string;
 
 /** Clay's radius ladder. Chunkier than the scrapbook's 4/6/8. */
-export const CLAY_RADIUS = { sm: 14, md: 18, lg: 20, xl: 24 } as const;
+// Mirrors the --radius-* ladder in scrapbook.css (sm 8 / md 12 / lg 16); xl kept as an alias of lg.
+export const CLAY_RADIUS = { sm: 8, md: 12, lg: 16, xl: 16 } as const;

@@ -33,9 +33,9 @@ const SIZE: Record<HeroUISize, string> = {
 // literal, so an interpolated arbitrary `rounded-` value generates no class at all.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[10px]',
-  lg: 'rounded-[14px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-md',
   full: 'rounded-full',
 };
 

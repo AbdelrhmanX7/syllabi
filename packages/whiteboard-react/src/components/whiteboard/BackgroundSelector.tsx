@@ -92,7 +92,7 @@ const PaperSpacingControl: React.FC<{ type: BackgroundType; value?: number; onCh
         {presets.map((preset) => (
           <button
             key={preset.id}
-            className={`flex h-11 flex-col items-center justify-center rounded-lg text-[11px] font-medium transition-all ${
+            className={`flex h-11 flex-col items-center justify-center rounded-md text-[11px] font-medium transition-all ${
               value !== undefined && Math.abs(value - preset.mm) < 0.05 ? 'bg-primary/10 ring-primary ring-2' : 'bg-default-50 hover:bg-default-100'
             }`}
             data-wb-spacing-preset={preset.mm}
@@ -154,7 +154,7 @@ const BackgroundSelector: React.FC<BackgroundSelectorProps> = ({
         {backgrounds.map(({ type, label }) => (
           <button
             key={type}
-            className={`hover:bg-default-100 flex cursor-pointer flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+            className={`hover:bg-default-100 flex cursor-pointer flex-col items-center gap-1.5 rounded-md p-2 transition-all ${
               backgroundType === type ? 'bg-primary/10 ring-primary ring-2' : 'bg-default-50'
             }`}
             type='button'

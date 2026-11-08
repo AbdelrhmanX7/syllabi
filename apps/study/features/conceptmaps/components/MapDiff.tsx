@@ -297,7 +297,7 @@ function Legend() {
         Missing concept
       </li>
       <li className='flex items-center gap-1.5'>
-        <span className='border-st-danger h-3.5 w-5 rounded-md border-2' />
+        <span className='border-st-danger h-3.5 w-5 rounded-sm border-2' />
         Prompt term left out
       </li>
     </ul>

@@ -166,7 +166,7 @@ export function StepCheckBody({ actions, run }: { actions: StepCheckActions; run
       {result && counts && status !== 'running' ? (
         <>
           <div className='flex items-center gap-2'>
-            {preview ? <img alt={t('ai.currentPage')} className='border-ink/10 h-10 w-auto max-w-16 shrink-0 rounded-md border bg-white object-contain' src={preview} /> : null}
+            {preview ? <img alt={t('ai.currentPage')} className='border-ink/10 h-10 w-auto max-w-16 shrink-0 rounded-sm border bg-white object-contain' src={preview} /> : null}
             <p className='text-ink text-xs font-semibold leading-5'>
               {result.steps.length > 0 ? (
                 <>
@@ -187,7 +187,7 @@ export function StepCheckBody({ actions, run }: { actions: StepCheckActions; run
             {result.steps.length > 0 ? (
               <ul className='space-y-1'>
                 {result.steps.map((step) => (
-                  <li key={step.lineId} className={`flex items-start gap-2 rounded-lg border px-2 py-1.5 text-xs leading-5 ${ROW_TONE[step.verdict]}`} data-step-verdict={step.verdict}>
+                  <li key={step.lineId} className={`flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs leading-5 ${ROW_TONE[step.verdict]}`} data-step-verdict={step.verdict}>
                     <span aria-hidden className='w-4 shrink-0 text-center text-sm font-bold leading-5'>
                       {STEP_TONES[step.verdict].glyph}
                     </span>
@@ -201,7 +201,7 @@ export function StepCheckBody({ actions, run }: { actions: StepCheckActions; run
             ) : null}
 
             {sections.map((section) => (
-              <div key={section.key} className={`rounded-lg border px-2 py-1.5 text-xs leading-5 ${section.tone}`} data-step-section={section.key}>
+              <div key={section.key} className={`rounded-md border px-2 py-1.5 text-xs leading-5 ${section.tone}`} data-step-section={section.key}>
                 <p className='font-bold'>{t(section.label)}</p>
                 <ul className='list-inside list-disc'>
                   {result.sections[section.key].map((item, index) => (

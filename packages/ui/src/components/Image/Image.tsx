@@ -27,9 +27,9 @@ export type ImageShadow = 'none' | 'sm' | 'md' | 'lg';
 // through a template literal.
 const RADIUS: Record<ImageRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[10px]',
-  md: 'rounded-[14px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

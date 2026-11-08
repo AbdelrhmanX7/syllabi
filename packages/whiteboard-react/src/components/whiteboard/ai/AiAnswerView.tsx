@@ -124,7 +124,7 @@ function MathBlock({ tex, katex }: { tex: string; katex: Katex }) {
   return html ? (
     <div dangerouslySetInnerHTML={{ __html: html }} className='wb-ai-ltr wb-ai-math-block my-1' dir='ltr' />
   ) : (
-    <pre className='wb-ai-ltr bg-ink/5 overflow-x-auto rounded-lg p-2 text-xs' dir='ltr'>
+    <pre className='wb-ai-ltr bg-ink/5 overflow-x-auto rounded-md p-2 text-xs' dir='ltr'>
       {tex}
     </pre>
   );
@@ -146,7 +146,7 @@ function QuestionCard({ block, katex, index }: { block: Extract<BoardAiBlock, { 
           {block.choices.map((choice, choiceIndex) => (
             <li
               key={choiceIndex}
-              className={`rounded-lg px-2 py-1 text-sm leading-6 ${
+              className={`rounded-md px-2 py-1 text-sm leading-6 ${
                 reveal && block.answerIndex === choiceIndex ? 'bg-citrine font-semibold' : ''
               }`}
             >
@@ -333,7 +333,7 @@ function ToneCallout({ tone, children }: { tone: BoardAiTone; children: React.Re
   const style = TONE_STYLE[tone];
 
   return (
-    <div className={`text-ink space-y-1.5 rounded-lg border-s-4 px-2.5 py-1.5 ${style.box}`} data-tone={tone}>
+    <div className={`text-ink space-y-1.5 rounded-md border-s-4 px-2.5 py-1.5 ${style.box}`} data-tone={tone}>
       <p className={`flex items-center gap-1 text-xs font-bold ${style.text}`}>
         <style.Icon aria-hidden className='h-3.5 w-3.5' />
         {t(style.label)}
@@ -423,7 +423,7 @@ export function AiAnswerView({ blocks }: { blocks: BoardAiBlock[] }) {
             return graph ? (
               <GraphPreview key={index} map={graph} />
             ) : (
-              <pre key={index} className='wb-ai-ltr bg-ink/5 overflow-x-auto rounded-lg p-2 text-xs' dir='ltr'>
+              <pre key={index} className='wb-ai-ltr bg-ink/5 overflow-x-auto rounded-md p-2 text-xs' dir='ltr'>
                 {block.mermaid}
               </pre>
             );

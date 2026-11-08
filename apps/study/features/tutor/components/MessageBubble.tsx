@@ -30,7 +30,7 @@ function ContextChips({ context }: { context: TutorContext }) {
         return (
           <span
             key={chip.label}
-            className='bg-st-bg/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium opacity-90'
+            className='bg-st-bg/15 inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[11px] font-medium opacity-90'
           >
             <Icon className='h-3 w-3' /> {chip.label}
           </span>
@@ -40,7 +40,7 @@ function ContextChips({ context }: { context: TutorContext }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt='Attachment'
-          className='border-st-bg/30 max-h-40 w-auto max-w-full rounded-lg border bg-white'
+          className='border-st-bg/30 max-h-40 w-auto max-w-full rounded-md border bg-white'
           src={`data:image/png;base64,${context.imagePngB64}`}
         />
       )}

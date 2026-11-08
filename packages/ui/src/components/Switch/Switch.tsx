@@ -35,11 +35,11 @@ import type { HeroUIColor, HeroUISize } from '../tokens';
 // the channel wall.
 const SIZE: Record<HeroUISize, { track: string; thumb: string; travel: number }> = {
   // 48x28 track, 42x22 channel, 16px knob
-  sm: { track: 'h-7 w-12 rounded-[12px]', thumb: 'h-4 w-4 rounded-[7px]', travel: 22 },
+  sm: { track: 'h-7 w-12 rounded-md', thumb: 'h-4 w-4 rounded-sm', travel: 22 },
   // 56x32 track, 50x26 channel, 20px knob
-  md: { track: 'h-8 w-14 rounded-[14px]', thumb: 'h-5 w-5 rounded-[8px]', travel: 26 },
+  md: { track: 'h-8 w-14 rounded-md', thumb: 'h-5 w-5 rounded-sm', travel: 26 },
   // 64x36 track, 58x30 channel, 24px knob
-  lg: { track: 'h-9 w-16 rounded-[16px]', thumb: 'h-6 w-6 rounded-[10px]', travel: 30 },
+  lg: { track: 'h-9 w-16 rounded-lg', thumb: 'h-6 w-6 rounded-md', travel: 30 },
 };
 
 /**

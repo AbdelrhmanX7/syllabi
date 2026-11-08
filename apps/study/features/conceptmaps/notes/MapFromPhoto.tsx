@@ -321,7 +321,7 @@ export function MapFromPhotoButton({
       <div className='flex items-center gap-2'>
         {(status || error) && (
           <span
-            className={`bg-st-surface/90 border-st-clay-edge shadow-clay border-2 max-w-[16rem] truncate rounded-full px-3 py-1 text-xs ${error ? 'text-st-danger' : 'text-st-muted'}`}
+            className={`bg-st-surface/90 border-st-clay-edge shadow-clay border-2 max-w-[16rem] truncate rounded-sm px-3 py-1 text-xs ${error ? 'text-st-danger' : 'text-st-muted'}`}
             title={error ?? status ?? undefined}
           >
             {error ?? status}

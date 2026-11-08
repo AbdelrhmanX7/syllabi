@@ -142,7 +142,7 @@ export function NotesPane({
             </ActionButton>
             <button
               aria-pressed={annotate}
-              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${
+              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium ${
                 annotate
                   ? 'border-st-accent bg-st-accent text-st-accent-fg'
                   : 'border-st-line text-st-fg hover:bg-st-raised'

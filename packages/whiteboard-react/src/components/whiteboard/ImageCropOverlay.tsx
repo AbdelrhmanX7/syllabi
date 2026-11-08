@@ -226,7 +226,7 @@ export function ImageCropOverlay({ canvas, image, topInset, onDone, onCancel }: 
                 onPointerUp={endDrag}
               >
                 <span
-                  className='block rounded-[3px] bg-white'
+                  className='block rounded-sm bg-white'
                   style={{
                     width: GRIP_DOT_PX / sx,
                     height: GRIP_DOT_PX / sy,

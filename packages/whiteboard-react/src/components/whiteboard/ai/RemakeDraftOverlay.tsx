@@ -375,7 +375,7 @@ export function RemakeReadyToast({ onOpen, onDismiss }: { onOpen: () => void; on
     <div className='pointer-events-none absolute inset-x-0 top-16 z-[41] flex justify-center px-4'>
       <div className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex items-center gap-2 rounded-full py-1 pe-1 ps-3 text-xs font-semibold' dir={dir} role='status'>
         {t('ai.draft.ready')}
-        <button className='rounded-full bg-[#2f5bea] px-2.5 py-1 text-[11px] font-semibold text-white' type='button' onClick={onOpen}>
+        <button className='rounded-sm bg-[#2f5bea] px-2.5 py-1 text-[11px] font-semibold text-white' type='button' onClick={onOpen}>
           {t('ai.draft.open')}
         </button>
         <button aria-label={t('focus.hide')} className='hover:bg-ink/5 rounded-full p-1' type='button' onClick={onDismiss}>

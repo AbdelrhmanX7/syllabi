@@ -57,9 +57,9 @@ const SIZE: Record<HeroUISize, string> = {
 // Clay's radius ladder, written out — the JIT cannot see through a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 
@@ -212,7 +212,7 @@ export function SelectItem(props: SelectItemProps) {
       aria-selected={isSelected}
       className={cn(
         'clay-item',
-        'relative flex cursor-pointer items-center gap-2 rounded-[14px] px-4 py-3 text-[14px] font-bold',
+        'relative flex cursor-pointer items-center gap-2 rounded-md px-4 py-3 text-[14px] font-bold',
         'transition-colors duration-[80ms] outline-none',
         !isSelected && 'text-ink',
         isDisabled && 'cursor-not-allowed opacity-40',
@@ -865,7 +865,7 @@ export function Select(props: SelectProps) {
           {selectedDescriptors.map((d) => (
             <span
               key={d.key}
-              className='inline-flex items-center gap-1 rounded-[8px] border-[2px] border-[color:var(--clay-edge)] px-1.5 text-[12px] font-extrabold'
+              className='inline-flex items-center gap-1 rounded-sm border-[2px] border-[color:var(--clay-edge)] px-1.5 text-[12px] font-extrabold'
               style={{ background: CLAY_FILL.primary, color: CLAY_LABEL.primary }}
             >
               <span>{d.label}</span>
@@ -1148,7 +1148,7 @@ export function Select(props: SelectProps) {
                           // border came out `0px`. Both measured, both from the
                           // same missing style object.
                           'clay-panel [border:3px_solid_var(--clay-edge)]',
-                          'rounded-[18px] p-1',
+                          'rounded-lg p-1',
                           classNames?.listbox,
                         )}
                         id={listboxId}

@@ -33,9 +33,9 @@ const SIZE: Record<SnippetSize, string> = {
 
 const RADIUS: Record<SnippetRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[10px]',
-  md: 'rounded-[14px]',
-  lg: 'rounded-[18px]',
+  sm: 'rounded-md',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 
@@ -245,7 +245,7 @@ export const Snippet = React.forwardRef<HTMLDivElement, SnippetProps>(function S
     <button
       aria-label={copied ? 'Copied' : 'Copy'}
       className={cn(
-        'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]',
+        'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
         // Tier 1 inside a tier-2 surface: this is the one genuinely pressable
         // thing in a Snippet. Travel equals `depth - lip`, so its bottom edge
         // does not move: rest 0/4, hover 2/2, active 3/1.

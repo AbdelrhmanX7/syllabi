@@ -114,10 +114,10 @@ const SIZE_PADDING: Record<HeroUISize, string> = {
 // literal.
 const RADIUS_CLASS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[10px]',
-  md: 'rounded-[14px]',
-  lg: 'rounded-[20px]',
-  full: 'rounded-[24px]',
+  sm: 'rounded-md',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
+  full: 'rounded-lg',
 };
 
 /** Lip depth per `shadow` step — was a DIAGONAL `Npx Npx 0`, now straight down. */

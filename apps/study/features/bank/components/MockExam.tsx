@@ -465,7 +465,7 @@ function HistoryRow({
           </p>
         </div>
         {row.late ? <Badge>Late</Badge> : null}
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone.bg} ${tone.text}`}>
+        <span className={`rounded-sm px-2.5 py-1 text-xs font-semibold ${tone.bg} ${tone.text}`}>
           {busy ? '…' : stateLabel}
         </span>
         {resumable ? <ChevronRight className='h-5 w-5 text-st-muted' /> : null}
@@ -690,7 +690,7 @@ function ExamRunner({
           {exam.questions.length < exam.count ? ` (${exam.questions.length} available)` : ''}
         </span>
         {section ? (
-          <span className='rounded-full bg-st-raised px-2.5 py-0.5 text-xs font-medium text-st-fg'>
+          <span className='rounded-sm bg-st-raised px-2.5 py-0.5 text-xs font-medium text-st-fg'>
             {section.name}
             {section.bonus ? ' · bonus' : ''}
           </span>
@@ -698,7 +698,7 @@ function ExamRunner({
         <span className='flex-1' />
         {state === 'late' || left <= 0 ? <Badge>Late</Badge> : null}
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${
+          className={`inline-flex items-center gap-1 rounded-sm px-3 py-1 text-sm font-semibold tabular-nums ${
             urgent
               ? 'bg-st-danger/10 text-st-danger'
               : 'bg-st-raised text-st-fg'
@@ -979,7 +979,7 @@ function ExamResults({
             <div key={q.id} className='space-y-2'>
               <div className='flex items-center gap-2'>
                 <span className='text-sm font-semibold text-st-muted'>Q{i + 1}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone.bg} ${tone.text}`}>
+                <span className={`rounded-sm px-2 py-0.5 text-xs font-medium ${tone.bg} ${tone.text}`}>
                   {g ? resultLabel(g.result) : 'Not graded'}
                 </span>
               </div>
@@ -1014,7 +1014,7 @@ function ExamResults({
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className='inline-flex items-center gap-1 rounded-full bg-st-warn/10 px-2 py-0.5 text-xs font-semibold text-st-warn'>
+    <span className='inline-flex items-center gap-1 rounded-sm bg-st-warn/10 px-2 py-0.5 text-xs font-semibold text-st-warn'>
       <Clock className='h-3 w-3' /> {children}
     </span>
   );

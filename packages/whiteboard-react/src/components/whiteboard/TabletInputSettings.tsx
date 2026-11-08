@@ -438,7 +438,7 @@ const TabletInputSettings: React.FC<TabletInputSettingsProps> = ({ settings, pen
               <button
                 key={option.mode}
                 aria-checked={isSelected}
-                className={`flex min-h-9 w-full items-center gap-2 rounded-[10px] border-[1.5px] px-3 text-start text-xs font-semibold transition-colors ${
+                className={`flex min-h-9 w-full items-center gap-2 rounded-md border-[1.5px] px-3 text-start text-xs font-semibold transition-colors ${
                   isSelected ? 'border-ink bg-primary/10 text-ink' : 'border-ink/20 text-ink/75 hover:bg-ink/5'
                 }`}
                 role='radio'

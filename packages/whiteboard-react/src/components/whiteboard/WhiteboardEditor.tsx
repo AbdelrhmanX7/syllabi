@@ -7659,7 +7659,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         {/* A full-scroll host keeps its pager in the toolbar: focus mode drops it rather than floating it. */}
         {!(embedded && readOnly) && !isPagerInToolbar && !(isFocusMode && isFullScrollToolbar) && (
         <div className='absolute bottom-5 end-5 z-20 flex items-center gap-2' style={chromeHideStyle(aiChromeHidden, 'bottom')}>
-          <div className='border-sk border-ink bg-paper text-ink shadow-sk flex items-center gap-1 rounded-full px-1.5 py-1'>
+          <div className='border-sk border-ink bg-paper text-ink shadow-sk flex items-center gap-1 rounded-sm px-1.5 py-1'>
             <Tooltip content={t('editor.prevPage')} portalContainer={overlayPortalContainer}>
               <Button
                 isIconOnly

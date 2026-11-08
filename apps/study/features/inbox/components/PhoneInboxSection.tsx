@@ -28,7 +28,7 @@ const MASK = '••••••••••••';
 
 function Code({ children }: { children: string }) {
   return (
-    <code className='bg-st-raised text-st-fg min-w-0 flex-1 select-all break-all rounded-md px-3 py-2 font-mono text-xs'>
+    <code className='bg-st-raised text-st-fg min-w-0 flex-1 select-all break-all rounded-sm px-3 py-2 font-mono text-xs'>
       {children}
     </code>
   );
@@ -100,7 +100,7 @@ export function PhoneInboxSection() {
         >
           {stepsOpen ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
           <Share className='h-4 w-4' /> Share Sheet Shortcut
-          <span className='bg-st-accent/10 text-st-accent rounded-full px-2 py-0.5 text-[11px] font-semibold'>
+          <span className='bg-st-accent/10 text-st-accent rounded-sm px-2 py-0.5 text-[11px] font-semibold'>
             Recommended
           </span>
           {!fresh && (

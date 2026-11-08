@@ -26,9 +26,9 @@ const SIZE: Record<CodeSize, string> = {
 
 const RADIUS: Record<CodeRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[6px]',
-  md: 'rounded-[10px]',
-  lg: 'rounded-[14px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-md',
   full: 'rounded-full',
 };
 

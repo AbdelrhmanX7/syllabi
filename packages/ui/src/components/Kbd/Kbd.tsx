@@ -75,7 +75,7 @@ const KEY_PILL =
    * deliberately not replaced: a lip says "push me", and pushing a description
    * of a keystroke does nothing. Quality bar #3.
    */
-  'inline-flex h-[1.4em] min-w-[1.4em] items-center justify-center bg-[var(--card-bg)] border-[2px] rounded-[6px] font-mono text-ink leading-none px-[0.4em]';
+  'inline-flex h-[1.4em] min-w-[1.4em] items-center justify-center bg-[var(--card-bg)] border-[2px] rounded-sm font-mono text-ink leading-none px-[0.4em]';
 
 export const Kbd = React.forwardRef<HTMLElement, KbdProps>(function Kbd(
   { keys, children, className, classNames, style, ...rest },

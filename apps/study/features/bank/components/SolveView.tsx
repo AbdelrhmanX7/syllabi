@@ -298,7 +298,7 @@ export function SolveView({
         </span>
         <span className='flex-1' />
         {showTimer ? (
-          <span className='inline-flex items-center gap-1 rounded-full bg-st-raised px-3 py-1 text-xs font-medium tabular-nums text-st-fg'>
+          <span className='inline-flex items-center gap-1 rounded-sm bg-st-raised px-3 py-1 text-xs font-medium tabular-nums text-st-fg'>
             <Timer className='h-3.5 w-3.5' /> {formatClock(elapsed)}
           </span>
         ) : null}

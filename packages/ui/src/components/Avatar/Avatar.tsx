@@ -30,9 +30,9 @@ const SIZE: Record<HeroUISize, string> = {
 // Tailwind's JIT cannot see through a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

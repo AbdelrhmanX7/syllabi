@@ -7,6 +7,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { Check, Share2, UploadCloud } from 'lucide-react';
 
 import { ActionButton, Badge, SectionTitle, Surface } from '@/components/ui/primitives';
+import { Toggle } from '@/components/ui/Toggle';
 import { formatRelative } from '@/lib/format';
 
 type PerfModule = typeof import('@/lib/perf');
@@ -124,14 +125,11 @@ export function PerfLogSection() {
     <Surface className='p-5'>
       <SectionTitle
         action={
-          <button
-            aria-pressed={status.enabled}
-            className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium ${status.enabled ? 'bg-st-accent text-st-accent-fg border-st-accent-lip' : 'border-st-line text-st-fg hover:bg-st-raised'}`}
-            type='button'
-            onClick={() => void loadPerf().then((perf) => perf.setPerfEnabled(!status.enabled))}
-          >
-            {status.enabled ? 'On' : 'Off'}
-          </button>
+          <Toggle
+            checked={status.enabled}
+            label='Performance log'
+            onChange={(on) => void loadPerf().then((perf) => perf.setPerfEnabled(on))}
+          />
         }
       >
         Performance log

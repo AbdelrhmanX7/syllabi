@@ -109,9 +109,9 @@ const SIZE_PADDING: Record<HeroUISize, string> = {
 
 const RADIUS_CLASS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

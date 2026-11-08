@@ -60,9 +60,9 @@ const TAB_SIZE: Record<HeroUISize, string> = {
 // stay in step with clay.ts by hand.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

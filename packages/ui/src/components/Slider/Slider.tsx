@@ -113,7 +113,7 @@ const THUMB_SIZE: Record<HeroUISize, number> = {
 
 const RADIUS_CLASS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
+  sm: 'rounded-md',
   md: 'rounded-full',
   lg: 'rounded-full',
   full: 'rounded-full',
@@ -522,7 +522,7 @@ export function Slider(props: SliderProps) {
                 >
                   {showTooltip ? (
                     <span
-                      className='clay-surface absolute -top-9 inline-flex items-center justify-center rounded-[10px] border-[2px] border-[color:var(--clay-edge)] px-2 py-0.5 text-[11px] font-extrabold'
+                      className='clay-surface absolute -top-9 inline-flex items-center justify-center rounded-md border-[2px] border-[color:var(--clay-edge)] px-2 py-0.5 text-[11px] font-extrabold'
                       dir='ltr'
                       style={
                         {

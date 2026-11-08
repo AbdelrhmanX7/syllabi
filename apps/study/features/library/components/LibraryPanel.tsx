@@ -49,7 +49,7 @@ function DocRow({ doc, onOpen }: { doc: LibraryDoc; onOpen: (doc: LibraryDoc) =>
       type='button'
       onClick={() => onOpen(doc)}
     >
-      <span className='border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-md border'>
+      <span className='border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border'>
         <Icon className='h-4 w-4' />
       </span>
       <span className='min-w-0 flex-1'>

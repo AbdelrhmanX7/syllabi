@@ -2178,7 +2178,7 @@ export function WhiteboardCanvas({
       ) : null}
 
       {isWholeHandEraserActive && (
-        <div className='border-sk border-citrine bg-ink text-paper shadow-sk pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full px-3 py-1.5 text-xs font-semibold'>
+        <div className='border-sk border-citrine bg-ink text-paper shadow-sk pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-sm px-3 py-1.5 text-xs font-semibold'>
           {t('canvas.palmActive')}
         </div>
       )}

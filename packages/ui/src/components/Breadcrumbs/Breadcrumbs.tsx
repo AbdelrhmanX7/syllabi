@@ -47,9 +47,9 @@ const CRUMB_CLAY: React.CSSProperties = clayVars('var(--card-bg)', { kind: 'cont
 
 const RADIUS_CLS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 
@@ -262,8 +262,8 @@ export function Breadcrumbs(props: BreadcrumbsProps) {
             // strip, and a lip half the height of the thing casting it reads as
             // a second bar (the same finding as the Navbar).
             variant === 'bordered' &&
-              'clay-panel rounded-[16px] border-[3px] border-[color:var(--clay-edge)] [background-color:var(--card-bg)] px-2.5 py-1.5',
-            variant === 'solid' && 'clay-panel rounded-[16px] [background-color:var(--card-bg)] px-2.5 py-1.5',
+              'clay-panel rounded-lg border-[3px] border-[color:var(--clay-edge)] [background-color:var(--card-bg)] px-2.5 py-1.5',
+            variant === 'solid' && 'clay-panel rounded-lg [background-color:var(--card-bg)] px-2.5 py-1.5',
             classNames?.list,
           )}
           style={variant === 'bordered' || variant === 'solid' ? CRUMB_CLAY : undefined}
@@ -380,7 +380,7 @@ export function BreadcrumbItem(props: BreadcrumbItemProps) {
     // because it is exactly the text colour that was already contrast-checked.
     // No `ring-*` either — Tailwind rings are a `box-shadow` and would compose
     // wrongly with clay; an `outline` is its own property. See the report.
-    'rounded-[6px]',
+    'rounded-sm',
     disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
   );
 

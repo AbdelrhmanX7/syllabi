@@ -42,6 +42,7 @@
   --st-ink: 24 32 74;
   --st-shadow: 24 32 74;
   --st-danger: 220 76 62;
+  --st-danger-fg: 255 255 255;
   --st-warn: 217 138 11;
   --st-ok: 46 158 110;
   /* Concept-map inks by branch (conceptColors.ts: every one ≥ 4.5:1 on this page); -m = the link phrase's muted ink. */
@@ -63,27 +64,32 @@
 }
 
 .dark {
-  --st-bg: 15 20 48;
-  --st-surface: 20 26 59;
-  --st-raised: 34 43 92;
-  --st-fg: 241 238 228;
-  --st-muted: 154 160 188;
-  --st-line: 45 55 110;
-  --st-accent: 110 140 255;
-  --st-accent-fg: 15 20 48;
-  --st-accent-soft: 45 55 110;
-  --st-accent-lip: 64 92 214;
+  /* «Notebook Blue at night»: a deep ink-blue desk with clearly stepped rungs (page → card → raised →
+     hover, each ≈1.24:1 off the one below, so layers separate without borders doing all the work),
+     a crisp cobalt clay edge (2.3:1 on a card), warm chalk text and a vivid-not-neon periwinkle accent.
+     Status hues are tuned to the same lightness band so none of them shouts. All text pairs ≥ 4.5:1. */
+  --st-bg: 9 13 32; /* #090d20 page */
+  --st-surface: 25 33 72; /* #192148 card / rail — 1.24:1 off the page */
+  --st-raised: 38 48 98; /* #263062 wells, chips, hover — 1.24:1 off the card */
+  --st-fg: 239 235 224; /* #efebe0 warm chalk — 13.0:1 on a card */
+  --st-muted: 167 172 198; /* #a7acc6 — 6.9:1 on a card, 5.6:1 on raised */
+  --st-line: 48 58 110; /* #303a6e hairlines / dividers */
+  --st-accent: 123 155 255; /* #7b9bff — 5.9:1 on a card */
+  --st-accent-fg: 9 13 32; /* navy label on the accent — 7.3:1 */
+  --st-accent-soft: 36 49 110; /* #24316e selected wash — chalk 10.1:1, accent 4.6:1 */
+  --st-accent-lip: 74 104 224; /* #4a68e0 */
   --st-star-lip: 196 140 24;
-  --st-danger-lip: 190 80 70;
-  --st-clay-edge: 58 70 132;
+  --st-danger-lip: 196 87 75; /* #c4574b */
+  --st-clay-edge: 70 86 168; /* #4656a8 cobalt edge + lip — 2.3:1 on a card, 2.9:1 on the page */
   --st-star: 255 201 60;
-  --st-star-soft: 34 43 92;
+  --st-star-soft: 58 48 22; /* #3a3016 warm wash, not another navy — chalk 10.9:1 */
   --st-star-fg: 24 32 74;
   --st-ink: 228 224 211;
   --st-shadow: 10 14 36;
-  --st-danger: 240 122 110;
-  --st-warn: 242 179 75;
-  --st-ok: 92 201 149;
+  --st-danger: 255 133 119; /* #ff8577 — 6.6:1 on a card */
+  --st-danger-fg: 9 13 32; /* navy label on the danger fill — 8.1:1 (white was 2.7:1) */
+  --st-warn: 245 184 79; /* #f5b84f — 8.8:1 */
+  --st-ok: 79 214 156; /* #4fd69c — 8.5:1 */
   /* Concept-map inks by branch (conceptColors.ts: every one ≥ 4.5:1 on this page); -m = the link phrase's muted ink. */
   --cm-root: #e0e7ff;
   --cm-root-m: #c7cee3;
@@ -106,54 +112,63 @@
      Study's neutral #0f1430 page, with cream ink and indigo lines — two dark themes on one screen.
      Re-point that ladder at Study's own rungs (the same move `.starlight` makes in scrapbook.css), so
      every shared surface reads as part of this app. Brand fills and text tints are left alone. */
-  --ink: #f1eee4;
-  --ink-rgb: 241 238 228;
-  --ink-muted: rgba(241, 238, 228, 0.62);
-  --paper: #141a3b;
-  --paper-2: #222b5c;
-  --paper-rgb: 20 26 59;
-  --paper-2-rgb: 34 43 92;
-  --card-bg: #141a3b;
-  --card-edge: rgba(241, 238, 228, 0.12);
-  --surface-0: #0f1430;
-  --surface-1: #141a3b;
-  --surface-2: #222b5c;
-  --surface-3: #2d376e;
-  --default-soft: #222b5c;
-  --line: #3a4580;
-  --line-strong: #5a6aa8;
-  --line-soft: rgba(241, 238, 228, 0.12);
-  --line-rgb: 58 69 128;
-  --line-strong-rgb: 90 106 168;
-  --sk-dot: rgba(241, 238, 228, 0.08);
-  /* HeroUI's twins of the same ladder (H S% L%, the plugin's own format). */
-  --heroui-background: 231 52% 12%;
-  --heroui-foreground: 45 33% 92%;
-  --heroui-content1: 231 49% 15%;
-  --heroui-content2: 231 46% 25%;
-  --heroui-content3: 231 42% 30%;
-  --heroui-content4: 231 38% 36%;
-  --heroui-default-50: 231 49% 15%;
-  --heroui-default-100: 231 46% 25%;
-  --heroui-default-200: 231 42% 30%;
-  --heroui-default-300: 231 38% 36%;
-  --heroui-default-400: 231 20% 60%;
-  --heroui-default-500: 231 20% 68%;
-  --heroui-default: 231 42% 30%;
+  --ink: rgb(var(--st-fg));
+  --ink-rgb: var(--st-fg);
+  --ink-muted: rgb(var(--st-muted));
+  --paper: rgb(var(--st-surface));
+  --paper-2: rgb(var(--st-raised));
+  --paper-rgb: var(--st-surface);
+  --paper-2-rgb: var(--st-raised);
+  --card-bg: rgb(var(--st-surface));
+  --card-edge: rgb(var(--st-line));
+  --surface-0: rgb(var(--st-bg));
+  --surface-1: rgb(var(--st-surface));
+  --surface-2: rgb(var(--st-raised));
+  --surface-3: #303c76;
+  --default-soft: rgb(var(--st-raised));
+  --line: rgb(var(--st-clay-edge));
+  --line-strong: #6577c8;
+  --line-soft: rgb(var(--st-line));
+  --line-rgb: var(--st-clay-edge);
+  --line-strong-rgb: 101 119 200;
+  --shadow-c: rgb(var(--st-shadow));
+  --sk-dot: rgba(239, 235, 224, 0.08);
+  --p-text: rgb(var(--st-accent));
+  --amber-text: rgb(var(--st-warn));
+  --red-text: rgb(var(--st-danger));
+  --g-text: rgb(var(--st-ok));
+  /* HeroUI's twins of the same ladder (H S% L%, the plugin's own format). Primary = Study's accent, so a
+     shared @repo/ui Switch/Slider paints the same periwinkle as Study's own controls. */
+  --heroui-background: 230 56% 8%;
+  --heroui-foreground: 44 32% 91%;
+  --heroui-content1: 230 48% 19%;
+  --heroui-content2: 230 44% 27%;
+  --heroui-content3: 230 42% 33%;
+  --heroui-content4: 229 40% 38%;
+  --heroui-default-50: 230 48% 19%;
+  --heroui-default-100: 230 44% 27%;
+  --heroui-default-200: 230 42% 33%;
+  --heroui-default-300: 229 40% 38%;
+  --heroui-default-400: 230 21% 64%;
+  --heroui-default-500: 230 21% 72%;
+  --heroui-default: 230 42% 33%;
+  --heroui-primary: 225 100% 74%;
+  --heroui-primary-foreground: 230 56% 8%;
+  --heroui-focus: 225 100% 74%;
 
   /* The board toolbar is a light glass in the shared engine (toolbarSurfaces.ts reads these with
      light fallbacks); in Study's dark theme it is a dark bar like the rest of the chrome. */
-  --wb-tb-shell: #141a3b;
-  --wb-tb-shell-line: #2d376e;
-  --wb-tb-fade: rgba(30, 30, 33, 0.96);
-  --wb-tb-section: #222b5c;
-  --wb-tb-section-line: #2d376e;
+  --wb-tb-shell: #192148;
+  --wb-tb-shell-line: #303c76;
+  --wb-tb-fade: rgba(25, 33, 72, 0.96);
+  --wb-tb-section: #263062;
+  --wb-tb-section-line: #3a4888;
   --wb-tb-accent-section: #2e2715;
   --wb-tb-accent-section-line: #5c4a1a;
-  --wb-tb-idle-face: #222b5c;
-  --wb-tb-idle-label: #e4e0d3;
-  --wb-tb-idle-wash: #2d376e;
-  --wb-tb-active-face: #f1eee4;
+  --wb-tb-idle-face: #263062;
+  --wb-tb-idle-label: #efebe0;
+  --wb-tb-idle-wash: #303c76;
+  --wb-tb-active-face: #efebe0;
   --wb-tb-active-label: #18204a;
   --wb-tb-primary-face: #0f2c40;
   --wb-tb-primary-label: #7dd3fc;
@@ -212,6 +227,32 @@ body {
     'cv11',
     'ss01';
   overscroll-behavior: none;
+}
+
+/* Dark: thin scrollbars in the app's own colours (the native dark scrollbar is a grey slab on navy). Chrome 121+
+   reads scrollbar-color; older WebViews take the ::-webkit-scrollbar rules. In `base`, so `.scrollbar-hide`
+   (a utility) still wins. */
+@layer base {
+  .dark * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--st-clay-edge)) transparent;
+  }
+  .dark ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .dark ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgb(var(--st-clay-edge));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .dark ::selection {
+    background: rgb(var(--st-accent) / 0.35);
+  }
 }
 
 /* A narrow board (split screen, a side pane): the chips in its top-end cluster show icons only. */
@@ -297,7 +338,7 @@ body {
 }
 .st-prose pre,
 .st-prose code {
-  @apply rounded-md bg-st-raised font-mono text-sm;
+  @apply rounded-sm bg-st-raised font-mono text-sm;
 }
 .st-prose pre {
   @apply overflow-x-auto p-3;

@@ -154,7 +154,7 @@ function WeekGrid({ days, events, today }: { days: Date[]; events: Map<string, C
             )}>
             <div
               className={cn(
-                'flex items-baseline justify-start gap-1 rounded-lg px-2 py-1 text-xs font-semibold sm:justify-center sm:px-0',
+                'flex items-baseline justify-start gap-1 rounded-md px-2 py-1 text-xs font-semibold sm:justify-center sm:px-0',
                 key === today ? 'bg-st-accent text-st-accent-fg' : 'text-st-muted',
               )}
             >
@@ -178,7 +178,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
   return (
     <Link
       className={cn(
-        'group flex min-w-0 flex-col gap-0.5 rounded-lg border-s-[3px] px-1.5 py-1 text-[11px] leading-tight transition-colors',
+        'group flex min-w-0 flex-col gap-0.5 rounded-md border-s-[3px] px-1.5 py-1 text-[11px] leading-tight transition-colors',
         event.kind === 'exam' ? 'bg-st-danger/10' : event.kind === 'review' ? 'bg-st-accent-soft' : 'bg-st-raised/60',
         'hover:bg-st-accent-soft',
       )}

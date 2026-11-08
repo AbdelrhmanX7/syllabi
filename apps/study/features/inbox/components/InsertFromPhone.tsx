@@ -52,7 +52,7 @@ export function InsertFromPhoneButton({
           From phone
         </span>
         {fresh > 0 && (
-          <span className='bg-st-accent text-st-bg ml-0.5 rounded-full px-1.5 text-[10px] font-bold leading-4'>
+          <span className='bg-st-accent text-st-bg ml-0.5 rounded-sm px-1.5 text-[10px] font-bold leading-4'>
             {fresh}
           </span>
         )}

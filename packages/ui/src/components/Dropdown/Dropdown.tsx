@@ -772,7 +772,7 @@ export function DropdownItem(props: DropdownItemProps) {
       {shortcut ? (
         <kbd
           className={cn(
-            'border-line/40 bg-paper text-ink/70 inline-flex h-5 shrink-0 items-center justify-center rounded-[3px] border px-1 text-[10px] font-bold',
+            'border-line/40 bg-paper text-ink/70 inline-flex h-5 shrink-0 items-center justify-center rounded-sm border px-1 text-[10px] font-bold',
             classNames?.shortcut,
             ctx.itemClasses?.shortcut,
           )}

@@ -88,7 +88,7 @@ export function thumbnailSvg(terms: string[], { dark = true }: { dark?: boolean 
   }));
   const layout = layoutConceptGraph(nodes, edges, { vGap: 64, charWidth: 6.5, minNodeWidth: 80 });
   const ink = ['#f97316', '#a78bfa', '#facc15', '#34d399', '#60a5fa'];
-  const bg = dark ? '#111113' : '#ffffff';
+  const bg = dark ? '#141a33' : '#ffffff';
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}" width="${layout.width}" height="${layout.height}">`,
     `<rect width="100%" height="100%" fill="${bg}"/>`,

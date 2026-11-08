@@ -108,9 +108,9 @@ const LIFT_COMMON =
  */
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[14px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-md',
   full: 'rounded-full',
 };
 

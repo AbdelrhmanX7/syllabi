@@ -363,7 +363,7 @@ const DocumentRow = React.memo(function DocumentRow({ action, document, onDownlo
     <Card className='w-full' shadow='sm'>
       <CardBody className='flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex min-w-0 items-start gap-3'>
-          <span className='bg-default-100 text-default-500 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg'>
+          <span className='bg-default-100 text-default-500 flex h-10 w-10 shrink-0 items-center justify-center rounded-md'>
             <FileText className='h-5 w-5' />
           </span>
           <div className='min-w-0'>
@@ -997,7 +997,7 @@ function WhiteboardPdfLibraryInner({ client, onError, teacherLabel }: Omit<White
                 const isDone = TERMINAL_UPLOAD_PHASES.has(task.phase);
 
                 return (
-                  <div key={task.id} className='border-default-100 flex flex-col gap-2 rounded-lg border p-3'>
+                  <div key={task.id} className='border-default-100 flex flex-col gap-2 rounded-md border p-3'>
                     <div className='flex items-start justify-between gap-3'>
                       <div className='flex min-w-0 items-center gap-2'>
                         <FileText className='text-default-500 h-5 w-5 shrink-0' />

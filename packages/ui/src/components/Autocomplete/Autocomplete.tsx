@@ -49,9 +49,9 @@ const SIZE: Record<HeroUISize, string> = {
 // Clay's radius ladder, written out — the JIT cannot see through a template literal.
 const RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[14px]',
-  md: 'rounded-[18px]',
-  lg: 'rounded-[20px]',
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 
@@ -242,7 +242,7 @@ export function AutocompleteItem(props: AutocompleteItemProps) {
       aria-selected={isSelected}
       className={cn(
         'clay-item',
-        'relative flex cursor-pointer items-center gap-2 rounded-[14px] px-4 py-3 text-[14px] font-bold',
+        'relative flex cursor-pointer items-center gap-2 rounded-md px-4 py-3 text-[14px] font-bold',
         'transition-colors duration-[80ms] outline-none',
         !isSelected && 'text-ink',
         isDisabled && 'cursor-not-allowed opacity-40',
@@ -887,7 +887,7 @@ export function Autocomplete(props: AutocompleteProps) {
                     // `--clay-rest`, and an undefined `var(--clay-edge)` inside
                     // the `border` SHORTHAND invalidates it to `0px`. Both vars
                     // are set inline below, on this element.
-                    'clay-panel [border:3px_solid_var(--clay-edge)] rounded-[18px] p-1',
+                    'clay-panel [border:3px_solid_var(--clay-edge)] rounded-lg p-1',
                     classNames?.listbox,
                   )}
                   style={{

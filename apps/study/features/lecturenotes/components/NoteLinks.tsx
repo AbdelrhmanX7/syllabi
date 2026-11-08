@@ -15,7 +15,7 @@ import { useClasses } from '@/lib/api/hooks';
 function NoteChip({ page }: { page: Page }) {
   return (
     <Link
-      className='border-st-line bg-st-surface text-st-fg hover:bg-st-raised inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-xs font-medium'
+      className='border-st-line bg-st-surface text-st-fg hover:bg-st-raised inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-md border px-3 text-xs font-medium'
       href={notebookHref(page)}
     >
       <NotebookPen className='text-st-accent h-3.5 w-3.5 shrink-0' />

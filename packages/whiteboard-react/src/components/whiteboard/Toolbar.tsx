@@ -303,7 +303,7 @@ const CORE_TOOL_SET = new Set<WhiteboardTool>([...CORE_TOOLS, ...PEN_FAMILY_TOOL
 const ToolbarSection: React.FC<ToolbarSectionProps> = ({ children, isVertical, tone = 'default' }) => (
   <div
     data-wb-toolbar-section={tone}
-    className={`shrink-0 rounded-[1.35rem] border p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] backdrop-blur-sm ${
+    className={`shrink-0 rounded-lg border p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] backdrop-blur-sm ${
       isVertical ? 'flex w-full flex-col items-center gap-1' : 'flex items-center gap-1'
     } ${
       tone === 'accent'
@@ -669,15 +669,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const viewportClassName = isScrollColumn
     ? 'h-full overflow-y-auto overflow-x-hidden overscroll-y-contain [-ms-overflow-style:none] [scrollbar-width:none] [touch-action:pan-y] [&::-webkit-scrollbar]:hidden'
     : isVertical
-    ? 'max-h-[min(calc(100dvh-8rem),46rem)] overflow-y-auto overflow-x-hidden rounded-[2rem] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+    ? 'max-h-[min(calc(100dvh-8rem),46rem)] overflow-y-auto overflow-x-hidden rounded-lg [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
     : isScrollRow
-      ? `w-full overflow-x-auto overflow-y-hidden overscroll-x-contain ${isFlatBar ? '' : 'rounded-[2rem]'} [-ms-overflow-style:none] [scrollbar-width:none] [touch-action:pan-x] [&::-webkit-scrollbar]:hidden`
-      : 'max-w-full rounded-[2rem]';
+      ? `w-full overflow-x-auto overflow-y-hidden overscroll-x-contain ${isFlatBar ? '' : 'rounded-lg'} [-ms-overflow-style:none] [scrollbar-width:none] [touch-action:pan-x] [&::-webkit-scrollbar]:hidden`
+      : 'max-w-full rounded-lg';
   const shellClassName = isScrollColumn
     ? `relative flex h-full flex-col items-stretch overflow-hidden border-t bg-white ${dock === 'left' ? 'rounded-se-2xl border-e' : 'rounded-ss-2xl border-s'} border-slate-200`
     : isFlatBar
     ? 'relative flex w-full max-w-full items-stretch overflow-hidden border-t border-slate-200 bg-white'
-    : `relative ${isScrollRow ? 'flex w-full items-stretch' : ''} max-w-full overflow-hidden rounded-[2rem] border border-white/75 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,250,252,0.86),rgba(255,247,237,0.78))] shadow-[0_26px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl`;
+    : `relative ${isScrollRow ? 'flex w-full items-stretch' : ''} max-w-full overflow-hidden rounded-lg border border-white/75 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,250,252,0.86),rgba(255,247,237,0.78))] shadow-[0_26px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl`;
   const fadeEdgeClassName = 'pointer-events-none absolute inset-x-2 z-10 h-10';
 
   return (
@@ -716,12 +716,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <>
             <div
               aria-hidden
-              className={`pointer-events-none absolute inset-y-0 start-0 z-10 w-10 ${isFlatBar ? '' : 'rounded-s-[2rem]'} transition-opacity duration-150 ${rowEdges.start ? 'opacity-100' : 'opacity-0'}`}
+              className={`pointer-events-none absolute inset-y-0 start-0 z-10 w-10 ${isFlatBar ? '' : 'rounded-s-lg'} transition-opacity duration-150 ${rowEdges.start ? 'opacity-100' : 'opacity-0'}`}
               style={{ background: `linear-gradient(to right, var(--wb-tb-fade, rgba(255,255,255,0.96)), rgba(255,255,255,0))` }}
             />
             <div
               aria-hidden
-              className={`pointer-events-none absolute inset-y-0 end-0 z-10 w-10 ${isFlatBar || trailing ? '' : 'rounded-e-[2rem]'} transition-opacity duration-150 ${rowEdges.end ? 'opacity-100' : 'opacity-0'}`}
+              className={`pointer-events-none absolute inset-y-0 end-0 z-10 w-10 ${isFlatBar || trailing ? '' : 'rounded-e-lg'} transition-opacity duration-150 ${rowEdges.end ? 'opacity-100' : 'opacity-0'}`}
               style={{ background: `linear-gradient(to left, var(--wb-tb-fade, rgba(255,255,255,0.96)), rgba(255,255,255,0))` }}
             />
           </>

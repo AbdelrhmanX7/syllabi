@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
 import Head from 'next/head';
 
-import { INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { Surface } from '@/components/ui/primitives';
 
 /**
  * The shell every sign-in screen shares (/login, /auth/*). The page itself scrolls (a phone keyboard or
@@ -18,8 +18,9 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
         <title>{`${title} · Syllabi`}</title>
       </Head>
       <main className='bg-st-bg h-full w-full overflow-y-auto'>
-        <div className='flex min-h-full items-center justify-center px-4 py-6 sm:px-6'>
-          <Surface className='w-full max-w-md p-5 sm:p-7'>
+        {/* Centred both ways at every width: a full-width grid cell + an auto-margined card (old WebViews too). */}
+        <div className='grid min-h-full w-full place-items-center px-4 py-6 sm:px-6'>
+          <Surface className='mx-auto w-full max-w-md p-5 sm:p-7'>
             <div className='mb-5 flex items-center gap-3'>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img alt='' className='h-9 w-9 shrink-0' height={36} src='/logo-mark.svg' width={36} />
@@ -35,6 +36,10 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
     </>
   );
 }
+
+/** INPUT_CLASS's look on a wrapper (written out so Tailwind sees it); focus styles follow the inner input. */
+const PASSWORD_FIELD_CLASS =
+  'min-h-11 w-full rounded-st border-2 border-st-clay-edge bg-st-surface px-3 text-sm text-st-fg focus-within:border-st-accent focus-within:ring-2 focus-within:ring-st-accent/25';
 
 /** Password input with the key icon and a show/hide toggle. */
 export function PasswordInput({
@@ -52,12 +57,13 @@ export function PasswordInput({
 }) {
   const [show, setShow] = useState(false);
 
+  // The field chrome lives on the wrapper so the eye button sits BESIDE the input, not on top of it.
   return (
-    <div className='relative'>
-      <KeyRound className='text-st-muted pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2' />
+    <div className={`${PASSWORD_FIELD_CLASS} flex items-center gap-2 pr-1.5`}>
+      <KeyRound className='text-st-muted pointer-events-none h-4 w-4 shrink-0' />
       <input
         autoComplete={autoComplete}
-        className={`${INPUT_CLASS} pl-9 pr-11`}
+        className='text-st-fg placeholder:text-st-muted min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none'
         name={name}
         placeholder={placeholder}
         type={show ? 'text' : 'password'}
@@ -66,7 +72,7 @@ export function PasswordInput({
       />
       <button
         aria-label={show ? 'Hide password' : 'Show password'}
-        className='text-st-muted hover:bg-st-raised absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md'
+        className='text-st-muted hover:bg-st-raised flex h-8 w-8 shrink-0 items-center justify-center rounded-sm'
         type='button'
         onClick={() => setShow((current) => !current)}
       >

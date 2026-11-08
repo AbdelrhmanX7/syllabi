@@ -76,7 +76,7 @@ export function AskSheet({ open, onClose, classId, context, contextLabel, mode =
             {contextLabel && <p className='text-st-muted truncate text-xs'>{contextLabel}</p>}
           </div>
           <Link
-            className='text-st-muted hover:text-st-fg inline-flex h-9 items-center gap-1 rounded-full px-2 text-xs font-medium'
+            className='text-st-muted hover:text-st-fg inline-flex h-9 items-center gap-1 rounded-md px-2 text-xs font-medium'
             href={tutorHref(classId, conversationId)}
             title='Continue on the Tutor page'
             onClick={onClose}

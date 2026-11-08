@@ -43,9 +43,9 @@ const COUNT_SIZE: Record<HeroUISize, string> = {
 // Must match Avatar's ladder step for step — the chip sits in the same stack.
 const COUNT_RADIUS: Record<HeroUIRadius, string> = {
   none: 'rounded-none',
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
   full: 'rounded-full',
 };
 

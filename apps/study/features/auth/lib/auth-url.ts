@@ -4,11 +4,38 @@
  * one English line. No window / React / axios here so node:test can load it directly.
  */
 
+/** The project's hosted server, used when a build doesn't name another one. */
+export const SYLLABI_HOSTED_SERVER = 'https://api.syllabi.studio';
+
+/** `raw` (an env value) trimmed without trailing slashes, or the hosted server when empty/unset. */
+export function pickOfficialServer(raw: string | undefined | null): string {
+  return (raw ?? '').trim().replace(/\/+$/, '') || SYLLABI_HOSTED_SERVER;
+}
+
 /**
- * The server the app offers to switch to when it runs in demo mode (no backend configured). Empty until the
- * project's hosted server exists; set `NEXT_PUBLIC_DEFAULT_API` at build time to enable the offer.
+ * The official server: what /login signs in to (and creates accounts on) when the device runs in demo mode
+ * with no server configured. Override at build time with `NEXT_PUBLIC_DEFAULT_API`.
  */
-export const DEFAULT_SERVER_URL = process.env.NEXT_PUBLIC_DEFAULT_API ?? '';
+export const OFFICIAL_SERVER = pickOfficialServer(process.env.NEXT_PUBLIC_DEFAULT_API);
+
+/** Where auth calls go: the configured backend, or the official server in demo mode. */
+export function resolveAuthServer(backendUrl: string, official: string = OFFICIAL_SERVER): string {
+  return backendUrl.trim().replace(/\/+$/, '') || official;
+}
+
+/**
+ * What a successful sign-in must change on this device. In demo mode (no backend) the account lives on the
+ * official server, so the device switches to it (saved like Settings → API base URL) and a forced mock is
+ * lifted so the app shows live data. A device that already has a server keeps its settings.
+ */
+export function signInSwitch(
+  current: { backendUrl: string; storedMock: string | null },
+  authServer: string,
+): { saveUrl: string | null; clearForcedMock: boolean } {
+  if (current.backendUrl.trim()) return { saveUrl: null, clearForcedMock: false };
+
+  return { saveUrl: authServer, clearForcedMock: current.storedMock === '1' };
+}
 
 /** Custom-scheme deep link the APK registers for Google sign-in (Tauri deep-link plugin, not installed yet). */
 export const APK_AUTH_DEEP_LINK = 'studio.syllabi.app://auth';

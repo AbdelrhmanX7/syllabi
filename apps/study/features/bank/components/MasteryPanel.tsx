@@ -74,7 +74,7 @@ export function MasteryPanel({ classes, classId, onClassChange, onDrill, classNa
             {weak.map((t) => (
               <button
                 key={t.topic}
-                className='inline-flex h-10 items-center gap-2 rounded-full bg-st-surface px-3.5 text-sm font-medium text-st-danger hover:bg-st-danger/10'
+                className='inline-flex h-10 items-center gap-2 rounded-md bg-st-surface px-3.5 text-sm font-medium text-st-danger hover:bg-st-danger/10'
                 type='button'
                 onClick={() => onDrill?.(t.topic)}
               >

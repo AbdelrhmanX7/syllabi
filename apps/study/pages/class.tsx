@@ -568,7 +568,7 @@ export default function ClassPage() {
                     className="rounded-st hover:bg-st-raised flex min-h-12 items-center gap-3 px-2 py-2"
                     href={notebookHref(page)}
                   >
-                    <span className="border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-md border">
+                    <span className="border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border">
                       <NotebookPen className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">

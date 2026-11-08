@@ -118,7 +118,7 @@ export function ThisWeek({ classId, actions }: { classId: string; actions: APlan
                   >
                     <span
                       className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded-md border-2 transition-colors',
+                        'flex h-6 w-6 items-center justify-center rounded-sm border-2 transition-colors',
                         checked ? 'border-st-ok bg-st-ok text-st-bg' : 'border-st-line',
                       )}
                     >
@@ -178,7 +178,7 @@ export function Risks({ risks, requirements }: { risks: APlanRisk[]; requirement
                     {risk.itemIds.map((itemId, index) => (
                       <Link
                         key={itemId}
-                        className='text-st-accent rounded-full px-2 py-1 text-xs font-medium underline-offset-2 hover:underline'
+                        className='text-st-accent rounded-sm px-2 py-1 text-xs font-medium underline-offset-2 hover:underline'
                         href={itemHref({ id: itemId })}
                       >
                         Open item {index + 1}

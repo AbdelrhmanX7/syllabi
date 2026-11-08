@@ -81,7 +81,7 @@ export function RailItem({
         <span
           aria-label={`${badge} new`}
           className={cn(
-            'ml-auto min-w-5 rounded-full px-1.5 text-center text-xs font-semibold tabular-nums leading-5',
+            'ml-auto min-w-5 rounded-sm px-1.5 text-center text-xs font-semibold tabular-nums leading-5',
             'border-st-star-lip bg-st-star text-st-star-fg border',
           )}
         >
@@ -135,7 +135,7 @@ export function Rail() {
         <img alt='' className='h-8 w-8 shrink-0' height={32} src='/logo-mark.svg' width={32} />
         <span className='text-st-fg font-display text-lg font-bold tracking-tight'>Syllabi</span>
         {mode === 'mock' && (
-          <span className='border-st-warn/30 bg-st-warn/10 text-st-warn ml-auto rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide'>
+          <span className='border-st-warn/30 bg-st-warn/10 text-st-warn ml-auto rounded-sm border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide'>
             mock
           </span>
         )}

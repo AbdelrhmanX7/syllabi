@@ -18,9 +18,9 @@ import { CLAY_FILL, CLAY_LABEL, clayKindFor, clayVars } from '../clay';
 // an interpolated arbitrary `rounded-` value generates no class at all. The constant stays
 // the source of truth for non-Tailwind consumers; these must match it.
 const SIZE: Record<'sm' | 'md' | 'lg', string> = {
-  sm: 'px-5 py-2.5 text-sm rounded-[14px]',
-  md: 'px-7 py-3.5 text-base rounded-[18px]',
-  lg: 'px-8 py-4 text-lg rounded-[20px]',
+  sm: 'px-5 py-2.5 text-sm rounded-md',
+  md: 'px-7 py-3.5 text-base rounded-lg',
+  lg: 'px-8 py-4 text-lg rounded-lg',
 };
 
 export type ClayButtonProps = {

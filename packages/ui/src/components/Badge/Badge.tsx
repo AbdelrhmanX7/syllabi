@@ -102,7 +102,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badg
       content
     );
 
-  const radiusClass = shape === 'circle' || isDot || isOneChar ? 'rounded-full' : 'rounded-[6px]';
+  const radiusClass = shape === 'circle' || isDot || isOneChar ? 'rounded-full' : 'rounded-sm';
 
   // flat/faded wash the fill down to a translucent tint, so they sit on the
   // THEMED page and take the themed `LINE` + flipping ink.

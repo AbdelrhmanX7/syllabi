@@ -110,7 +110,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
 
           <button
             aria-label={t('color.swap')}
-            className='border-default-200 text-foreground hover:bg-default-100 shrink-0 rounded-lg border p-1.5 transition-colors'
+            className='border-default-200 text-foreground hover:bg-default-100 shrink-0 rounded-md border p-1.5 transition-colors'
             title={t('color.swap')}
             type='button'
             onClick={handleSwap}

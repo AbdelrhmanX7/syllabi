@@ -182,7 +182,7 @@ export function LectureNoteSheet({ cls, classId, page = null, onClose, onAttache
                           {lectureLabel(lecture)}
                         </span>
                         {reason && (
-                          <span className='bg-st-accent/15 text-st-accent shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold'>
+                          <span className='bg-st-accent/15 text-st-accent shrink-0 rounded-sm px-2 py-0.5 text-[11px] font-semibold'>
                             {reason}
                           </span>
                         )}
