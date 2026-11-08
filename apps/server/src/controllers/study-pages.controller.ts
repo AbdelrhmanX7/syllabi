@@ -426,11 +426,16 @@ export const listPageVersions = wrap(async (req, res) => {
   if (!page) return fail(res, 404, "NOT_FOUND", "Page not found");
   const raw = req.query.before;
   const before = typeof raw === "string" && /^\d{1,9}$/.test(raw) ? Math.min(Number(raw), page.version + 1) : page.version + 1;
-  const entries = (page.versionLog ?? []).filter((e) => e.version < before && e.version < page.version).sort((a, b) => b.version - a.version);
+  const log = page.versionLog ?? [];
+  // The current version is listed too (as before), even when it was written without a log entry.
+  const all: Array<Partial<(typeof log)[number]> & { version: number }> = log.some((e) => e.version === page.version)
+    ? [...log]
+    : [...log, { version: page.version }];
+  const entries = all.filter((e) => e.version < before).sort((a, b) => b.version - a.version);
   const items = entries.slice(0, VERSIONS_PAGE).map((e) => ({
     version: e.version,
     by: e.name ? { name: e.name, isOwner: String(e.userId) === String(page.userId) } : null,
-    at: new Date(e.at).toISOString(),
+    at: e.at ? new Date(e.at).toISOString() : null,
     restoredFrom: e.restoredFrom ?? null,
   }));
   const more = entries.length > VERSIONS_PAGE;
