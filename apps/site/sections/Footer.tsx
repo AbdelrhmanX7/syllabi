@@ -6,7 +6,8 @@ const LINKS = [
   { label: 'License', href: `${REPO}/blob/master/LICENSE` },
   { label: 'Support', href: 'https://buymeacoffee.com/AbdelrhmanX7' },
   { label: 'Sponsor', href: 'https://github.com/sponsors/AbdelrhmanX7' },
-  { label: 'syllabi.studio', href: 'https://syllabi.studio' },
+  { label: 'Privacy', href: '/privacy/' },
+  { label: 'Terms', href: '/terms/' },
 ];
 
 export function Footer() {

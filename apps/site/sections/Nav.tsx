@@ -6,10 +6,10 @@ const RELEASES = 'https://github.com/AbdelrhmanX7/syllabi/releases';
 const REPO = 'https://github.com/AbdelrhmanX7/syllabi';
 
 const LINKS = [
-  { href: '#notebooks', label: 'Notebooks' },
-  { href: '#study', label: 'Study' },
-  { href: '#organize', label: 'Organize' },
-  { href: '#self-host', label: 'Self-host' },
+  { href: '/#notebooks', label: 'Notebooks' },
+  { href: '/#study', label: 'Study' },
+  { href: '/#organize', label: 'Organize' },
+  { href: '/#self-host', label: 'Self-host' },
 ] as const;
 
 export function Nav() {
