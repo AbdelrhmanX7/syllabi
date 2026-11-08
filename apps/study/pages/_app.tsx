@@ -15,6 +15,7 @@ import { retryUnlessAiQuota } from '@/lib/api/errors';
 import { useAuthInit } from '@/lib/auth';
 import { installPdfAssetMigrationHelper } from '@/lib/notebooks/pdf-assets-migrate';
 import { IS_ANDROID_BUILD } from '@/lib/platform/runtime';
+import { installClickSounds } from '@/lib/sound/click';
 import '@/styles/globals.css';
 
 // Module scope: features call the API from their first render, so the transport must exist before
@@ -63,6 +64,8 @@ export default function App({ Component, pageProps }: AppProps) {
 
   // Android static export: a hard load of a path that has no HTML file falls back to index.html.
   // Routes here are query-param based (`/item/?id=`) so this only matters for a stale deep link.
+  useEffect(() => installClickSounds(), []);
+
   useEffect(() => {
     if (!IS_ANDROID_BUILD || router.pathname !== '/') return;
     const path = window.location.pathname.replace(/\/$/, '');

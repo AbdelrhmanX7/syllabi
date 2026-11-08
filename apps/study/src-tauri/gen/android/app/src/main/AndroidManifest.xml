@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- navigator.vibrate(): the short tick when an S Pen button gesture fires (normal permission). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Reminders fire on the minute: exact alarms (auto-granted for reminder apps on Android 13+; allowed by default on 12). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- In-app update (AppUpdater.kt): hand the downloaded APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 

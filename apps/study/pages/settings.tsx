@@ -16,6 +16,7 @@ import {
   Trash2,
   Unplug,
 } from 'lucide-react';
+import { DatePicker } from '@repo/ui';
 import Head from 'next/head';
 import { useTheme } from 'next-themes';
 
@@ -25,6 +26,7 @@ import { NotebookPaperSection } from '@/components/settings/NotebookPaperSection
 import { InkAutoColorSection } from '@/components/settings/InkAutoColorSection';
 import { PerfLogSection } from '@/components/settings/PerfLogSection';
 import { RemindersSection } from '@/components/settings/RemindersSection';
+import { SoundsSection } from '@/components/settings/SoundsSection';
 import { WebUpdatesSection } from '@/components/settings/WebUpdatesSection';
 import { AccountSection } from '@/features/auth/components/AccountSection';
 import { HandwritingSection } from '@/features/handwriting';
@@ -199,12 +201,7 @@ function CanvasSection() {
           />
         </Field>
         <Field hint='Optional — the date Canvas shows when you create it.' label='Token expiry'>
-          <input
-            className={INPUT_CLASS}
-            type='date'
-            value={expiresAt}
-            onChange={(event) => setExpiresAt(event.target.value)}
-          />
+          <DatePicker aria-label='Token expiry' isClearable value={expiresAt} onChange={setExpiresAt} />
         </Field>
         <Field label='Canvas URL'>
           <input
@@ -661,6 +658,7 @@ export default function SettingsPage() {
         <McpSection />
         <PhoneInboxSection />
         <RemindersSection />
+        <SoundsSection />
         <ClassTimesSection />
         <NotebookPaperSection />
         <InkAutoColorSection />

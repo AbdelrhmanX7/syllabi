@@ -267,6 +267,11 @@ export type { UserProps } from './components/User';
 export { ColorSwatch, SwatchPicker, swatchLuminance } from './components/ColorSwatch';
 export type { ColorSwatchProps, ColorSwatchSize, SwatchOption, SwatchPickerProps } from './components/ColorSwatch';
 
+// DatePicker / TimePicker / DateTimePicker — our own pickers (replace native date/time inputs).
+// Shadows HeroUI's DatePicker/TimeInput-era names; values are plain 'YYYY-MM-DD' / 'HH:mm' strings.
+export { DatePicker, TimePicker, DateTimePicker } from './components/DatePicker';
+export type { DatePickerProps, TimePickerProps, DateTimePickerProps } from './components/DatePicker';
+
 // Icon — hand-drawn registry + lucide wrapper + animation props.
 export { Icon, ICON_REGISTRY } from './components/Icon';
 export type { IconProps, IconHoverAnimation, IconTrigger, RegisteredIconName } from './components/Icon';

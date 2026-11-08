@@ -39,6 +39,9 @@
   /* Rim of a FIELD or CHIP (inputs, filter chips, toggles, swatches): the rim is the control, so it owes
      3:1 against the card (WCAG 1.4.11). Light keeps the clay edge; dark lifts it (see .dark). */
   --st-control-edge: 205 209 224;
+  /* @repo/ui DatePicker/TimePicker fields read these, so they match INPUT_CLASS fields (follows .dark). */
+  --field-edge: rgb(var(--st-control-edge));
+  --field-bg: rgb(var(--st-surface));
   --st-star: 255 201 60;
   --st-star-soft: 255 243 209;
   --st-star-fg: 24 32 74;

@@ -2,6 +2,7 @@ import type { ExamScheduleEntry } from '../types';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { DatePicker } from '@repo/ui';
 
 import { useSaveSchedule, useSchedule } from '../api';
 import { cleanSchedule, daysLabel, daysUntil, localIso, resolveExam, splitList } from '../lib/schedule';
@@ -133,11 +134,12 @@ export function ScheduleEditor({ classId, termStart }: { classId: string; termSt
             return (
               <div
                 key={row.key}
-                className='rounded-st border-st-line grid gap-2 border p-3 sm:grid-cols-[2fr_1fr_1.4fr_auto]'
+                className='rounded-st border-st-line grid gap-2 border p-3 sm:grid-cols-[11.5rem_minmax(0,1fr)_4.5rem_auto]'
               >
+                {/* sm+: name | week | remove, then date | chapters, then topics (the date needs its full width). */}
                 <input
                   aria-label='Exam name'
-                  className={INPUT_CLASS}
+                  className={`${INPUT_CLASS} sm:col-span-2`}
                   maxLength={120}
                   placeholder='Exam name'
                   value={row.name}
@@ -154,15 +156,16 @@ export function ScheduleEditor({ classId, termStart }: { classId: string; termSt
                   value={row.week}
                   onChange={(e) => patch(row.key, { week: e.target.value })}
                 />
-                <input
+                <DatePicker
+                  isClearable
                   aria-label='Date'
-                  className={INPUT_CLASS}
-                  type='date'
+                  className='sm:col-start-1'
                   value={row.date}
-                  onChange={(e) => patch(row.key, { date: e.target.value })}
+                  onChange={(next) => patch(row.key, { date: next })}
                 />
                 <ActionButton
                   aria-label={`Remove ${row.name || 'exam'}`}
+                  className='sm:col-start-4 sm:row-start-1'
                   variant='ghost'
                   onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))}
                 >
@@ -170,14 +173,14 @@ export function ScheduleEditor({ classId, termStart }: { classId: string; termSt
                 </ActionButton>
                 <input
                   aria-label='Chapters'
-                  className={`${INPUT_CLASS} sm:col-span-2`}
+                  className={`${INPUT_CLASS} sm:col-span-3`}
                   placeholder='Chapters, comma separated'
                   value={row.chapters}
                   onChange={(e) => patch(row.key, { chapters: e.target.value })}
                 />
                 <input
                   aria-label='Topics'
-                  className={`${INPUT_CLASS} sm:col-span-2`}
+                  className={`${INPUT_CLASS} sm:col-span-4`}
                   placeholder='Topics, comma separated'
                   value={row.topics}
                   onChange={(e) => patch(row.key, { topics: e.target.value })}

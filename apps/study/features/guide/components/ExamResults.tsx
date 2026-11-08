@@ -2,6 +2,7 @@ import type { ExamResultInput, ExamResultRow, ExamResultSection } from '../types
 
 import React, { useMemo, useState } from 'react';
 import { Award, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { DatePicker } from '@repo/ui';
 
 import { useResults, useSaveResult } from '../api';
 import { resultPercent, resultTrend, splitList } from '../lib/schedule';
@@ -225,7 +226,7 @@ function ResultForm({ classId, initial, onDone }: { classId: string; initial?: E
         submit();
       }}
     >
-      <div className='grid gap-3 sm:grid-cols-[2fr_1.3fr]'>
+      <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_11.5rem]'>
         <Field label='Exam'>
           <input
             className={INPUT_CLASS}
@@ -236,7 +237,7 @@ function ResultForm({ classId, initial, onDone }: { classId: string; initial?: E
           />
         </Field>
         <Field label='Date'>
-          <input className={INPUT_CLASS} type='date' value={date} onChange={(e) => touch(setDate)(e.target.value)} />
+          <DatePicker aria-label='Date' isClearable value={date} onChange={(next) => touch(setDate)(next)} />
         </Field>
       </div>
       <div className='grid grid-cols-[1fr_1fr_auto] items-end gap-3'>

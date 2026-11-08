@@ -3,7 +3,7 @@ import type { StudyClass } from '@/lib/api/types';
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { cn } from '@repo/ui';
+import { TimePicker, cn } from '@repo/ui';
 import { Clock, Plus, Trash2, X } from 'lucide-react';
 
 import { DAY_NAMES, describeMeetings, draftToMeetings, meetingsToDraft } from '../lib/meetings';
@@ -92,20 +92,20 @@ export function ClassTimesEditor({ cls, onDone }: { cls: StudyClass; onDone?: ()
               </option>
             ))}
           </select>
-          <input
+          <TimePicker
             aria-label='Starts'
-            className={cn(INPUT_CLASS, 'w-32 tabular-nums')}
-            type='time'
+            className='w-32'
+            fullWidth={false}
             value={row.start}
-            onChange={(event) => update(index, { start: event.target.value })}
+            onChange={(next) => update(index, { start: next })}
           />
           <span className='text-st-muted text-sm'>to</span>
-          <input
+          <TimePicker
             aria-label='Ends'
-            className={cn(INPUT_CLASS, 'w-32 tabular-nums')}
-            type='time'
+            className='w-32'
+            fullWidth={false}
             value={row.end}
-            onChange={(event) => update(index, { end: event.target.value })}
+            onChange={(next) => update(index, { end: next })}
           />
           <button
             aria-label='Remove this time'

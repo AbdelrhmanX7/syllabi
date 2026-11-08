@@ -2,7 +2,7 @@ import type { DueLead, Repeat } from '@/lib/reminders/plan';
 
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { cn } from '@repo/ui';
+import { DateTimePicker } from '@repo/ui';
 
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ActionButton, FilterChip, INPUT_CLASS, SectionTitle, Surface } from '@/components/ui/primitives';
@@ -51,12 +51,12 @@ function AddReminder({ onDone }: { onDone: () => void }) {
         value={text}
         onChange={(event) => setText(event.target.value)}
       />
-      <input
+      <DateTimePicker
         aria-label='When'
-        className={cn(INPUT_CLASS, 'tabular-nums sm:w-64')}
-        type='datetime-local'
+        className='sm:max-w-md'
+        min={localValue(new Date()).slice(0, 10)}
         value={at}
-        onChange={(event) => setAt(event.target.value)}
+        onChange={setAt}
       />
       <div aria-label='Repeat' className='flex flex-wrap gap-2' role='group'>
         {(Object.keys(REPEAT_LABEL) as Repeat[]).map((value) => (
