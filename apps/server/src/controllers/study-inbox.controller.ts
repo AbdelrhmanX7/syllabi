@@ -97,7 +97,43 @@ const single = upload.single("file") as unknown as RequestHandler;
 
 /** multer, with its errors shaped like the rest of /study. */
 export const inboxMultipart: RequestHandler = (req, res, next) => {
-  if (!req.is("multipart/form-data")) return fail(res, 400, "VALIDATION_ERROR", "Send multipart/form-data with a `file` field");
+  // Also take the file as the whole request body (iOS Shortcut "Request Body: File"): far easier to
+  // set up than a Form with a File field. The type is still detected from the bytes later.
+  if (!req.is("multipart/form-data")) {
+    const type = String(req.headers["content-type"] || "");
+    const rawOk = !type || /^(image\/|application\/pdf|application\/octet-stream)/i.test(type);
+    if (!rawOk || (req as Request & { _body?: boolean })._body || req.readableEnded)
+      return fail(res, 400, "VALIDATION_ERROR", "Send the photo or PDF itself as the request body, or as a `file` field");
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
+    req.on("data", (chunk: Buffer) => {
+      if (done) return;
+      size += chunk.length;
+      if (size > INBOX_MAX_BYTES) {
+        done = true;
+        res.setHeader("Connection", "close");
+        fail(res, 413, "PAYLOAD_TOO_LARGE", "File exceeds the 25 MB limit");
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (done) return;
+      done = true;
+      const buffer = Buffer.concat(chunks);
+      (req as unknown as { file: Pick<Express.Multer.File, "buffer" | "fieldname" | "size"> }).file = { buffer, fieldname: "file", size: buffer.length };
+      next();
+    });
+    req.on("error", () => {
+      if (!done) {
+        done = true;
+        fail(res, 400, "VALIDATION_ERROR", "Malformed upload");
+      }
+    });
+    return;
+  }
   single(req, res, (err?: any) => {
     if (!err) return next();
     if (err instanceof multer.MulterError) {
