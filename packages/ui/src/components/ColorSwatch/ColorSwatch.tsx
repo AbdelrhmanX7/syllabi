@@ -12,16 +12,18 @@ import { cn } from '../../cn';
  *   - SELECTED = a 2px ring in the brand text colour (`--p-text`, ≥ 4.5:1 in both themes) held
  *     2px off the dot by a TRANSPARENT gap — it reads against any fill and any surface — plus a
  *     check glyph whose colour is picked from the swatch's luminance (white on dark, ink on light);
- *   - the button is the touch target (32px sm / 40px md, never smaller), `rounded-md` so the
+ *   - the button is the touch target (32px sm / 40px md / 44px lg, never smaller), `rounded-md` so the
  *     focus-visible outline follows the radius ladder;
  *   - no color-mix(), no :has() — the tablets' WebView can be older than Chrome 103.
  */
 
-export type ColorSwatchSize = 'sm' | 'md';
+export type ColorSwatchSize = 'sm' | 'md' | 'lg';
 
 const SIZE: Record<ColorSwatchSize, { hit: string; ring: string; dot: string; check: string; text: string }> = {
   sm: { hit: 'h-8 w-8', ring: 'h-[30px] w-[30px]', dot: 'h-[22px] w-[22px]', check: 'h-3.5 w-3.5', text: 'text-[9px]' },
   md: { hit: 'h-10 w-10', ring: 'h-9 w-9', dot: 'h-7 w-7', check: 'h-4 w-4', text: 'text-[10px]' },
+  /** 44px: a floating puck (e.g. the board's radial pen menu); the host gives it a surface. */
+  lg: { hit: 'h-11 w-11', ring: 'h-9 w-9', dot: 'h-7 w-7', check: 'h-4 w-4', text: 'text-[10px]' },
 };
 
 /** Relative luminance of a #rgb / #rrggbb colour; null when it can't be parsed (CSS var, name…). */

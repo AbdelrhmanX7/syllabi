@@ -1,8 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 
-import { Check, Minus, Plus } from 'lucide-react';
-import { CLAY_EDGE, CLAY_LIP, CLAY_PRESS, CLAY_SURFACE, clayRung } from './clayChrome';
+import { Minus, Plus } from 'lucide-react';
+import { CLAY_EDGE, CLAY_LIP, CLAY_PRESS, CLAY_SURFACE } from './clayChrome';
 import { motion, useReducedMotion } from 'motion/react';
+import { ColorSwatch } from '@repo/ui';
 
 import type { WhiteboardTool } from './types';
 import type { Point } from './utils/quickGestureMenuLayout';
@@ -189,21 +190,17 @@ export const QuickGestureMenu: React.FC<QuickGestureMenuProps> = ({
               color,
               SLOTS.colors[index],
               index,
-              <button
-                aria-label={t('quick.colorN', { color })}
-                aria-pressed={isActive}
-                className={`${CLAY_PRESS} flex h-11 w-11 items-center justify-center rounded-full border-2 ${
-                  isActive ? 'ring-citrine ring-offset-paper ring-2 ring-offset-2' : ''
-                }`}
-                style={{ backgroundColor: color, borderColor: clayRung(color), boxShadow: `0 4px 0 ${clayRung(color)}` }}
-                type='button'
+              <ColorSwatch
+                className={`${CLAY_EDGE} ${CLAY_LIP} ${CLAY_SURFACE} ${CLAY_PRESS} rounded-full`}
+                color={color}
+                isSelected={isActive}
+                label={t('quick.colorN', { color })}
+                size='lg'
                 onClick={() => {
                   onStrokeColorChange(color);
                   onClose();
                 }}
-              >
-                {isActive ? <Check className='text-paper h-4 w-4 drop-shadow-[0_1px_2px_rgba(24,32,74,0.5)]' /> : null}
-              </button>,
+              />,
             );
           })}
 

@@ -88,7 +88,7 @@ export function ClassFormSheet({ cls, onClose }: { cls?: StudyClass; onClose: ()
           </div>
         )
       }
-      subtitle={cls ? undefined : 'Anything you want to study — LeetCode, a startup course, a language.'}
+      subtitle={cls ? undefined : 'Any subject: a course, LeetCode, a language.'}
       title={cls ? 'Edit class' : 'New class'}
       onClose={onClose}
     >
