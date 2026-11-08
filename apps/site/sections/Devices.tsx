@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 
 import { ThemedShot } from '~/sections/ThemedShot';
-import { ArrowRight, Globe, Smartphone, Tablet } from 'lucide-react';
+import { Globe, Smartphone, Tablet } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
 
@@ -32,18 +32,56 @@ const DEVICES: { icon: LucideIcon; title: string; text: string; tone: Tone }[] =
 function PhoneToTablet() {
   return (
     <Surface className='flex min-w-0 flex-col gap-3 p-3 sm:p-4'>
-      <div className='flex min-w-0 items-center gap-2 sm:gap-4' data-inbox-scene>
-        <div aria-hidden className='border-st-clay-edge bg-st-raised flex w-[24%] max-w-[120px] shrink-0 flex-col gap-1.5 rounded-lg border-2 p-1.5'>
-          <div className='bg-tone-citrine flex aspect-[3/4] flex-col justify-start gap-1.5 rounded-sm p-1.5'>
-            <span className='bg-tone-citrine-fg/60 block h-1 w-3/4 rounded-full' />
-            <span className='bg-tone-citrine-fg/40 block h-1 w-full rounded-full' />
-            <span className='bg-tone-citrine-fg/40 block h-1 w-5/6 rounded-full' />
-            <span className='bg-tone-citrine-fg/40 block h-1 w-2/3 rounded-full' />
+      <div className='relative flex min-w-0 items-center gap-1 sm:gap-2' data-inbox-scene>
+        {/* The phone: camera open on a worksheet, shutter at the bottom. */}
+        <div
+          aria-hidden
+          className='border-st-clay-edge bg-st-raised flex w-[26%] max-w-[128px] shrink-0 flex-col gap-1.5 rounded-lg border-2 p-1.5'
+        >
+          <span className='bg-st-line mx-auto block h-1 w-6 rounded-full' />
+          <div className='relative aspect-[9/16] overflow-hidden rounded-md bg-[#1d2236]'>
+            <div
+              className='absolute inset-x-[14%] bottom-[24%] top-[14%] flex -rotate-3 flex-col gap-[7%] rounded-sm bg-[#fffdf5] px-[10%] pt-[12%]'
+              data-inbox-paper
+            >
+              <span className='block h-[3px] w-3/4 rounded-full bg-[#2f5bea]/70' />
+              <span className='block h-px w-full bg-[#9db4e8]' />
+              <span className='block h-px w-full bg-[#9db4e8]' />
+              <span className='block h-px w-full bg-[#9db4e8]' />
+              <svg className='w-full' viewBox='0 0 40 12'>
+                <path d='M1 8c4-6 6 4 10-1s5 3 9-2 6 4 10 0 5-2 9-3' fill='none' stroke='#2f5bea' strokeLinecap='round' strokeWidth='1.4' />
+              </svg>
+              <span className='block h-px w-full bg-[#9db4e8]' />
+            </div>
+            {(['left-[8%] top-[8%] border-l-2 border-t-2', 'right-[8%] top-[8%] border-r-2 border-t-2', 'bottom-[18%] left-[8%] border-b-2 border-l-2', 'bottom-[18%] right-[8%] border-b-2 border-r-2'] as const).map((pos) => (
+              <span key={pos} className={`absolute h-[12%] w-[18%] border-[#f5c84c] ${pos}`} data-inbox-corner />
+            ))}
+            <span className='absolute bottom-[4%] left-1/2 flex h-[10%] -translate-x-1/2 items-center justify-center'>
+              <span className='flex aspect-square h-full items-center justify-center rounded-full border-2 border-[#f3f4f8]' data-inbox-shutter>
+                <span className='block h-[70%] w-[70%] rounded-full bg-[#f3f4f8]' />
+              </span>
+            </span>
+            <span className='absolute inset-0 bg-[#ffffff] opacity-0' data-inbox-flash />
           </div>
-          <span className='border-st-control-edge bg-st-surface mx-auto block h-5 w-5 rounded-full border-2' />
         </div>
 
-        <ArrowRight aria-hidden className='text-st-muted h-5 w-5 shrink-0' />
+        {/* The trip: a dashed arc from the phone to the tablet. */}
+        <svg aria-hidden className='text-st-muted h-10 w-8 shrink-0 sm:w-12' fill='none' viewBox='0 0 48 40'>
+          <path d='M3 32C14 4 32 4 44 22' data-inbox-path stroke='currentColor' strokeDasharray='3 5' strokeLinecap='round' strokeWidth='2' />
+          <path d='M38 21l6 1.5-1.5-6' stroke='currentColor' strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' />
+        </svg>
+
+        {/* The photo in flight (animation only). */}
+        <span
+          aria-hidden
+          className='pointer-events-none absolute left-0 top-0 z-10 flex h-9 w-7 flex-col gap-1 rounded-sm bg-[#fffdf5] p-1 opacity-0 shadow-md'
+          data-inbox-flyer
+        >
+          <span className='block h-[2px] w-3/4 rounded-full bg-[#2f5bea]/70' />
+          <span className='block h-px w-full bg-[#9db4e8]' />
+          <span className='block h-px w-full bg-[#9db4e8]' />
+          <span className='block h-px w-full bg-[#9db4e8]' />
+        </span>
 
         <div className='border-st-clay-edge bg-st-raised relative min-w-0 flex-1 rounded-lg border-2 p-1.5'>
           <ThemedShot
