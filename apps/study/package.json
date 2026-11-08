@@ -1,6 +1,6 @@
 {
   "name": "@repo/study",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "scripts": {
     "copy-fonts": "sh ../../packages/ui/scripts/copy-fonts.sh",
