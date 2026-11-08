@@ -8,7 +8,6 @@
   A free study app for your tablet. Take notes by hand, see everything that's due, and get help when you're stuck.<br>
   <a href="https://syllabi.studio">syllabi.studio</a> ·
   <a href="https://app.syllabi.studio">Open the app</a> ·
-  <a href="#support">Support</a> ·
   <a href="https://github.com/AbdelrhmanX7/syllabi/discussions">Talk to us</a>
 </p>
 
@@ -16,24 +15,10 @@
   <a href="LICENSE"><img alt="Free to use" src="https://img.shields.io/badge/free-to%20use-2F5BEA"></a>
   <img alt="Android tablets and web" src="https://img.shields.io/badge/platform-Android%20tablets%20%2B%20web-2F5BEA">
   <a href="CONTRIBUTING.md"><img alt="Help welcome" src="https://img.shields.io/badge/help-welcome-2E9E6E"></a>
-  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFC93C"></a>
 </p>
 
 <p align="center">
   <img src="apps/site/public/shots/today.png" alt="Syllabi Today screen with sample classes" width="860">
-</p>
-
-### Help bring Syllabi to iPad and iPhone
-
-<p>
-  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/ios-fund.svg" alt="iOS fund progress" width="640"></a>
-</p>
-
-Putting an app on the App Store costs $99 a year. Once we raise it, Syllabi comes to iPad and iPhone.
-
-<p>
-  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/btn-coffee.svg" alt="Buy me a coffee" height="52"></a>
-  <a href="https://github.com/sponsors/AbdelrhmanX7"><img src=".github/btn-sponsor.svg" alt="Sponsor on GitHub" height="52"></a>
 </p>
 
 ## What it does
@@ -61,7 +46,7 @@ them yet. If you try it on another device, tell us how it went.
 
 - **In your browser:** [app.syllabi.studio](https://app.syllabi.studio). Look around with sample data, or create a free account.
 - **On an Android tablet:** download the app from [Releases](https://github.com/AbdelrhmanX7/syllabi/releases).
-- **iPad and iPhone:** coming once the [fund](#help-bring-syllabi-to-ipad-and-iphone) is reached.
+- **iPad and iPhone:** coming later.
 
 <details>
 <summary><b>For developers</b>: run it yourself, host your own server, release builds</summary>
@@ -135,12 +120,7 @@ Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-Syllabi is free and made in my spare time. If it helps you study, you can help keep it going:
-
-- [Chip in to the iPad and iPhone fund](#help-bring-syllabi-to-ipad-and-iphone)
-- [Buy me a coffee](https://buymeacoffee.com/AbdelrhmanX7)
-- [Sponsor on GitHub](https://github.com/sponsors/AbdelrhmanX7)
-- Star the repo, report bugs, or tell a classmate. That helps too.
+Syllabi is free and made in my spare time. The best way to help: star the repo, report bugs, or tell a classmate.
 
 ## License
 

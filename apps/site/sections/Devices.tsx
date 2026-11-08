@@ -4,7 +4,6 @@ import { ArrowRight, Globe, Smartphone, Tablet } from 'lucide-react';
 
 import { Badge, Surface } from '@/components/ui/primitives';
 
-import { IosFund } from '~/sections/IosFund';
 import { TONE, type Tone } from '~/sections/tone';
 
 const DEVICES: { icon: LucideIcon; title: string; text: string; tone: Tone }[] = [
@@ -115,9 +114,6 @@ export function Devices() {
               </li>
             ))}
           </ul>
-          <div data-reveal-item>
-            <IosFund />
-          </div>
         </div>
       </div>
     </section>

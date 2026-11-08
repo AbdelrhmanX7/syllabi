@@ -1,12 +1,10 @@
-import { APP, COFFEE, RELEASES, REPO, SPONSOR } from '~/sections/links';
+import { APP, RELEASES, REPO } from '~/sections/links';
 
 const LINKS = [
   { label: 'Open the app', href: APP },
   { label: 'GitHub', href: REPO },
   { label: 'Android releases', href: RELEASES },
   { label: 'License', href: `${REPO}/blob/master/LICENSE` },
-  { label: 'Buy me a coffee', href: COFFEE },
-  { label: 'Sponsor', href: SPONSOR },
   { label: 'Privacy', href: '/privacy/' },
   { label: 'Terms', href: '/terms/' },
 ];
