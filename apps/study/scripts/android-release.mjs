@@ -177,6 +177,9 @@ if (fromCommit) {
         stdio: 'inherit',
         env: {
           ...process.env,
+          // The gitignored .env.release.local lives only in THIS checkout, so resolve the server here
+          // and pin it; otherwise the clean worktree finds no file and ships a demo-mode APK.
+          STUDY_BUILD_API: resolveReleaseApiBaseUrl(appDir),
           // A target dir of its OWN: build-script outputs record absolute paths into the worktree.
           CARGO_TARGET_DIR: join(appDir, 'src-tauri', 'target-release-clean'),
         },
