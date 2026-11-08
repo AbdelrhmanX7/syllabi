@@ -26,6 +26,16 @@
   <img src="apps/site/public/shots/today.png" alt="Syllabi Today screen with sample classes" width="860">
 </p>
 
+### Help bring Syllabi to iPad and iPhone
+
+<p>
+  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/ios-fund.svg" alt="iOS fund progress" width="640"></a>
+</p>
+
+The App Store needs an Apple Developer Program membership ($99 a year). When the fund gets there, the iOS build goes
+to TestFlight and then the App Store. [Buy me a coffee](https://buymeacoffee.com/AbdelrhmanX7) or
+[sponsor on GitHub](https://github.com/sponsors/AbdelrhmanX7) to chip in.
+
 ## What it does
 
 | | |
@@ -102,19 +112,9 @@ Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-Syllabi is free and built in spare time. If it helps you study, you can support it.
+Syllabi is free and built in spare time. If it helps you study, you can support it:
 
-### Help bring Syllabi to iPad and iPhone
-
-Publishing on the App Store needs an Apple Developer Program membership ($99 a year). Once the fund reaches it,
-the iOS build goes to TestFlight and then the App Store.
-
-<p>
-  <a href="https://buymeacoffee.com/AbdelrhmanX7"><img src=".github/ios-fund.svg" alt="iOS fund progress" width="640"></a>
-</p>
-
-Ways to help:
-
+- [Chip in to the iOS fund](#help-bring-syllabi-to-ipad-and-iphone) so Syllabi can ship on the App Store
 - [Buy me a coffee](https://buymeacoffee.com/AbdelrhmanX7)
 - [Sponsor on GitHub](https://github.com/sponsors/AbdelrhmanX7)
 - Star the repo, report bugs, or tell a classmate. That helps too.
