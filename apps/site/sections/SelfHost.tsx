@@ -4,6 +4,8 @@ import { Coffee, Download, Github, Server, Smartphone, Scale, PlayCircle } from 
 
 import { Badge, LinkButton, Surface } from '@/components/ui/primitives';
 
+import { IosFund } from '~/sections/IosFund';
+
 const REPO = 'https://github.com/AbdelrhmanX7/syllabi';
 
 const FACTS: { icon: typeof Scale; title: string; body: ReactNode }[] = [
@@ -117,6 +119,7 @@ export function SelfHost() {
               Buy me a coffee
             </LinkButton>
           </div>
+          <IosFund />
         </div>
       </div>
     </section>
