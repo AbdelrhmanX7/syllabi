@@ -24,8 +24,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: MessageSquareText,
-    title: 'AI tutor',
-    body: 'Ask about any reading, lecture or page of your notes. It shows you where a wrong answer went off track.',
+    title: 'Free AI tutor',
+    body: 'Ask about any reading, lecture or page of your notes. It shows you where a wrong answer went off track. Free with your account.',
     tone: 'blue',
   },
   {

@@ -23,12 +23,12 @@ const FACTS: { icon: LucideIcon; label: string }[] = [
   { icon: MonitorSmartphone, label: 'Web, phone and Android tablet' },
   { icon: GraduationCap, label: 'Classes from Canvas' },
   { icon: Sparkles, label: 'Connect Claude or ChatGPT' },
-  { icon: Gift, label: 'Free to use' },
+  { icon: Gift, label: 'Free, AI tutor included' },
 ];
 
 const PROPS: { icon: LucideIcon; title: string; text: string; href: string; tone: Tone }[] = [
   { icon: PenLine, title: 'Write by hand', text: 'Notes the AI can read.', href: '#notebooks', tone: 'purple' },
-  { icon: Repeat2, title: 'Practice', text: 'Questions, flashcards, a tutor.', href: '#study', tone: 'green' },
+  { icon: Repeat2, title: 'Practice', text: 'Questions, flashcards, a free tutor.', href: '#study', tone: 'green' },
   { icon: CalendarRange, title: 'Stay on top', text: 'Every class and due date.', href: '#organize', tone: 'coral' },
   { icon: MonitorSmartphone, title: 'Every device', text: 'Snap on a phone, study on a tablet.', href: '#devices', tone: 'citrine' },
 ];
@@ -44,8 +44,8 @@ export function Hero() {
           Your whole semester in one study app.
         </h1>
         <p className='text-st-muted mt-3 max-w-2xl text-base sm:text-lg'>
-          Write notes by hand, practise with questions that come back at the right time, ask an AI tutor, and see
-          everything that is due. Free on the web and on Android tablets.
+          Write notes by hand, practise with questions that come back at the right time, ask a free AI tutor, and
+          see everything that is due. Free on the web and on Android tablets.
         </p>
 
         <div className='mt-5 flex flex-wrap items-center gap-3'>

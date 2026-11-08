@@ -16,7 +16,7 @@ import { Study } from '~/sections/Study';
 
 const TITLE = 'Syllabi: free study and note-taking app for tablets';
 const DESCRIPTION =
-  'Take notes by hand, see everything due from Canvas, and practice with flashcards made from your notes. Free on Android tablets and the web.';
+  'Take notes by hand, see everything due from Canvas, and practice with flashcards made from your notes, with a free AI tutor. Free on Android tablets and the web.';
 
 // Structured data: what the app is (free, Android + web) so search results can show it as an app.
 const JSON_LD = JSON.stringify({

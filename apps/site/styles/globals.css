@@ -26,6 +26,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* Anchor jumps land below the sticky nav (64px). */
+  scroll-padding-top: 72px;
 }
 @media (prefers-reduced-motion: reduce) {
   html {

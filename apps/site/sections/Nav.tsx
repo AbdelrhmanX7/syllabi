@@ -16,7 +16,7 @@ const LINKS = [
 
 export function Nav() {
   return (
-    <header className='border-st-line bg-st-bg border-b'>
+    <header className='border-st-line bg-st-bg sticky top-0 z-50 border-b'>
       <nav aria-label='Main' className='mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4'>
         <a
           aria-label='Syllabi home'
