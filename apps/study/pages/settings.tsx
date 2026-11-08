@@ -24,6 +24,7 @@ import { UpdateProgress } from '@/components/layout/UpdateBanner';
 import { NotebookPaperSection } from '@/components/settings/NotebookPaperSection';
 import { InkAutoColorSection } from '@/components/settings/InkAutoColorSection';
 import { PerfLogSection } from '@/components/settings/PerfLogSection';
+import { WebUpdatesSection } from '@/components/settings/WebUpdatesSection';
 import { AccountSection } from '@/features/auth/components/AccountSection';
 import { HandwritingSection } from '@/features/handwriting';
 import { PhoneInboxSection } from '@/features/inbox';
@@ -56,6 +57,7 @@ import { studyKeys, useCanvasStatus, useMcpConnections, useMcpKeys, useSampleRou
 import { getBuildTimeApiBaseUrl, saveBackendUrlOverride, saveMockMode } from '@/lib/backend-settings';
 import { daysUntil, formatDateTime, formatRelative } from '@/lib/format';
 import { canInstallInApp, checkForUpdates, startUpdate } from '@/lib/platform/app-update';
+import { isTauri } from '@/lib/platform/runtime';
 
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -474,9 +476,13 @@ function McpSection() {
 }
 
 function UpdatesSection() {
+  return isTauri() ? <AppUpdatesSection /> : <WebUpdatesSection />;
+}
+
+function AppUpdatesSection() {
   const update = useAppUpdate();
   const installed = update.installedVersion
-    ? `Study ${update.installedVersion}${update.installedSha ? ` · build ${update.installedSha}` : ''}`
+    ? `Syllabi ${update.installedVersion}${update.installedSha ? ` · build ${update.installedSha}` : ''}`
     : 'Development build';
   const busy = update.phase === 'downloading' || update.phase === 'verifying';
 

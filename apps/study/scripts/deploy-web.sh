@@ -8,5 +8,6 @@ cd "$(dirname "$0")/.."
 sh ../../packages/ui/scripts/copy-fonts.sh
 WEB_EXPORT=1 NEXT_PUBLIC_API="$API" NEXT_PUBLIC_DEFAULT_API="$API" \
   NEXT_PUBLIC_BUILD_STAMP="$(git rev-parse --short HEAD)" ./node_modules/.bin/next build --webpack
+printf '{"sha":"%s"}\n' "$(git rev-parse --short HEAD)" > out/version.json
 rsync -az --delete out/ "$TARGET/"
 echo "Deployed $(git rev-parse --short HEAD) to $TARGET"

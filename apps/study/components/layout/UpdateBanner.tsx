@@ -13,7 +13,7 @@ export function releaseLabel(state: UpdateState): string {
 
   if (!feed) return '';
 
-  return `Study ${feed.version}${feed.sha ? ` (build ${feed.sha})` : ''}`;
+  return `Syllabi ${feed.version}${feed.sha ? ` (build ${feed.sha})` : ''}`;
 }
 
 /** Download progress / install hand-off / failure — shared by the banner and Settings. */
