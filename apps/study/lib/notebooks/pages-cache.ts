@@ -70,6 +70,21 @@ export function writeSyncedVersion(pageId: string, version: number, dirty = fals
   write(VERSIONS_KEY, versions);
 }
 
+/**
+ * New ink is on this device and not uploaded yet: remember it now, not only when an upload fails, so
+ * closing the app before the upload runs still sends it on the next open (and a newer server copy is
+ * merged / asked about instead of silently replacing it). Only a page this device has a base for: with
+ * no record, the next open takes the server's copy as before.
+ */
+export function markSyncedVersionDirty(pageId: string): void {
+  const versions = read<VersionMap>(VERSIONS_KEY, {});
+  const entry = versions[pageId];
+
+  if (!entry || entry.dirty) return;
+  versions[pageId] = { ...entry, dirty: true };
+  write(VERSIONS_KEY, versions);
+}
+
 /** Pages whose latest local edit never reached the backend (offline, or the upload failed). */
 export function readDirtyPageIds(): string[] {
   return Object.entries(read<VersionMap>(VERSIONS_KEY, {}))

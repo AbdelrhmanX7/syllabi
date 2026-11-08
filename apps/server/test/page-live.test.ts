@@ -289,6 +289,28 @@ describe("live notebook pages", () => {
     mayaStream.close();
   });
 
+  test("a sharing change re-checks access but keeps a remaining editor's stream open", async () => {
+    // The re-check (on every sharing change and every 30 s) once looked the page up without its owner,
+    // so it took every editor for a stranger and ended their stream.
+    const pageId = String(m.page._id);
+    const mayaStream = await openStream("maya", pageId, "maya-tab-recheck");
+    await waitFor(() => mayaStream.frames.find((f) => f.event === "hello"));
+    const ownerStream = await openStream("owner", pageId, "owner-tab-recheck");
+    await waitFor(() => ownerStream.frames.find((f) => f.event === "hello"));
+
+    const res = await call("owner", "PATCH", `/share/${shareId}`, { roles: [{ email: "viewer@example.test", role: "viewer" }] });
+    assert.equal(res.status, 200);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(!mayaStream.frames.some((f) => f.event === "error"), "the editor's stream must stay open");
+    assert.ok(!ownerStream.frames.some((f) => f.event === "error"), "the owner's stream must stay open");
+
+    const pushed = await push("owner", pageId, { items: [{ page: "p1", put: [stroke("after-recheck", 9)] }] }, "owner-tab-recheck");
+    assert.equal(pushed.status, 200);
+    await waitFor(() => mayaStream.frames.find((f) => f.event === "ops" && f.data.version === pushed.body.version));
+    mayaStream.close();
+    ownerStream.close();
+  });
+
   test("removing someone ends their stream and stops their pushes at once", async () => {
     const pageId = String(m.page._id);
     const mayaStream = await openStream("maya", pageId, "maya-tab-2");

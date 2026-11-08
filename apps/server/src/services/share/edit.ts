@@ -45,7 +45,10 @@ export async function scopedPage(req: Request, id: string, projection?: Record<s
 
 /** `scopedPage` by account id (the live stream re-checks with it after the request is long gone). */
 export async function pageFor(adminId: unknown, id: string, projection?: Record<string, 0 | 1>): Promise<Scoped<IStudyPage> | null> {
-  const page = await StudyPage.findOne({ _id: id, deletedAt: null }, projection).lean<IStudyPage>();
+  // The owner id decides everything below: an inclusion projection always carries it (without it every
+  // editor looked like a stranger, and the live stream's re-check ended their session).
+  const proj = projection && Object.values(projection).includes(1) ? { ...projection, userId: 1 as const } : projection;
+  const page = await StudyPage.findOne({ _id: id, deletedAt: null }, proj).lean<IStudyPage>();
   if (!page) return null;
   if (Boolean(page.userId) && String(page.userId) === String(adminId)) return { doc: page, editor: null };
   const caller = await loadCaller(adminId);

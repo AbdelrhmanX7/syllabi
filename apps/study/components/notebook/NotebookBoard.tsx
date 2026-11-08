@@ -51,7 +51,7 @@ import { useInkModels } from '@/lib/ink/models';
 import { nativeInkRecognizer } from '@/lib/ink/nativeRecognizer';
 import { inkEnabledForPage, savePageInkOverride, useInkSettings } from '@/lib/ink/settings';
 import { syncPageRenders } from '@/lib/notebooks/page-renders';
-import { readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
+import { markSyncedVersionDirty, readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
 import { LiveSession, presenceLine } from '@/lib/notebooks/live';
 import { fetchBoardVersion, fetchLatestBoard, openLiveNotebook, openLiveStream, pushLiveOps } from '@/lib/notebooks/live-api';
 import { applyOps, ensureDocIds, itemsOnlyFor } from '@/lib/notebooks/live-merge';
@@ -596,13 +596,15 @@ export function NotebookBoard({
     if (renderTimerRef.current !== null) window.clearTimeout(renderTimerRef.current);
     renderTimerRef.current = null;
     dirtyRef.current = true;
+    // Kept on the device too: the app can be closed before the upload below runs.
+    markSyncedVersionDirty(pageId);
     setSync((current) => (current.kind === 'conflict' ? current : { kind: 'pending' }));
     if (uploadTimerRef.current !== null) window.clearTimeout(uploadTimerRef.current);
     uploadTimerRef.current = window.setTimeout(() => {
       uploadTimerRef.current = null;
       void runUpload();
     }, UPLOAD_DEBOUNCE_MS);
-  }, [runUpload]);
+  }, [pageId, runUpload]);
 
   useEffect(() => {
     if (!opened) return;
