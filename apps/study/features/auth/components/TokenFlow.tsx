@@ -41,7 +41,7 @@ export function TokenFlow({
 
     if (flowError) return setError(flowError);
     if (!token) return setError(missingMessage);
-    if (!hasAuthServer()) return setError('Sign-in needs a Syllabi server — add one in Settings, then open the link again.');
+    if (!hasAuthServer()) return setError('Sign-in isn’t available in this version of the app.');
 
     exchange(token)
       .then(async (session) => {

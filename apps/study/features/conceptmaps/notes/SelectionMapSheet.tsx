@@ -343,7 +343,7 @@ export function SelectionMapSheet({ classId, pageId, pageTitle, lecture = null, 
             <section className='flex flex-col gap-2'>
               <p className='text-st-fg text-sm'>
                 {termsRefused
-                  ? 'This server needs a term list for this map.'
+                  ? 'This map needs a term list first.'
                   : 'No term list — optional. Add one and the grader checks each term.'}
               </p>
               <input

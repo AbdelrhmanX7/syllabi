@@ -398,7 +398,7 @@ export function Compare({ classId, map, onBack, onPractice, onToast = noToast, i
             )}
             {boardDraw.error && <ErrorNote message={boardDraw.error} onRetry={() => void boardDraw.draw(map, reference)} />}
             {needsTerms && (
-              <p className='text-st-muted text-sm'>This server needs a term list first — add one to draw.</p>
+              <p className='text-st-muted text-sm'>This map needs a term list first — add one to draw.</p>
             )}
             {error && <ErrorNote message={error} onRetry={() => void generate()} />}
             {generating && !reference && (

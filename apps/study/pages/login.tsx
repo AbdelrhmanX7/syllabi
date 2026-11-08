@@ -229,7 +229,7 @@ function AccountForm({ config, tab, onTab }: { config: AuthConfig; tab: Tab; onT
           onChange={onTab}
         />
       ) : tab === 'create' ? (
-        <p className='text-st-muted text-sm'>This server doesn’t take new sign-ups. Sign in instead.</p>
+        <p className='text-st-muted text-sm'>New sign-ups are closed right now. Sign in instead.</p>
       ) : null}
 
       {showGoogle && (

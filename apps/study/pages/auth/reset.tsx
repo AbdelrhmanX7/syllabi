@@ -24,7 +24,7 @@ export default function ResetPasswordPage() {
     if (!token) return;
     if (password.length < 8) return setError('Use at least 8 characters.');
     if (password !== confirm) return setError('The two passwords don’t match.');
-    if (!hasAuthServer()) return setError('Sign-in needs a Syllabi server — add one in Settings.');
+    if (!hasAuthServer()) return setError('Sign-in isn’t available in this version of the app.');
     setSubmitting(true);
     try {
       await storeSession(await resetPassword(token, password));

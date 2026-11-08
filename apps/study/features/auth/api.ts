@@ -40,7 +40,7 @@ export function hasAuthServer(): boolean {
 }
 
 function requireServer(): void {
-  if (!hasAuthServer()) throw new Error('Sign-in needs a Syllabi server — add one in Settings.');
+  if (!hasAuthServer()) throw new Error('Sign-in isn’t available in this version of the app.');
 }
 
 const data = <T>(promise: Promise<{ data: T }>): Promise<T> => promise.then((response) => response.data);

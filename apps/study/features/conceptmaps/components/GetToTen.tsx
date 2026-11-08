@@ -90,7 +90,7 @@ export function NeedsTerms({ onEnter, className }: { onEnter?: () => void; class
   return (
     <Surface className={`border-st-warn/50 flex flex-col gap-2 p-4 ${className ?? ''}`}>
       <h3 className='text-st-fg flex items-center gap-1.5 text-sm font-semibold'>
-        <ListChecks className='text-st-warn h-4 w-4' /> This server needs a term list for this map
+        <ListChecks className='text-st-warn h-4 w-4' /> This map needs a term list first
       </h3>
       <p className='text-st-muted text-sm'>Snap the slide or type the terms, then grade or draw again.</p>
       {onEnter && (
