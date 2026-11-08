@@ -1,6 +1,7 @@
 import type { Spend } from "./ai-models";
 import { logger } from "@/services/logger.service";
-import { CLAUDE_MODELS, ClaudeError, claudeCall, type ClaudeEffort, type ClaudeTier } from "@/services/ai/claude";
+import { AI_BUDGET_CODE, AI_BUDGET_MESSAGE, CLAUDE_MODELS, ClaudeError, claudeCall, type ClaudeEffort, type ClaudeTier } from "@/services/ai/claude";
+import { claudeOpen } from "@/auth/ai-access";
 import { routeClaudeTier } from "@/services/ai/claude-router";
 import { assertClaudeBudget, countClaudeRequest, noteClaudeSpend, CLAUDE_LABEL_PREFIX } from "@/services/ai/claude-budget";
 
@@ -41,6 +42,8 @@ export interface ClaudeSpendCall {
    * reached or the Claude call failed (never after a streamed Claude delta reached the student).
    */
   deepseek?: () => Promise<string>;
+  /** A reply this rejects (e.g. JSON that does not parse) counts as a failed call → DeepSeek. */
+  accept?: (text: string) => boolean;
 }
 
 const addCost = (spend: Spend, kind: "text" | "vision", usd: number) => {
@@ -63,6 +66,8 @@ export async function claudeForSpend(spend: Spend, o: ClaudeSpendCall): Promise<
       }
     : undefined;
   try {
+    // Past the end date (CLAUDE_AI_UNTIL) Claude rests like over the cap: text → DeepSeek.
+    if (!claudeOpen()) throw new ClaudeError(AI_BUDGET_CODE, AI_BUDGET_MESSAGE);
     await assertClaudeBudget(); // before the router: over the cap, the router call is wasted
     let tier: ClaudeTier;
     if (o.choice === "auto") {
@@ -109,6 +114,7 @@ async function claudeOnce(spend: Spend, o: ClaudeSpendCall, tier: ClaudeTier, on
     spend.models[slot] = `${CLAUDE_LABEL_PREFIX}${r.model}`;
     addCost(spend, o.kind, r.costUsd);
     noteClaudeSpend(r.costUsd);
+    if (o.accept && !o.accept(r.text)) throw new ClaudeError("AI_FAILED", "The AI's reply was not usable — try again"); // cost already counted
     return r.text;
   } catch (e) {
     const usd = e instanceof ClaudeError ? e.costUsd : 0;

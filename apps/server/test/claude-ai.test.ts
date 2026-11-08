@@ -29,15 +29,15 @@ const KEY = { ANTHROPIC_API_KEY: "sk-test" } as NodeJS.ProcessEnv;
 describe("access tiers", () => {
   test("no key → Claude closed; premium unaffected", () => {
     assert.equal(claudeOpen(new Date(), {} as NodeJS.ProcessEnv), false);
-    assert.equal(aiTierOf("user", false, new Date(), {} as NodeJS.ProcessEnv), "none");
-    assert.equal(aiTierOf("user", true, new Date(), {} as NodeJS.ProcessEnv), "premium");
-    assert.equal(aiTierOf("owner", false, new Date(), {} as NodeJS.ProcessEnv), "premium");
+    assert.equal(aiTierOf("user", false, {} as NodeJS.ProcessEnv), "none");
+    assert.equal(aiTierOf("user", true, {} as NodeJS.ProcessEnv), "premium");
+    assert.equal(aiTierOf("owner", false, {} as NodeJS.ProcessEnv), "premium");
   });
 
   test("key set → every non-premium account is on the Claude route", () => {
-    assert.equal(aiTierOf("user", false, new Date(), KEY), "claude");
-    assert.equal(aiTierOf("user", true, new Date(), KEY), "premium");
-    assert.equal(aiTierOf("admin", undefined, new Date(), KEY), "premium");
+    assert.equal(aiTierOf("user", false, KEY), "claude");
+    assert.equal(aiTierOf("user", true, KEY), "premium");
+    assert.equal(aiTierOf("admin", undefined, KEY), "premium");
   });
 
   test("CLAUDE_AI_UNTIL: a date-only value lasts through the end of that UTC day", () => {
@@ -45,8 +45,9 @@ describe("access tiers", () => {
     assert.equal(claudeUntil(env)?.toISOString(), "2026-11-30T23:59:59.999Z");
     assert.equal(claudeOpen(new Date("2026-11-30T22:00:00Z"), env), true);
     assert.equal(claudeOpen(new Date("2026-12-01T00:00:00Z"), env), false);
-    assert.equal(aiTierOf("user", false, new Date("2026-12-01T00:00:01Z"), env), "none");
-    assert.equal(aiTierOf("user", true, new Date("2026-12-01T00:00:01Z"), env), "premium");
+    // The route stays on past the date (text moves to DeepSeek, see claudeForSpend); only the key turns it off.
+    assert.equal(aiTierOf("user", false, env), "claude");
+    assert.equal(aiTierOf("user", true, env), "premium");
   });
 
   test("CLAUDE_AI_UNTIL: a full timestamp is exact; garbage means no end", () => {
@@ -57,9 +58,9 @@ describe("access tiers", () => {
   });
 
   test("background paths: an unverified account gets no Claude AI", () => {
-    assert.equal(aiTierOfAccount({ role: "user", premium: false, isVerified: false }, new Date(), KEY), "none");
-    assert.equal(aiTierOfAccount({ role: "user", premium: false, isVerified: true }, new Date(), KEY), "claude");
-    assert.equal(aiTierOfAccount({ role: "user", premium: true, isVerified: false }, new Date(), KEY), "premium");
+    assert.equal(aiTierOfAccount({ role: "user", premium: false, isVerified: false }, KEY), "none");
+    assert.equal(aiTierOfAccount({ role: "user", premium: false, isVerified: true }, KEY), "claude");
+    assert.equal(aiTierOfAccount({ role: "user", premium: true, isVerified: false }, KEY), "premium");
   });
 });
 
@@ -225,13 +226,18 @@ function fakeClient(replies: Reply[], seen: any[]): ClaudeClientLike {
 describe("claudeForSpend", () => {
   const uid = "64b000000000000000000002";
   let seen: any[];
+  let envBefore: NodeJS.ProcessEnv;
   beforeEach(() => {
     seen = [];
+    envBefore = { ...process.env };
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    delete process.env.CLAUDE_AI_UNTIL;
     delete process.env.OPENROUTER_API_KEY; // "auto" → router has no key → sonnet, no network
     setMonthSpendLoaderForTests(async () => 0);
     setDailyCounterForTests(async () => 1);
   });
   afterEach(() => {
+    process.env = envBefore;
     setClaudeClientForTests(null);
     setMonthSpendLoaderForTests(null);
     setDailyCounterForTests(null);
@@ -302,6 +308,22 @@ describe("claudeForSpend", () => {
     const out = await claudeForSpend(spend, { kind: "text", choice: "auto", system: "s", user: "u", maxTokens: 10, deepseek: async () => "from-deepseek" });
     assert.equal(out, "from-deepseek");
     assert.equal(seen.length, 0);
+  });
+
+  test("past CLAUDE_AI_UNTIL: text runs on DeepSeek, picture reading rests", async () => {
+    process.env.CLAUDE_AI_UNTIL = "2020-01-01";
+    setClaudeClientForTests(fakeClient([], seen));
+    assert.equal(await claudeForSpend(newSpend("claude", uid), { kind: "text", choice: "auto", system: "s", user: "u", maxTokens: 10, deepseek: async () => "ds" }), "ds");
+    await assert.rejects(claudeForSpend(newSpend("claude", uid), { kind: "vision", choice: "haiku", system: "s", user: "u", maxTokens: 10 }), (e: any) => e.code === "AI_BUDGET");
+    assert.equal(seen.length, 0);
+  });
+
+  test("a reply the caller can't use (bad JSON) falls back to DeepSeek, its cost still counted", async () => {
+    setClaudeClientForTests(fakeClient([{ text: '{"cut": "half', stop: "max_tokens" }], seen));
+    const spend = newSpend("claude", uid);
+    const out = await claudeForSpend(spend, { kind: "text", choice: "sonnet", system: "s", user: "u", maxTokens: 10, json: true, accept: (t) => { try { JSON.parse(t); return true; } catch { return false; } }, deepseek: async () => '{"ok":true}' });
+    assert.equal(out, '{"ok":true}');
+    assert.ok(spend.textCostUsd > 0);
   });
 
   test("vision over the cap → AI_BUDGET (no fallback)", async () => {
@@ -384,7 +406,7 @@ describe("gates and the account payload", () => {
     const r = run(requirePremiumAi, { aiEnabled: true, aiRoute: "claude", emailVerified: true });
     assert.equal(r.passed, false);
     assert.equal(r.status, 403);
-    assert.equal(r.code, "AI_NOT_ENABLED");
+    assert.equal(r.code, "VOICE_NOT_ENABLED");
   });
 
   test("/auth/me reports AI on for everyone while Claude is open; voice stays premium", () => {

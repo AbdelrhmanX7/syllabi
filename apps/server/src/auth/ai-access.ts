@@ -4,10 +4,12 @@
  *  - "premium": the owner and the accounts the owner turned on (auth/premium.ts). Every AI
  *    feature, on the server's usual models (services/study/ai-models.ts). Unchanged.
  *  - "claude":  every other signed-in account, while the server has an Anthropic key
- *    (ANTHROPIC_API_KEY) and the optional end date (CLAUDE_AI_UNTIL) has not passed. Text and
- *    vision AI run on Claude through that key (services/study/ai-claude.ts), under a monthly
- *    budget. Voice (speech to text, dictation) and image generation stay premium only.
- *  - "none":    no AI (no key, the end date passed, or a background path for an unverified account).
+ *    (ANTHROPIC_API_KEY). Text and vision AI run on Claude through that key
+ *    (services/study/ai-claude.ts) under a monthly budget, until the optional end date
+ *    (CLAUDE_AI_UNTIL); past the budget or the end date, text falls back to DeepSeek and
+ *    picture reading rests. Voice (speech to text, dictation) and image generation stay premium only.
+ *    Unsetting the key turns all of it off.
+ *  - "none":    no AI (no key, or a background path for an unverified account).
  *
  * Pure except for reading process.env at call time (never at module load).
  */
@@ -31,7 +33,12 @@ export function claudeUntil(env: NodeJS.ProcessEnv = process.env): Date | null {
   return Number.isFinite(t) ? new Date(t) : null;
 }
 
-/** Claude AI is open to non-premium accounts: a key is set and the end date (if any) has not passed. */
+/** Non-premium accounts get AI at all (the Claude route): an Anthropic key is set. */
+export function claudeRouteOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !!(env.ANTHROPIC_API_KEY ?? "").trim();
+}
+
+/** Claude itself may run for them: a key is set and the end date (if any) has not passed. */
 export function claudeOpen(now: Date = new Date(), env: NodeJS.ProcessEnv = process.env): boolean {
   if (!(env.ANTHROPIC_API_KEY ?? "").trim()) return false;
   const until = claudeUntil(env);
@@ -42,17 +49,13 @@ export function claudeOpen(now: Date = new Date(), env: NodeJS.ProcessEnv = proc
  * The account's AI tier, not counting email verification (request paths check that separately,
  * so an unverified account gets the friendlier "confirm your email" answer).
  */
-export function aiTierOf(role: string | null | undefined, premium: unknown, now: Date = new Date(), env: NodeJS.ProcessEnv = process.env): AiTier {
+export function aiTierOf(role: string | null | undefined, premium: unknown, env: NodeJS.ProcessEnv = process.env): AiTier {
   if (isAiAccount(role, premium)) return "premium";
-  return claudeOpen(now, env) ? "claude" : "none";
+  return claudeRouteOn(env) ? "claude" : "none";
 }
 
 /** Same, for paths with no request (background jobs, MCP): an unverified account gets no Claude AI. */
-export function aiTierOfAccount(
-  a: { role?: string | null; premium?: unknown; isVerified?: boolean | null },
-  now: Date = new Date(),
-  env: NodeJS.ProcessEnv = process.env
-): AiTier {
-  const tier = aiTierOf(a.role, a.premium, now, env);
+export function aiTierOfAccount(a: { role?: string | null; premium?: unknown; isVerified?: boolean | null }, env: NodeJS.ProcessEnv = process.env): AiTier {
+  const tier = aiTierOf(a.role, a.premium, env);
   return tier === "claude" && a.isVerified === false ? "none" : tier;
 }

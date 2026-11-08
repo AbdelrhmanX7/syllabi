@@ -14,7 +14,7 @@ import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
 import { Admin, IAdmin } from "@/models/admin";
 import { isAiAccount, OWNER_ROLE_FILTER } from "@/auth/roles";
-import { claudeOpen } from "@/auth/ai-access";
+import { claudeRouteOn } from "@/auth/ai-access";
 
 /**
  * The first owner gets a fixed id, so two racing setup requests (or setup racing the env seed)
@@ -129,5 +129,5 @@ export function publicUser(admin: IAdmin | Record<string, any>) {
   // `premium` is the effective value: the owner always has the AI features, and everyone does while
   // Claude AI is open (auth/ai-access.ts). `voiceAi` = voice / image AI, premium accounts only.
   const premiumAi = isAiAccount(role, plain.premium);
-  return { ...plain, _id: String(plain._id), role, premium: premiumAi || claudeOpen(), voiceAi: premiumAi };
+  return { ...plain, _id: String(plain._id), role, premium: premiumAi || claudeRouteOn(), voiceAi: premiumAi };
 }

@@ -332,7 +332,7 @@ async function buildAPlanInner(userId: Types.ObjectId, classId: Types.ObjectId, 
   const started = Date.now();
   let synth: ReturnType<typeof sanitizeSynth> | null = null;
   try {
-    const raw = await textJson(SYNTH_SYSTEM_PROMPT, JSON.stringify(synthInput), spend, { maxTokens: 16_000 });
+    const raw = await textJson(SYNTH_SYSTEM_PROMPT, JSON.stringify(synthInput), spend, { maxTokens: 16_000, claude: "sonnet" }); // background build: fixed tier, no router
     synth = raw ? sanitizeSynth(raw, new Set(items.map((i) => String(i._id)))) : null;
     await recordStudyUsage(userId, "a_plan", spend, started, synth ? "done" : "error", synth ? {} : { error: "no JSON" });
   } catch (e) {

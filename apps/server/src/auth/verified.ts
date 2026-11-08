@@ -29,7 +29,7 @@ export const AI_NOT_ENABLED = {
 
 /** Voice (speech to text) and image generation: premium accounts only, even when Claude AI is open. */
 export const VOICE_AI_NOT_ENABLED = {
-  code: "AI_NOT_ENABLED",
+  code: "VOICE_NOT_ENABLED",
   message: "Voice and picture AI are only on for some accounts right now.",
 } as const;
 

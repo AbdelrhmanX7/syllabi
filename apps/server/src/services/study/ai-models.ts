@@ -136,6 +136,7 @@ export async function textJson(
       signal: opts.signal,
       json: true,
       deepseek: () => deepseekJsonRaw(system, user, spend, opts),
+      accept: (t) => !!parseJsonLoose(t),
     });
     return parseJsonLoose(raw);
   }

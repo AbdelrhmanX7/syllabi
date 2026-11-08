@@ -76,6 +76,7 @@ export const inkClassify = wrap(async (req, res) => {
   const tier = await aiTierOfRequest(req);
   if (tier !== "premium") {
     const spend = newSpend(tier, userId);
+    spend.counted = true; // ink has its own quota (checkInkQuota); never against the daily AI limit
     try {
       const out = await textJson(INK_CLAUDE_SYSTEM, buildInkClaudeTurn(lines, sent), spend, { maxTokens: 1200, claude: "haiku", effort: "low" });
       await writeInkUsage(userId, { model: spend.models, lineCount: sent.length, startedAt, costUsd: spendTotal(spend), status: "done" });
