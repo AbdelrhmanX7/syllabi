@@ -2,7 +2,7 @@ import { LegalPage } from '~/sections/LegalPage';
 
 export default function Terms() {
   return (
-    <LegalPage title='Terms of use' updated='7 November 2026'>
+    <LegalPage path='/terms/' title='Terms of use' updated='7 November 2026'>
       <p>
         Syllabi is free, open-source software under the MIT license. These terms cover the hosted service at
         app.syllabi.studio.

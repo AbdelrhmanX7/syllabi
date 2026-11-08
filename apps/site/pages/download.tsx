@@ -1,6 +1,6 @@
 import { LinkButton } from '@/components/ui/primitives';
 import { Download } from 'lucide-react';
-import Head from 'next/head';
+import { Seo } from '~/sections/Seo';
 import { useEffect, useState } from 'react';
 
 import { Footer } from '~/sections/Footer';
@@ -35,10 +35,11 @@ export default function DownloadPage() {
 
   return (
     <>
-      <Head>
-        <title>Download · Syllabi</title>
-        <meta content='width=device-width, initial-scale=1' name='viewport' />
-      </Head>
+      <Seo
+        description='Download Syllabi for Android tablets: free, scanned for viruses, and updates itself. Install steps and how to check your download.'
+        path='/download/'
+        title='Download Syllabi for Android tablets'
+      />
       <Nav />
       <main className='mx-auto max-w-3xl px-4 py-8'>
         <h1 className='font-display text-st-fg text-3xl font-bold'>Syllabi for Android tablets</h1>

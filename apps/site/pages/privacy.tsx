@@ -4,7 +4,7 @@ const REPO = 'https://github.com/AbdelrhmanX7/syllabi';
 
 export default function Privacy() {
   return (
-    <LegalPage title='Privacy policy' updated='7 November 2026'>
+    <LegalPage path='/privacy/' title='Privacy policy' updated='7 November 2026'>
       <p>
         This policy covers the hosted Syllabi service at app.syllabi.studio and api.syllabi.studio. If you run your own
         Syllabi server, your data stays on that server and this policy does not apply to it.

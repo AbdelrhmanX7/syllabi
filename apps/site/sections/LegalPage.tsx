@@ -1,16 +1,24 @@
-import Head from 'next/head';
 import type { ReactNode } from 'react';
 
 import { Footer } from '~/sections/Footer';
 import { Nav } from '~/sections/Nav';
+import { Seo } from '~/sections/Seo';
 
-export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
+export function LegalPage({
+  title,
+  path,
+  updated,
+  children,
+}: {
+  title: string;
+  /** e.g. `/privacy/` */
+  path: string;
+  updated: string;
+  children: ReactNode;
+}) {
   return (
     <>
-      <Head>
-        <title>{`${title} · Syllabi`}</title>
-        <meta content='width=device-width, initial-scale=1' name='viewport' />
-      </Head>
+      <Seo description={`Syllabi ${title.toLowerCase()}, in plain words.`} path={path} title={`${title} · Syllabi`} />
       <Nav />
       <main className='mx-auto max-w-3xl px-4 py-8'>
         <h1 className='font-display text-st-fg text-3xl font-bold'>{title}</h1>

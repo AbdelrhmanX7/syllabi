@@ -11,23 +11,44 @@ import { Nav } from '~/sections/Nav';
 import { Notebooks } from '~/sections/Notebooks';
 import { Organize } from '~/sections/Organize';
 import { SelfHost } from '~/sections/SelfHost';
+import { Seo } from '~/sections/Seo';
 import { Study } from '~/sections/Study';
 
-const TITLE = 'Syllabi: your whole semester in one study app';
+const TITLE = 'Syllabi: free study and note-taking app for tablets';
 const DESCRIPTION =
-  'Handwritten notes, an AI tutor, questions and flashcards that come back at the right time, lectures and a calendar of everything due. Free on the web and on Android tablets. Connect Claude or ChatGPT.';
+  'Take notes by hand, see everything due from Canvas, and practice with flashcards made from your notes. Free on Android tablets and the web.';
+
+// Structured data: what the app is (free, Android + web) so search results can show it as an app.
+const JSON_LD = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Syllabi',
+      url: 'https://syllabi.studio/',
+      applicationCategory: 'EducationalApplication',
+      operatingSystem: 'Android, Web',
+      description: DESCRIPTION,
+      image: 'https://syllabi.studio/shots/today.png',
+      downloadUrl: 'https://syllabi.studio/download/',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    },
+    {
+      '@type': 'Organization',
+      name: 'Syllabi',
+      url: 'https://syllabi.studio/',
+      logo: 'https://syllabi.studio/apple-touch-icon.png',
+      sameAs: ['https://github.com/AbdelrhmanX7/syllabi'],
+    },
+  ],
+});
 
 export default function Landing() {
   return (
     <>
+      <Seo description={DESCRIPTION} path='/' title={TITLE} />
       <Head>
-        <title>{TITLE}</title>
-        <meta content={DESCRIPTION} name='description' />
-        <meta content='width=device-width, initial-scale=1' name='viewport' />
-        <meta content={TITLE} property='og:title' />
-        <meta content={DESCRIPTION} property='og:description' />
-        <meta content='https://syllabi.studio/shots/today.png' property='og:image' />
-        <link href='https://syllabi.studio/' rel='canonical' />
+        <script dangerouslySetInnerHTML={{ __html: JSON_LD }} type='application/ld+json' />
       </Head>
       <Nav />
       <Motion>
