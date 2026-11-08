@@ -1,12 +1,17 @@
 /**
- * Sharing, phase 1: share read-only + fork (docs/accounts.md, "Sharing and collaboration").
+ * Sharing (docs/accounts.md, "Sharing and collaboration"): phase 1 read-only + fork, phase 2 part A
+ * the "editor" role (editors change the original through the study write routes, services/share/edit.ts).
  * Mounted at /share and /study/share (the app's transport prefixes every live route with /study),
  * behind adminVerification + studyAccess: every call needs a signed-in account, a link included.
  *
- *   POST   /share                     {resourceType, resourceId, topic?, emails?, link?} owner only -> {share}
+ * People: `emails` / `addEmails` entries are an address (gets `role`, default "viewer") or
+ * {email, role}; role is "viewer" | "editor". The link is always view-only.
+ *
+ *   POST   /share                     {resourceType, resourceId, topic?, emails?, role?, link?} owner only -> {share}
  *                                     (one share per resource: a second POST adds to it)
  *   GET    /share/mine?resourceType&resourceId&topic?                          -> {share|null}
- *   PATCH  /share/:id                 {addEmails?, removeEmails?, link?: boolean} owner only -> {share}
+ *   PATCH  /share/:id                 {addEmails?, role?, removeEmails?, roles?: [{email, role}], link?: boolean}
+ *                                     owner only -> {share}
  *   DELETE /share/:id                 owner only, stops sharing                 -> 204
  *   GET    /share/with-me             shared to my account / verified email     -> {items}
  *   GET    /share/forks               where my copies came from                 -> {items}
@@ -19,15 +24,15 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 import { Admin } from "@/models/admin";
-import { IShare, Share, ShareFork, SHARE_RESOURCE_TYPES, ShareResourceType } from "@/models/share";
+import { IShare, Share, ShareFork, SHARE_RESOURCE_TYPES, SHARE_ROLES, ShareResourceType, ShareRole } from "@/models/share";
 import { memoryRateLimit } from "@/auth/rate-limit";
 import { normaliseEmail } from "@/auth/validate";
 import { EMAIL_NOT_VERIFIED } from "@/auth/verified";
 import { appLink } from "@/auth/config";
 import { sendMailInBackground, shareInviteMail } from "@/auth/mail";
 import { generateRawToken } from "@/auth/tokens";
-import { bindEmailGrants, Caller, grantedToFilter, resolveShared, SHARE_ID_RE } from "@/services/share/access";
-import { forkResource, loadOwned, resourceTitle, resourceUpdatedAt, snapshot, TOPIC_MAX } from "@/services/share/resources";
+import { bindEmailGrants, Caller, callerGrant, displayName, grantedToFilter, resolveShared, SHARE_ID_RE } from "@/services/share/access";
+import { forkResource, loadOwned, resourceEditedBy, resourceTitle, resourceUpdatedAt, snapshot, TOPIC_MAX } from "@/services/share/resources";
 import { logger } from "@/services/logger.service";
 
 export const EMAILS_PER_REQUEST = 20;
@@ -55,9 +60,6 @@ interface Me extends Caller {
 }
 const ME = Symbol("shareCaller");
 const me = (req: Request): Me => (req as any)[ME];
-
-const displayName = (a: { name?: string | null; email?: string | null } | null | undefined) =>
-  a?.name?.trim() || a?.email?.split("@")[0] || "Someone";
 
 // Who is calling (adminVerification already ran at the mount).
 router.use(async (req: Request, res: Response, next: NextFunction) => {
@@ -100,18 +102,42 @@ function parseRef(src: Record<string, unknown>): { resourceType: ShareResourceTy
   return { resourceType: resourceType as ShareResourceType, resourceId: new Types.ObjectId(src.resourceId), topic };
 }
 
-function parseEmails(v: unknown, field: string): string[] | string {
+const isRole = (v: unknown): v is ShareRole => typeof v === "string" && (SHARE_ROLES as readonly string[]).includes(v);
+
+function parseRole(v: unknown, field: string): ShareRole | string {
+  if (v === undefined || v === null) return "viewer";
+  return isRole(v) ? v : `${field} must be one of ${SHARE_ROLES.join(", ")}`;
+}
+
+interface Person {
+  email: string;
+  role: ShareRole;
+}
+
+/** A list of addresses or {email, role}; a bare address gets `defaultRole`. */
+function parsePeople(v: unknown, field: string, defaultRole: ShareRole = "viewer"): Person[] | string {
   if (v === undefined || v === null) return [];
   if (!Array.isArray(v)) return `${field} must be a list of email addresses`;
   if (v.length > EMAILS_PER_REQUEST) return `At most ${EMAILS_PER_REQUEST} addresses at a time`;
-  const out: string[] = [];
+  const out: Person[] = [];
   for (const raw of v) {
-    const email = normaliseEmail(raw);
-    if (!email) return `"${String(raw).slice(0, 60)}" is not an email address`;
-    if (!out.includes(email)) out.push(email);
+    const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+    const email = normaliseEmail(obj ? obj.email : raw);
+    if (!email) return `"${String(obj ? obj.email : raw).slice(0, 60)}" is not an email address`;
+    let role = defaultRole;
+    if (obj && obj.role !== undefined) {
+      if (!isRole(obj.role)) return `${field}: role must be one of ${SHARE_ROLES.join(", ")}`;
+      role = obj.role;
+    }
+    if (!out.some((p) => p.email === email)) out.push({ email, role });
   }
   return out;
 }
+
+const parseEmails = (v: unknown, field: string): string[] | string => {
+  const people = parsePeople(v, field);
+  return typeof people === "string" ? people : people.map((p) => p.email);
+};
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────────────────
 
@@ -133,15 +159,16 @@ async function ownerShareDto(s: IShare) {
   };
 }
 
-function mailInvites(share: IShare, emails: string[], from: Me) {
-  for (const email of emails) {
-    sendMailInBackground(shareInviteMail(email, from.name, share.resourceType, share.title, appLink(`/shared/?id=${share._id}`)));
+function mailInvites(share: IShare, people: Person[], from: Me) {
+  for (const p of people) {
+    sendMailInBackground(shareInviteMail(p.email, from.name, share.resourceType, share.title, appLink(`/shared/?id=${share._id}`), p.role));
   }
 }
 
-async function addGrants(share: IShare, emails: string[], caller: Me): Promise<{ added: string[] } | string> {
+async function addGrants(share: IShare, people: Person[], caller: Me): Promise<{ added: Person[] } | string> {
   const own = caller.email?.toLowerCase();
-  const fresh = emails.filter((e) => e !== own && !share.grants.some((g) => g.email === e));
+  const freshPeople = people.filter((p) => p.email !== own && !share.grants.some((g) => g.email === p.email));
+  const fresh = freshPeople.map((p) => p.email);
   if (share.grants.length + fresh.length > GRANTS_PER_SHARE) return `A share can have at most ${GRANTS_PER_SHARE} people`;
   if (!fresh.length) return { added: [] };
   // Bind to existing VERIFIED accounts right away; others bind when they sign in with that address.
@@ -150,9 +177,9 @@ async function addGrants(share: IShare, emails: string[], caller: Me): Promise<{
   const now = new Date();
   await Share.updateOne(
     { _id: share._id },
-    { $push: { grants: { $each: fresh.map((email) => ({ email, userId: byEmail.get(email) ?? null, role: "viewer", addedAt: now })) } } }
+    { $push: { grants: { $each: freshPeople.map((p) => ({ email: p.email, userId: byEmail.get(p.email) ?? null, role: p.role, addedAt: now })) } } }
   );
-  return { added: fresh };
+  return { added: freshPeople };
 }
 
 // ─── owner routes ───────────────────────────────────────────────────────────────────────
@@ -165,7 +192,9 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
     const ref = parseRef(body);
     if (typeof ref === "string") return fail(res, 400, "VALIDATION_ERROR", ref);
-    const emails = parseEmails(body.emails, "emails");
+    const role = parseRole(body.role, "role");
+    if (!isRole(role)) return fail(res, 400, "VALIDATION_ERROR", role);
+    const emails = parsePeople(body.emails, "emails", role);
     if (typeof emails === "string") return fail(res, 400, "VALIDATION_ERROR", emails);
     if (body.link !== undefined && typeof body.link !== "boolean") return fail(res, 400, "VALIDATION_ERROR", "link must be true or false");
     const caller = me(req);
@@ -211,12 +240,19 @@ router.patch(
   inviteGate("addEmails"),
   wrap(async (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const add = parseEmails(body.addEmails, "addEmails");
+    const role = parseRole(body.role, "role");
+    if (!isRole(role)) return fail(res, 400, "VALIDATION_ERROR", role);
+    const add = parsePeople(body.addEmails, "addEmails", role);
     if (typeof add === "string") return fail(res, 400, "VALIDATION_ERROR", add);
     const remove = parseEmails(body.removeEmails, "removeEmails");
     if (typeof remove === "string") return fail(res, 400, "VALIDATION_ERROR", remove);
+    const roles = body.roles === undefined ? [] : parsePeople(body.roles, "roles");
+    if (typeof roles === "string") return fail(res, 400, "VALIDATION_ERROR", roles);
+    if (Array.isArray(body.roles) && body.roles.some((r: unknown) => !r || typeof r !== "object" || !isRole((r as Record<string, unknown>).role)))
+      return fail(res, 400, "VALIDATION_ERROR", `roles must be a list of {email, role} with role one of ${SHARE_ROLES.join(", ")}`);
     if (body.link !== undefined && typeof body.link !== "boolean") return fail(res, 400, "VALIDATION_ERROR", "link must be true or false");
-    if (!add.length && !remove.length && body.link === undefined) return fail(res, 400, "VALIDATION_ERROR", "Send addEmails, removeEmails and/or link");
+    if (!add.length && !remove.length && !roles.length && body.link === undefined)
+      return fail(res, 400, "VALIDATION_ERROR", "Send addEmails, removeEmails, roles and/or link");
     const caller = me(req);
     let share = await ownShare(req, res);
     if (!share) return;
@@ -226,6 +262,11 @@ router.patch(
     if (body.link === true && !share.link) set.link = { token: generateRawToken(), role: "viewer" };
     if (body.link === false) set.link = null;
     await Share.updateOne({ _id: share._id }, { $set: set, ...(remove.length ? { $pull: { grants: { email: { $in: remove } } } } : {}) });
+    // Role changes: one positional update per person still on the share (lowering takes effect on the next write).
+    for (const r of roles) {
+      if (remove.includes(r.email)) continue;
+      await Share.updateOne({ _id: share._id, "grants.email": r.email }, { $set: { "grants.$.role": r.role } });
+    }
     share = (await Share.findById(share._id).lean<IShare>())!;
     const result = await addGrants(share, add, caller);
     if (typeof result === "string") return fail(res, 400, "VALIDATION_ERROR", result);
@@ -266,9 +307,10 @@ router.get(
         resourceType: s.resourceType,
         title: resourceTitle(resource),
         ownerName: ownerName.get(String(s.ownerId)) ?? "Someone",
-        role: "viewer",
-        sharedAt: s.grants.find((g) => String(g.userId) === String(caller.userId))?.addedAt ?? s.createdAt,
+        role: callerGrant(s, caller)?.role ?? "viewer",
+        sharedAt: callerGrant(s, caller)?.addedAt ?? s.createdAt,
         updatedAt: (await resourceUpdatedAt(resource)) ?? s.updatedAt,
+        editedBy: await resourceEditedBy(resource),
       });
     }
     res.json({ items });
@@ -302,6 +344,8 @@ router.get(
     if (!found) return fail(res, 404, "NOT_FOUND", "This link doesn't work any more, or it wasn't shared with this account.");
     const { share, resource, via } = found;
     const owner = await Admin.findById(share.ownerId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
+    // Opening by the share id as a named editor = editable; through the link it is always view-only.
+    const role: ShareRole = via === "owner" ? "editor" : via === "grant" ? (callerGrant(share, caller)?.role ?? "viewer") : "viewer";
     res.json({
       share: {
         id: String(share._id),
@@ -309,8 +353,11 @@ router.get(
         title: resourceTitle(resource),
         ownerName: displayName(owner),
         isOwner: via === "owner",
-        role: "viewer",
+        role,
+        // Editors write through the study routes with these ids (the page, class or map).
+        ...(role === "editor" ? { resourceId: String(share.resourceId), topic: share.topic ?? null } : {}),
         updatedAt: (await resourceUpdatedAt(resource)) ?? share.updatedAt,
+        editedBy: await resourceEditedBy(resource),
       },
       content: await snapshot(resource),
     });

@@ -96,9 +96,22 @@ const SHARE_NOUN: Record<string, string> = {
   conceptMap: "a concept map",
 };
 
-/** "X shared a notebook with you" (POST/PATCH /share). View-only; the button opens /shared/?id=. */
-export const shareInviteMail = (to: string, fromName: string, resourceType: string, title: string, link: string): Mail => {
+/**
+ * "X shared a notebook with you" (POST/PATCH /share), or "X invited you to edit a notebook" for an
+ * editor. The button opens /shared/?id=.
+ */
+export const shareInviteMail = (to: string, fromName: string, resourceType: string, title: string, link: string, role: "viewer" | "editor" = "viewer"): Mail => {
   const noun = SHARE_NOUN[resourceType] ?? "something";
+  if (role === "editor")
+    return build(to, `${fromName} invited you to edit ${noun} on Syllabi`, {
+      preheader: `${fromName} invited you to edit “${title}”.`,
+      title: `${fromName} invited you to edit ${noun}`,
+      body: `You can change “${title}” together. Your changes save to their copy, and they can see who changed what.`,
+      action: "Open",
+      link,
+      expiry: `Sign in to Syllabi with ${to} to open it.`,
+      footnote: "Don't know who this is? Just ignore this email.",
+    });
   return build(to, `${fromName} shared ${noun} with you on Syllabi`, {
     preheader: `${fromName} shared “${title}” with you.`,
     title: `${fromName} shared ${noun} with you`,

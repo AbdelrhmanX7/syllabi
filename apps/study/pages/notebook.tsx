@@ -16,6 +16,7 @@ import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { useStudyBoardAi } from '@/features/tutor';
 import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareButton';
+import { PageVersionsButton, SharedEditChip } from '@/features/share/components/PageVersions';
 
 // «Make questions» from this page's ink — the bank feature owns the extract flow (client-only: canvas).
 const ExtractButton = dynamic(() => import('@/features/bank').then((mod) => mod.ExtractButton), { ssr: false });
@@ -31,12 +32,15 @@ export default function NotebookPage() {
   const pageId = typeof router.query.id === 'string' ? router.query.id : '';
   const classId = typeof router.query.classId === 'string' ? router.query.classId : '';
   const [page, setPage] = useState<Page | null>(null);
-  const boardAi = useStudyBoardAi(pageId, page?.classId ?? classId ?? null);
+  // Someone else's page shared with me to edit: content only, nothing that reaches into their classes.
+  const sharedWithMe = page?.shared ?? null;
+  const ownClassId = sharedWithMe ? null : (page?.classId ?? (classId || null));
+  const boardAi = useStudyBoardAi(pageId, ownClassId);
   // The lecture this page is a note for (its server fields, else this device's record).
   const lecture = usePageLecture(page);
   // «Concept map» on the selection bar + the linked map's concept strip.
   const conceptMaps = useNotebookConceptMaps({
-    classId: page?.classId ?? (classId || null),
+    classId: ownClassId,
     pageId,
     pageTitle: page?.title ?? '',
     lecture,
@@ -102,10 +106,11 @@ export default function NotebookPage() {
   }, [classId, pageId]);
 
   const handleBack = useCallback(() => {
-    if (page?.classId) void router.push(`/class/?id=${encodeURIComponent(page.classId)}`);
+    if (page?.shared) void router.push('/shared/');
+    else if (page?.classId) void router.push(`/class/?id=${encodeURIComponent(page.classId)}`);
     else if (window.history.length > 1) router.back();
     else void router.push('/');
-  }, [page?.classId, router]);
+  }, [page?.classId, page?.shared, router]);
 
   // A PDF imported into a note that still has its generated name renames it after the file (a name
   // someone typed is never touched). Local first so the pill updates at once; the backend follows.
@@ -173,10 +178,17 @@ export default function NotebookPage() {
                 // A rename shows on the next open: changing the board's title prop re-opens the document.
                 <AttachToLectureButton classId={page.classId} page={page} />
               )}
-              {conceptMaps.topRight}
-              <ForkedFromNote board resourceId={page.id} resourceType='notebook' />
-              <ShareButton board target={{ resourceType: 'notebook', resourceId: page.id, title: page.title || 'Notebook' }} />
-              <ExtractButton chip classId={page.classId ?? undefined} label='Make questions' pageId={page.id} />
+              {sharedWithMe ? (
+                <SharedEditChip ownerName={sharedWithMe.ownerName} />
+              ) : (
+                <>
+                  {conceptMaps.topRight}
+                  <ForkedFromNote board resourceId={page.id} resourceType='notebook' />
+                  <PageVersionsButton pageId={page.id} />
+                  <ShareButton board target={{ resourceType: 'notebook', resourceId: page.id, title: page.title || 'Notebook' }} />
+                  <ExtractButton chip classId={page.classId ?? undefined} label='Make questions' pageId={page.id} />
+                </>
+              )}
             </div>
           }
           typedMarkdown={page.markdown ?? page.text ?? null}

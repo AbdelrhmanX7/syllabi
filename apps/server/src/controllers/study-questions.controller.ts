@@ -21,6 +21,7 @@ import {
   REVIEW_MAX,
 } from "@/services/study/questions";
 import { stemHash, shingleHashes } from "@/services/study/dedupe";
+import { newSrs } from "@/services/study/fsrs";
 import { openStudySse, StudySse } from "@/services/study/sse";
 import { newSpend, Spend } from "@/services/study/ai-models";
 import { buildQuestionsFromImage, buildQuestionsFromText, generateSimilar, ReadTimeoutError } from "@/services/study/ai";
@@ -35,9 +36,19 @@ import { StudyLibraryDoc, IStudyLibraryDoc } from "@/models/study/library";
 import { libraryTextSource } from "@/services/study/library";
 import { existingTopics, extractFromTranscript, flashcardsFromText, saveModelQuestions } from "@/services/study/extract";
 import { itemTextSource, lectureTextSource, pageTextSource, TextSource, videoTextSource } from "@/services/study/text-sources";
+import { editedByOf, isCard, questionWritable, scopedQuestion } from "@/services/share/edit";
+import { loadCaller } from "@/services/share/access";
+import { sharedQuestionDto } from "@/services/share/resources";
 import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
 
-/** Question bank (contract "Question bank", P2). */
+/**
+ * Question bank (contract "Question bank", P2).
+ *
+ * Sharing: an editor of a deck / question set (services/share/edit.ts) may add, edit and delete the
+ * owner's questions in it: content fields only, never progress (stats / schedule; attempt and similar
+ * stay owner-only), and never class, topic, image or the flashcard tag (that would move a row out of
+ * the share). Editors get the shared DTO back (no progress), and their writes record `editedBy`.
+ */
 
 export const MAX_IMAGE_B64 = 11 * 1024 * 1024; // ≈ 8 MB decoded
 const LIST_DEFAULT = 50;
@@ -164,21 +175,69 @@ export const createQuestions = wrap(async (req, res) => {
     }
   }
   const userId = uid(req);
-  if (!(await ownClassIds(userId, drafts.map((d) => String(d.classId))))) return fail(res, 404, "NOT_FOUND", "Class not found");
+  if (await ownClassIds(userId, drafts.map((d) => String(d.classId)))) {
+    const out: IStudyQuestion[] = [];
+    for (const d of drafts) out.push((await saveQuestion(userId, d)).doc);
+    return res.json(out.map(questionDto));
+  }
+  // Not all the caller's classes: an editor adding to a shared deck / question set of ONE owner's class.
+  const classIds = [...new Set(drafts.map((d) => String(d.classId)))];
+  const cls = classIds.length === 1 ? await StudyClass.findById(classIds[0], { userId: 1 }).lean<IStudyClass>() : null;
+  const caller = cls ? await loadCaller(req.adminId) : null;
+  if (!cls || !caller) return fail(res, 404, "NOT_FOUND", "Class not found");
+  for (const d of drafts) {
+    // No links into anyone's material; progress starts fresh (the owner's own schedule).
+    d.source = { kind: "manual", itemId: null, pageId: null, lectureId: null, ref: null };
+    d.imageUrl = null;
+    if (!(await questionWritable(caller, cls.userId, cls._id, d.topic, isCard(d.tags)))) return fail(res, 404, "NOT_FOUND", "Class not found");
+  }
+  const editedBy = editedByOf(caller);
   const out: IStudyQuestion[] = [];
-  for (const d of drafts) out.push((await saveQuestion(userId, d)).doc);
-  res.json(out.map(questionDto));
+  // A plain insert, never the duplicate merge: that could touch an owner question outside the share.
+  for (const d of drafts) {
+    const created = await StudyQuestion.create({
+      userId: cls.userId,
+      ...d,
+      stats: { attempts: 0, correct: 0, lastResult: null, mastery: 0 },
+      srs: newSrs(new Date()),
+      stemHash: stemHash(dedupeText(d)),
+      shingles: shingleHashes(dedupeText(d)),
+      editedBy,
+    });
+    out.push(created.toObject() as IStudyQuestion);
+  }
+  res.json(out.map(sharedQuestionDto));
 });
 
 const PATCHABLE = ["classId", "topic", "subtopic", "difficulty", "type", "stem", "imageUrl", "choices", "pairs", "answer", "solutionSteps", "tags"] as const;
+/** What an editor (not the owner) may never change: these would move the row out of the share or into the editor's account. */
+export const EDITOR_LOCKED = ["classId", "topic", "imageUrl"] as const;
+
+/** A question the caller owns, or one in a deck / question set shared with them to edit. */
+const editableQuestion = async (req: Request, res: Response) => {
+  if (!isOid(req.params.id)) {
+    fail(res, 400, "INVALID_ID", "Invalid question id");
+    return null;
+  }
+  const found = await scopedQuestion(req, req.params.id, QUESTION_PROJECTION);
+  if (!found) fail(res, 404, "NOT_FOUND", "Question not found");
+  return found;
+};
 
 /** Only the content fields are editable; source/stats/srs/createdAt are ignored if sent. */
 export const patchQuestion = wrap(async (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const patch = Object.fromEntries(PATCHABLE.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
   if (!Object.keys(patch).length) return fail(res, 400, "VALIDATION_ERROR", `Nothing to update (editable: ${PATCHABLE.join(", ")})`);
-  const q = await ownQuestion(req, res);
-  if (!q) return;
+  const found = await editableQuestion(req, res);
+  if (!found) return;
+  const { doc: q, editor } = found;
+  if (editor) {
+    const locked = EDITOR_LOCKED.find((k) => patch[k] !== undefined && JSON.stringify(patch[k]) !== JSON.stringify(questionDto(q)[k]));
+    if (locked) return fail(res, 403, "FORBIDDEN", `Only the owner can change ${locked}`);
+    if (patch.tags !== undefined && (!Array.isArray(patch.tags) || isCard(patch.tags as string[]) !== isCard(q.tags)))
+      return fail(res, 403, "FORBIDDEN", "Only the owner can turn a question into a card or back");
+  }
   const current = questionDto(q);
   let draft: QuestionDraft;
   try {
@@ -187,20 +246,23 @@ export const patchQuestion = wrap(async (req, res) => {
     if (e instanceof QuestionInputError) return fail(res, 400, "VALIDATION_ERROR", e.message);
     throw e;
   }
-  if (patch.classId !== undefined && !(await ownClassIds(uid(req), [String(draft.classId)]))) return fail(res, 404, "NOT_FOUND", "Class not found");
+  if (patch.classId !== undefined && !editor && !(await ownClassIds(uid(req), [String(draft.classId)]))) return fail(res, 404, "NOT_FOUND", "Class not found");
   const { source: _s, ...fields } = draft;
+  // An editor's write is pinned to the row's class and topic (checked above; pinned again here).
+  const scope = editor ? { classId: q.classId, topic: q.topic } : {};
   const updated = await StudyQuestion.findOneAndUpdate(
-    { _id: q._id, userId: q.userId },
-    { $set: { ...fields, stemHash: stemHash(dedupeText(draft)), shingles: shingleHashes(dedupeText(draft)) } },
+    { _id: q._id, userId: q.userId, ...scope },
+    { $set: { ...fields, ...scope, stemHash: stemHash(dedupeText(draft)), shingles: shingleHashes(dedupeText(draft)), editedBy: editor ? editedByOf(editor) : null } },
     { new: true, projection: QUESTION_PROJECTION }
   ).lean<IStudyQuestion>();
-  res.json(questionDto(updated!));
+  if (!updated) return fail(res, 404, "NOT_FOUND", "Question not found");
+  res.json(editor ? sharedQuestionDto(updated) : questionDto(updated));
 });
 
 export const deleteQuestion = wrap(async (req, res) => {
-  const q = await ownQuestion(req, res);
-  if (!q) return;
-  await StudyQuestion.deleteOne({ _id: q._id, userId: q.userId });
+  const found = await editableQuestion(req, res);
+  if (!found) return;
+  await StudyQuestion.deleteOne({ _id: found.doc._id, userId: found.doc.userId });
   res.status(204).end();
 });
 

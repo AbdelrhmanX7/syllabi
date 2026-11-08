@@ -1,9 +1,9 @@
 /**
- * The one place that decides who may read or write a shared resource. Study routes check plain
- * ownership today; phase 2 (editors, live co-editing) moves them onto `canAccess`, so the rule for
- * "owner, or a grant with a strong enough role" lives here only.
+ * The one place that decides who may read or write a shared resource: the owner, or a grant with a
+ * strong enough role ("editor" writes). The study write routes reach it through services/share/edit.ts.
  */
 import { Types } from "mongoose";
+import { Admin } from "@/models/admin";
 import { IShare, Share, ShareFork, ShareResourceType, ShareRole } from "@/models/share";
 import { loadOwned, OwnedResource, ResourceRef } from "@/services/share/resources";
 import { RAW_TOKEN_RE } from "@/auth/tokens";
@@ -17,7 +17,23 @@ export interface Caller {
 
 export type AccessMode = "read" | "write";
 
-const ROLE_RANK: Record<ShareRole, number> = { viewer: 1, editor: 2 };
+/** A caller plus the name shown next to their edits ("Edited by Maya"). */
+export interface NamedCaller extends Caller {
+  name: string;
+}
+
+export const displayName = (a: { name?: string | null; email?: string | null } | null | undefined) =>
+  a?.name?.trim() || a?.email?.split("@")[0] || "Someone";
+
+/** The signed-in account as a Caller (null when the account is gone). */
+export async function loadCaller(adminId: unknown): Promise<NamedCaller | null> {
+  if (!adminId || !Types.ObjectId.isValid(String(adminId))) return null;
+  const a = await Admin.findById(adminId, { name: 1, email: 1, isVerified: 1 }).lean<{ name?: string; email?: string; isVerified?: boolean }>();
+  if (!a) return null;
+  return { userId: new Types.ObjectId(String(adminId)), email: a.email ?? null, emailVerified: a.isVerified !== false, name: displayName(a) };
+}
+
+export const ROLE_RANK: Record<ShareRole, number> = { viewer: 1, editor: 2 };
 const modeRank = (mode: AccessMode) => (mode === "write" ? ROLE_RANK.editor : ROLE_RANK.viewer);
 
 /** The grant on `share` that names the caller (by account, or by verified email), or null. */
@@ -50,8 +66,8 @@ export async function bindEmailGrants(caller: Caller): Promise<void> {
 
 /**
  * Whether the caller may read / write this resource: the owner always; otherwise a share of it whose
- * grant (or, with `linkToken`, link) has a strong enough role. Phase 1 grants are all "viewer", so
- * "write" is owner-only in practice.
+ * grant (or, with `linkToken`, link) has a strong enough role. Links are always "viewer", so "write"
+ * means the owner or a named editor.
  */
 export async function canAccess(
   caller: Caller,

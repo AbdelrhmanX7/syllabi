@@ -1,9 +1,18 @@
-// Sharing, phase 1 (read-only share + make a copy). Contract: apps/server/src/routes/share.ts.
+// Sharing: read-only share + make a copy (phase 1) and "Can edit" (phase 2 part A: editors change the
+// original through the normal study routes). Contract: apps/server/src/routes/share.ts.
 import type { Question } from '@/lib/api/types';
 
 export type ShareResourceType = 'notebook' | 'deck' | 'questions' | 'conceptMap';
-/** Phase 1 hands out only 'viewer'; 'editor' arrives with editing together (phase 2). */
+/** 'viewer' = Can view (and copy); 'editor' = Can edit the original. The link is always 'viewer'. */
 export type ShareRole = 'viewer' | 'editor';
+
+export const ROLE_LABEL: Record<ShareRole, string> = { viewer: 'Can view', editor: 'Can edit' };
+
+/** Someone other than the owner made the last change ("Edited by Maya"). */
+export interface EditedBy {
+  name: string;
+  at: string | null;
+}
 
 /** What is being shared. deck / questions: a class (+ optional topic); otherwise the item's id. */
 export interface ShareTarget {
@@ -43,6 +52,7 @@ export interface SharedWithMeItem {
   role: ShareRole;
   sharedAt: string;
   updatedAt: string;
+  editedBy?: EditedBy | null;
 }
 
 export interface ForkRecord {
@@ -60,6 +70,7 @@ export interface NotebookContent {
   /** Signed url of the board JSON; null = an empty board. */
   contentUrl: string | null;
   updatedAt: string;
+  editedBy?: EditedBy | null;
 }
 
 export interface QuestionSetContent {
@@ -74,6 +85,7 @@ export interface ConceptMapContent {
   week: number | null;
   number: number | null;
   promptTerms: string[];
+  editedBy?: EditedBy | null;
 }
 
 export interface SharedView {
@@ -84,7 +96,11 @@ export interface SharedView {
     ownerName: string;
     isOwner: boolean;
     role: ShareRole;
+    /** Editors only: the page / class / map id the study routes take, and the deck's topic. */
+    resourceId?: string;
+    topic?: string | null;
     updatedAt: string;
+    editedBy?: EditedBy | null;
   };
   content: NotebookContent | QuestionSetContent | ConceptMapContent;
 }

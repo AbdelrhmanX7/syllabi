@@ -180,6 +180,10 @@ export interface Page {
    */
   markdown?: string | null;
   text?: string | null;
+  /** Someone the owner shared it with (Can edit) saved the current version. */
+  editedBy?: { name: string; at: string | null } | null;
+  /** Set when this is someone else's page shared with me to edit (sharing). */
+  shared?: { role: 'editor'; ownerName: string } | null;
 }
 
 /** `GET /pages/:id/content`. Before the first commit `url` is null and `version` 0 — an empty page. */
@@ -231,6 +235,8 @@ export interface Question {
   stats: { attempts: number; correct: number; lastResult: AttemptResult | null; mastery: number };
   srs: { dueAt: string; stability: number; difficulty: number; reps: number; lapses: number };
   createdAt: string;
+  /** Someone the owner shared it with (Can edit) made the last change. */
+  editedBy?: { name: string; at: string | null } | null;
 }
 
 export interface AttemptInput {

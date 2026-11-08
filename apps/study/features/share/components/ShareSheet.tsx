@@ -1,11 +1,11 @@
-import type { SharePerson, ShareTarget } from '../types';
+import type { SharePerson, ShareRole, ShareTarget } from '../types';
 
 import { useState } from 'react';
-import { Chip, addToast, cn } from '@repo/ui';
+import { Chip, Select, SelectItem, addToast, cn } from '@repo/ui';
 import { Copy, Link2, Trash2, UserMinus } from 'lucide-react';
 
 import { useMyShare, useShareMutations } from '../api';
-import { RESOURCE_NOUN } from '../types';
+import { RESOURCE_NOUN, ROLE_LABEL } from '../types';
 
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { Toggle } from '@/components/ui/Toggle';
@@ -43,10 +43,43 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/** Can view / Can edit: the designed Select, small, one per person and one for new people. */
+function RolePicker({
+  value,
+  label,
+  disabled,
+  onChange,
+}: {
+  value: ShareRole;
+  label: string;
+  disabled?: boolean;
+  onChange: (role: ShareRole) => void;
+}) {
+  return (
+    <Select
+      disallowEmptySelection
+      aria-label={label}
+      className='w-40 shrink-0'
+      isDisabled={disabled}
+      selectedKeys={[value]}
+      size='sm'
+      onSelectionChange={(keys: Set<string>) => {
+        const next = [...keys][0] as ShareRole | undefined;
+
+        if (next && next !== value) onChange(next);
+      }}
+    >
+      <SelectItem key='viewer'>{ROLE_LABEL.viewer}</SelectItem>
+      <SelectItem key='editor'>{ROLE_LABEL.editor}</SelectItem>
+    </Select>
+  );
+}
+
 /**
- * Share one notebook / deck / question set / concept map: add people by email (chips, then Share), a
- * view-only link (signed-in accounts only), the current people with Remove, and Stop sharing. Removing
- * someone and stopping both confirm first. Flat rows only (this is a scroll box).
+ * Share one notebook / deck / question set / concept map: add people by email (chips, a Can view /
+ * Can edit picker, then Share), a view-only link (signed-in accounts only), the current people with
+ * their access and Remove, and Stop sharing. Removing someone, lowering their access and stopping all
+ * confirm first. Flat rows only (this is a scroll box).
  */
 export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: () => void }) {
   const { data: share, isLoading, error: loadError } = useMyShare(target);
@@ -55,6 +88,8 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
   const [pending, setPending] = useState<string[]>([]);
   const [inputError, setInputError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<SharePerson | null>(null);
+  const [lowering, setLowering] = useState<SharePerson | null>(null);
+  const [newRole, setNewRole] = useState<ShareRole>('viewer');
   const [stopping, setStopping] = useState(false);
   const noun = RESOURCE_NOUN[target.resourceType];
   const busy = update.isPending || stop.isPending;
@@ -86,7 +121,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
 
     if (!emails.length) return;
     update.mutate(
-      { current: share, addEmails: emails },
+      { current: share, addEmails: emails, role: newRole },
       {
         onSuccess: () => {
           setPending([]);
@@ -94,6 +129,15 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
         },
         onError: (e) => setInputError(errorText(e)),
       },
+    );
+  };
+
+  const setRole = (person: SharePerson, role: ShareRole) => {
+    // Taking away editing confirms first; giving it is one tap.
+    if (role === 'viewer') return setLowering(person);
+    update.mutate(
+      { current: share, roles: [{ email: person.email, role }] },
+      { onError: (e) => addToast({ title: errorText(e), color: 'danger' }) },
     );
   };
 
@@ -119,7 +163,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </div>
           ) : undefined
         }
-        subtitle='View only. People can make their own copy.'
+        subtitle='Choose who can view or edit. The link is view only.'
         title={`Share “${target.title}”`}
         onClose={onClose}
       >
@@ -129,12 +173,12 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             <label className='text-st-fg text-sm font-semibold' htmlFor='share-email'>
               Add people
             </label>
-            <div className='flex gap-3'>
+            <div className='flex flex-wrap gap-3'>
               <input
                 aria-invalid={Boolean(inputError)}
                 autoCapitalize='none'
                 autoComplete='email'
-                className={cn(INPUT_CLASS, 'min-w-0 flex-1 text-base sm:text-sm')}
+                className={cn(INPUT_CLASS, 'min-w-0 flex-1 basis-48 text-base sm:text-sm')}
                 id='share-email'
                 inputMode='email'
                 placeholder='name@school.edu'
@@ -155,6 +199,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
                   }
                 }}
               />
+              <RolePicker disabled={busy} label='Access for new people' value={newRole} onChange={setNewRole} />
               <ActionButton disabled={busy || (!draft.trim() && !pending.length)} loading={update.isPending && pending.length > 0} variant='primary' onClick={send}>
                 Share
               </ActionButton>
@@ -162,7 +207,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             {pending.length > 0 && (
               <div className='flex flex-wrap gap-2'>
                 {pending.map((email) => (
-                  <Chip key={email} size='sm' variant='flat' onClose={() => setPending(pending.filter((p) => p !== email))}>
+                  <Chip key={email} isClosable size='sm' variant='flat' onClose={() => setPending(pending.filter((p) => p !== email))}>
                     {email}
                   </Chip>
                 ))}
@@ -187,9 +232,15 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
                     <div className='min-w-0 flex-1'>
                       <p className='text-st-fg truncate text-sm' title={person.email}>
                         {person.name ? `${person.name} · ${person.email}` : person.email}
+                        {!person.joined && <span className='text-st-muted text-xs'> · Invited</span>}
                       </p>
                     </div>
-                    <span className='text-st-muted shrink-0 text-xs'>{person.joined ? 'Can view' : 'Invited'}</span>
+                    <RolePicker
+                      disabled={busy}
+                      label={`Access for ${person.email}`}
+                      value={person.role}
+                      onChange={(role) => setRole(person, role)}
+                    />
                     <ActionButton
                       aria-label={`Remove ${person.email}`}
                       className='w-11 shrink-0 px-0'
@@ -247,6 +298,22 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
           }
         >
           They can no longer open this {noun}. A copy they already made stays theirs.
+        </ConfirmSheet>
+      )}
+      {lowering && share && (
+        <ConfirmSheet
+          danger
+          confirmLabel='Change to Can view'
+          title={`Stop ${lowering.email} from editing?`}
+          onClose={() => setLowering(null)}
+          onConfirm={() =>
+            update.mutate(
+              { current: share, roles: [{ email: lowering.email, role: 'viewer' }] },
+              { onError: (e) => addToast({ title: errorText(e), color: 'danger' }) },
+            )
+          }
+        >
+          They can still open this {noun}, but can no longer change it. Their earlier changes stay.
         </ConfirmSheet>
       )}
       {stopping && share && (

@@ -9,13 +9,24 @@ import mongoose, { Schema, Types } from "mongoose";
  *   questions   the other StudyQuestion rows of a class (+ topic)         resourceId = class id, topic
  *   conceptMap  one StudyConceptMap row                                   resourceId = map id
  *
- * Roles: phase 1 hands out only "viewer"; the enum already has "editor" for phase 2 (edits together),
- * so adding it is an API change, not a migration. The link token is 32 random bytes (base64url),
+ * Roles: "viewer" reads (and copies); "editor" also changes the original through the study write
+ * routes (services/share/edit.ts). Only named people get "editor": the link is always "viewer". The link token is 32 random bytes (base64url),
  * stored as is so the owner can copy the link again; turning the link off and on makes a new one.
  *
  * Collection `shares` (not `study_*`): the account-deletion sweep keys study rows by `userId`;
  * shares are keyed by `ownerId` and cleaned up explicitly (services/share/access.ts deleteSharesOf).
  */
+/** Who last changed a shared resource (sharing phase 2: editors). Stored on pages, questions and concept maps. */
+export interface IEditedBy {
+  userId: Types.ObjectId;
+  name: string;
+  at: Date;
+}
+export const EditedBySchema = new Schema<IEditedBy>(
+  { userId: { type: Schema.Types.ObjectId, required: true }, name: { type: String, default: "" }, at: { type: Date, required: true } },
+  { _id: false }
+);
+
 export const SHARE_RESOURCE_TYPES = ["notebook", "deck", "questions", "conceptMap"] as const;
 export type ShareResourceType = (typeof SHARE_RESOURCE_TYPES)[number];
 export const SHARE_ROLES = ["viewer", "editor"] as const;

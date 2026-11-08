@@ -40,6 +40,7 @@ import { FROM_TERMS_CONTEXT_MAX_CHARS, FROM_TERMS_HINT_MAX, isPngOrJpeg, LANG_RX
 import { getLectureMaterial, LectureQuery, resolveLectureScope } from "@/services/study/lecture-material";
 import { decodeB64Image } from "./study-questions.controller";
 import { ownClass } from "./study-library.controller";
+import { editedByDto, editedByOf, scopedMap } from "@/services/share/edit";
 import { fail, isOid, uid, wrap } from "./study.controller";
 
 /** Concept maps (P-CM): list (+ lazy Canvas link), practice, attempts, and the grade / predict / reference SSE streams. */
@@ -205,6 +206,8 @@ export const listAttempts = wrap(async (req, res) => {
  * - notesPageIds: the owner's notebook pages for this lecture, in order, ≤ NOTES_PAGES_MAX
  *   (duplicates dropped); every page must be the caller's and not deleted, else 404; `[]` unlinks.
  * Another user's map → 404. Returns the map DTO.
+ * Sharing: an editor of the map (services/share/edit.ts) may send promptTerms only (score / notesPageIds
+ * → 403) and gets back the terms-only shape the share view uses; the write records `editedBy`.
  */
 export const patchConceptMap = wrap(async (req, res) => {
   const body = req.body ?? {};
@@ -231,8 +234,27 @@ export const patchConceptMap = wrap(async (req, res) => {
     if (uniq.length > NOTES_PAGES_MAX) return fail(res, 400, "VALIDATION_ERROR", `notesPageIds: at most ${NOTES_PAGES_MAX} pages`);
     pageIds = uniq.map((x) => new Types.ObjectId(x));
   }
-  const m = await ownMap(req, res, req.params.id);
-  if (!m) return;
+  if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid concept map id");
+  const found = await scopedMap(req, req.params.id);
+  if (!found) return fail(res, 404, "NOT_FOUND", "Concept map not found");
+  const { doc: m, editor } = found;
+  if (editor) {
+    if (has("score") || has("notesPageIds")) return fail(res, 403, "FORBIDDEN", "Only the owner can change the score or the linked notes");
+    const updated = await StudyConceptMap.findOneAndUpdate(
+      { _id: m._id, userId: m.userId },
+      { $set: { promptTerms, promptTermsSource: "manual", editedBy: editedByOf(editor) } },
+      { new: true }
+    ).lean<IStudyConceptMap>();
+    if (!updated) return fail(res, 404, "NOT_FOUND", "Concept map not found");
+    return res.json({
+      id: String(updated._id),
+      lecture: updated.lecture ?? null,
+      week: updated.week ?? null,
+      number: updated.number ?? null,
+      promptTerms: updated.promptTerms ?? [],
+      editedBy: editedByDto(updated.editedBy, updated.userId),
+    });
+  }
   const userId = uid(req);
   if (pageIds?.length) {
     const live = await StudyPage.countDocuments({ _id: { $in: pageIds }, userId, deletedAt: null });
@@ -240,7 +262,7 @@ export const patchConceptMap = wrap(async (req, res) => {
   }
   const $set: Record<string, unknown> = has("score") ? { ...manualScoreUpdate(m, score) } : {};
   if (pageIds) $set.notesPageIds = pageIds;
-  if (promptTerms) Object.assign($set, { promptTerms, promptTermsSource: "manual" });
+  if (promptTerms) Object.assign($set, { promptTerms, promptTermsSource: "manual", editedBy: null });
   const updated = await StudyConceptMap.findOneAndUpdate({ _id: m._id, userId }, { $set }, { new: true }).lean<IStudyConceptMap>();
   if (!updated) return fail(res, 404, "NOT_FOUND", "Concept map not found");
   const cls = await classOfMap(req, updated);

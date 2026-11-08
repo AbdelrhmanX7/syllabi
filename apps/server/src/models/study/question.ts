@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from "mongoose";
+import { EditedBySchema, IEditedBy } from "@/models/share";
 
 export const STUDY_QUESTION_SOURCE_KINDS = ["canvas_quiz", "derivita", "pdf", "slides", "video", "lecture", "photo", "manual", "ai_similar", "mock"] as const;
 export type QuestionSourceKind = (typeof STUDY_QUESTION_SOURCE_KINDS)[number];
@@ -43,6 +44,8 @@ export interface IStudyQuestion {
   srs: { dueAt: Date; stability: number; difficulty: number; reps: number; lapses: number; lastReviewAt: Date | null };
   stemHash: string;
   shingles: string[];
+  /** Set when someone the owner shared this with (an editor) last changed it. */
+  editedBy?: IEditedBy | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -85,6 +88,7 @@ const StudyQuestionSchema = new Schema<IStudyQuestion>(
     },
     stemHash: { type: String, required: true },
     shingles: { type: [String], default: [] },
+    editedBy: { type: EditedBySchema, default: null },
   },
   { timestamps: true }
 );

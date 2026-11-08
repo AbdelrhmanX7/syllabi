@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from "mongoose";
+import { EditedBySchema, IEditedBy } from "@/models/share";
 
 export const CONCEPT_MAP_SOURCES = ["import", "canvas", "practice"] as const;
 export type ConceptMapSource = (typeof CONCEPT_MAP_SOURCES)[number];
@@ -50,6 +51,8 @@ export interface IStudyConceptMap {
   notesPageIds: Types.ObjectId[];
   /** Cached digest of those pages (POST /:id/notes-digest); `hash` = page ids+versions + prompt terms + instructor. */
   notesDigest: NotesDigestCache | null;
+  /** Who last changed the terms through a share (an editor); null = the owner / never. */
+  editedBy?: IEditedBy | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +106,7 @@ const StudyConceptMapSchema = new Schema<IStudyConceptMap>(
     baseMapId: { type: Schema.Types.ObjectId, default: null },
     notesPageIds: { type: [Schema.Types.ObjectId], default: [] },
     notesDigest: { type: Schema.Types.Mixed, default: null },
+    editedBy: { type: EditedBySchema, default: null },
   },
   { timestamps: true }
 );

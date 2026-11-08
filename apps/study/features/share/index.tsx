@@ -1,16 +1,17 @@
-// Sharing, phase 1: `/shared` (Shared with me + the read-only viewer with «Make a copy») and the Share
-// button / sheet the notebook, flashcards, bank and concept maps mount.
+// Sharing: `/shared` (Shared with me + the viewer with «Make a copy»; Can edit people get the editable
+// version, a notebook opens on the board) and the Share button / sheet the notebook, flashcards, bank
+// and concept maps mount.
 import type { ShareResourceType, SharedWithMeItem } from './types';
 import type { LucideIcon } from 'lucide-react';
 
 import { addToast } from '@repo/ui';
-import { ChevronRight, Copy, GalleryVerticalEnd, ListChecks, Network, NotebookPen, Users } from 'lucide-react';
+import { ChevronRight, Copy, GalleryVerticalEnd, ListChecks, Network, NotebookPen, Pencil, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 import { forkHref, useFork, useSharedView, useSharedWithMe } from './api';
 import { SharedContent } from './components/SharedViews';
-import { RESOURCE_LABEL, RESOURCE_NOUN } from './types';
+import { RESOURCE_LABEL, RESOURCE_NOUN, ROLE_LABEL } from './types';
 
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton, EmptyState, ErrorNote, LinkButton, LoadingRows } from '@/components/ui/primitives';
@@ -59,7 +60,8 @@ function SharedRow({ item }: { item: SharedWithMeItem }) {
         <span className='min-w-0 flex-1'>
           <span className='block truncate text-sm font-semibold'>{item.title}</span>
           <span className='text-st-muted block truncate text-xs'>
-            {RESOURCE_LABEL[item.resourceType]} · {item.ownerName} · updated {shortWhen(item.updatedAt)}
+            {RESOURCE_LABEL[item.resourceType]} · {item.ownerName} · {ROLE_LABEL[item.role]} ·{' '}
+            {item.editedBy ? `edited by ${item.editedBy.name}` : 'updated'} {shortWhen(item.updatedAt)}
           </span>
         </span>
         <ChevronRight className='text-st-muted h-4 w-4 shrink-0' />
@@ -115,6 +117,7 @@ function SharedViewer({ id }: { id: string }) {
     );
   }
   const { share } = data;
+  const canEdit = share.role === 'editor' && !share.isOwner && Boolean(share.resourceId);
   const makeCopy = () =>
     fork.mutate(id, {
       onSuccess: (result) => {
@@ -128,12 +131,25 @@ function SharedViewer({ id }: { id: string }) {
     <>
       <PageHeader
         actions={
-          <ActionButton loading={fork.isPending} variant='primary' onClick={makeCopy}>
-            <Copy className='h-4 w-4' /> Make a copy
-          </ActionButton>
+          <div className='flex flex-wrap justify-end gap-3'>
+            {canEdit && share.resourceType === 'notebook' && (
+              <LinkButton href={`/notebook/?id=${encodeURIComponent(share.resourceId ?? '')}`} variant='primary'>
+                <Pencil className='h-4 w-4' /> Open to edit
+              </LinkButton>
+            )}
+            <ActionButton
+              loading={fork.isPending}
+              variant={canEdit && share.resourceType === 'notebook' ? 'secondary' : 'primary'}
+              onClick={makeCopy}
+            >
+              <Copy className='h-4 w-4' /> Make a copy
+            </ActionButton>
+          </div>
         }
         back='/shared/'
-        subtitle={`${share.isOwner ? 'Yours' : `${share.ownerName}’s`} ${RESOURCE_NOUN[share.resourceType]} · View only · updated ${shortWhen(share.updatedAt)}`}
+        subtitle={`${share.isOwner ? 'Yours' : `${share.ownerName}’s`} ${RESOURCE_NOUN[share.resourceType]} · ${
+          canEdit ? ROLE_LABEL.editor : 'View only'
+        } · ${share.editedBy ? `edited by ${share.editedBy.name}` : 'updated'} ${shortWhen(share.updatedAt)}`}
         title={share.title}
       />
       <SharedContent view={data} />

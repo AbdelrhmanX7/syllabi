@@ -21,10 +21,12 @@ import {
   deletePage,
   getPageContent,
   listPages,
+  listPageVersions,
   patchPage,
   putPageBlob,
   putPageContent,
   putPageOcr,
+  restorePageVersion,
   search,
 } from "@/controllers/study-pages.controller";
 import { commitPageRenders, deletePageAnnotation, getPageRenders, listPageAnnotations, putPageRender, RENDER_MAX_BYTES } from "@/controllers/study-page-renders.controller";
@@ -131,6 +133,9 @@ router.put("/pages/:id/content", putPageContent);
 router.put("/pages/:id/content/blob", express.raw({ type: "*/*", limit: "25mb" }), putPageBlob);
 router.post("/pages/:id/content/commit", commitPageContent);
 router.put("/pages/:id/ocr", putPageOcr);
+// Earlier versions (owner only): list with authors, restore one as a new version.
+router.get("/pages/:id/versions", listPageVersions);
+router.post("/pages/:id/versions/:version/restore", restorePageVersion);
 // Page renders (ink over background, rendered by the client after a sync) + Claude annotations.
 router.get("/pages/:id/renders", getPageRenders);
 router.put("/pages/:id/renders/:index", express.raw({ type: "*/*", limit: RENDER_MAX_BYTES }), putPageRender);

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from "mongoose";
+import { EditedBySchema, IEditedBy } from "@/models/share";
 
 export const STUDY_PAGE_KINDS = ["note", "pdf", "lecture", "solve"] as const;
 export type StudyPageKind = (typeof STUDY_PAGE_KINDS)[number];
@@ -30,6 +31,16 @@ export interface IStudyPageAnnotation {
   author: "claude";
   createdAt: Date;
 }
+
+export interface IPageVersionEntry {
+  version: number;
+  userId: Types.ObjectId;
+  name: string;
+  at: Date;
+  /** Set when this version restored an earlier one. */
+  restoredFrom?: number | null;
+}
+export const PAGE_VERSION_LOG_MAX = 100;
 
 export const STUDY_GROUND_UNITS = ["ft", "m", "km", "mi"] as const;
 export type StudyGroundUnit = (typeof STUDY_GROUND_UNITS)[number];
@@ -90,6 +101,13 @@ export interface IStudyPage {
   annotations: IStudyPageAnnotation[];
   /** Ruler presets keyed by 1-based board page number ("1", "2", …). */
   rulers?: Record<string, IStudyPageRuler>;
+  /** Who committed the current version (sharing: an editor, or the owner). null = before authors were recorded. */
+  editedBy?: IEditedBy | null;
+  /**
+   * Author of each recent version (newest last, at most PAGE_VERSION_LOG_MAX). Versions are immutable
+   * objects in storage, so this log is how "Earlier versions" says who wrote which one.
+   */
+  versionLog?: IPageVersionEntry[];
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -161,6 +179,22 @@ const StudyPageSchema = new Schema<IStudyPage>(
         },
         { _id: false }
       ),
+      default: undefined,
+    },
+    editedBy: { type: EditedBySchema, default: null },
+    versionLog: {
+      type: [
+        new Schema(
+          {
+            version: { type: Number, required: true },
+            userId: { type: Schema.Types.ObjectId, required: true },
+            name: { type: String, default: "" },
+            at: { type: Date, required: true },
+            restoredFrom: { type: Number, default: null },
+          },
+          { _id: false }
+        ),
+      ],
       default: undefined,
     },
     deletedAt: { type: Date, default: null },

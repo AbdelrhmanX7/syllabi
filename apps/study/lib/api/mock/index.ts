@@ -736,6 +736,11 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
   const [head, a, b, c] = segments;
   const key = `${method} /${segments.map((segment, index) => (index % 2 === 1 ? ':' : segment)).join('/')}`;
 
+  // First: besides /share it answers «Can edit» writes on the invented shared deck / map ids.
+  const share = shareMockRoutes.json(method, path, body);
+
+  if (share) return share.value;
+
   const tutor = tutorMockRoutes.json(method, path, body);
 
   if (tutor) return tutor;
@@ -751,10 +756,6 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
   const handwriting = handwritingMockRoutes.json(method, path, body, headers);
 
   if (handwriting) return handwriting.value;
-
-  const share = shareMockRoutes.json(method, path, body);
-
-  if (share) return share.value;
 
   const perf = perfMockRoutes.json(method, path, body);
 

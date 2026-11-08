@@ -1,14 +1,14 @@
 /**
  * The shareable resources (models/share.ts): ownership, title, read-only snapshot and deep copy.
  * Everything that knows how a resource type is stored lives here, so sharing a new type means one
- * more entry, and phase 2 (editors) adds a `write` path next to `snapshot`.
+ * more entry. Editors write through the study routes (services/share/edit.ts).
  */
 import { Types } from "mongoose";
 import { StudyPage, IStudyPage } from "@/models/study/page";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
 import { StudyClass, IStudyClass } from "@/models/study/class";
 import { StudyConceptMap, IStudyConceptMap } from "@/models/study/concept-map";
-import type { ShareResourceType } from "@/models/share";
+import type { IEditedBy, ShareResourceType } from "@/models/share";
 import { getStudyObject, pageContentKey, putStudyObject, signedGetUrl } from "@/services/study/storage";
 import { questionDto, srsDto } from "@/services/study/questions";
 
@@ -74,8 +74,8 @@ function questionFilter(r: { type: "deck" | "questions"; cls: IStudyClass; topic
   };
 }
 
-/** A question as the viewer sees it: no progress (stats / schedule) and no links into the owner's material. */
-function sharedQuestionDto(q: IStudyQuestion) {
+/** A question as the viewer / editor sees it: no progress (stats / schedule) and no links into the owner's material. */
+export function sharedQuestionDto(q: IStudyQuestion) {
   return {
     ...questionDto(q),
     source: { kind: q.source?.kind ?? "manual", itemId: null, pageId: null, lectureId: null, ref: null },
@@ -94,6 +94,7 @@ export async function snapshot(r: OwnedResource): Promise<Record<string, unknown
         version: r.page.version,
         contentUrl: r.page.contentKey ? (await signedGetUrl(r.page.contentKey, { contentType: "application/json" })).url : null,
         updatedAt: r.page.updatedAt,
+        editedBy: editedByName(r.page.editedBy, r.page.userId),
       };
     case "deck":
     case "questions": {
@@ -107,7 +108,27 @@ export async function snapshot(r: OwnedResource): Promise<Record<string, unknown
         week: r.map.week ?? null,
         number: r.map.number ?? null,
         promptTerms: r.map.promptTerms ?? [],
+        editedBy: editedByName(r.map.editedBy, r.map.userId),
       };
+  }
+}
+
+/** "Edited by Maya": only when someone other than the owner made the last change. */
+function editedByName(e: IEditedBy | null | undefined, ownerId: Types.ObjectId | null | undefined) {
+  return e && e.userId && String(e.userId) !== String(ownerId) ? { name: e.name || "Someone", at: e.at ? new Date(e.at).toISOString() : null } : null;
+}
+
+/** Who made the last change, when it was not the owner (for "Shared with me" and the share view). */
+export async function resourceEditedBy(r: OwnedResource): Promise<{ name: string; at: string | null } | null> {
+  switch (r.type) {
+    case "notebook":
+      return editedByName(r.page.editedBy, r.page.userId);
+    case "conceptMap":
+      return editedByName(r.map.editedBy, r.map.userId);
+    default: {
+      const last = await StudyQuestion.findOne(questionFilter(r), { editedBy: 1, updatedAt: 1 }).sort({ updatedAt: -1 }).lean<IStudyQuestion>();
+      return editedByName(last?.editedBy, r.cls.userId);
+    }
   }
 }
 

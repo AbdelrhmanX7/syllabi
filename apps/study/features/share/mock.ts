@@ -2,7 +2,10 @@
 // not this path). Everything here is invented: made-up classmates and made-up material. «Make a copy»
 // goes through the same transport (pages / questions / concept-map practice), so the copy shows up in
 // the demo's notebooks, bank, flashcards and concept maps like anything else the user made.
-import type { ForkRecord, ForkResult, Share, SharedView, SharedWithMeItem, ShareResourceType } from './types';
+// «Can edit»: the demo deck and concept map are shared to edit. Their study-route writes (PATCH / DELETE /
+// POST /questions, PATCH /concept-maps/:id with the invented ids) are answered here, against this
+// module's state, so edits stick for the session like they would on the owner's copy.
+import type { ForkRecord, ForkResult, Share, SharedView, SharedWithMeItem, ShareResourceType, ShareRole } from './types';
 import type { Page, Question, StudyClass } from '@/lib/api/types';
 
 import { StudyApiError } from '@/lib/api/errors';
@@ -98,16 +101,33 @@ const q = (stem: string, answer: string, topic: string, tags: string[] = []): Qu
 interface Incoming {
   item: SharedWithMeItem;
   view: SharedView['content'];
+  /** Can edit: the owner's page / class / map id the study routes take. */
+  resourceId?: string;
+  topic?: string | null;
 }
 
+const DEMO_DECK_CLASS = 'shr_cls_organic';
+const DEMO_MAP_ID = 'shr_map_cellcycle';
+
+/** The invented items, made once per tab so «Can edit» changes stick. */
+let incomingState: Incoming[] | null = null;
+
 function incoming(): Incoming[] {
+  incomingState ??= seedIncoming();
+
+  return incomingState;
+}
+
+function seedIncoming(): Incoming[] {
   return [
     {
       item: { id: 'shr_demo_notebook', resourceType: 'notebook', title: 'Membranes and transport', ownerName: 'Maya Chen', role: 'viewer', sharedAt: ago(40 * MINUTE), updatedAt: ago(35 * MINUTE) },
       view: { kind: 'note', title: 'Membranes and transport', version: 4, contentUrl: null, updatedAt: ago(35 * MINUTE) },
     },
     {
-      item: { id: 'shr_demo_deck', resourceType: 'deck', title: 'Organic functional groups', ownerName: 'Jonas Weber', role: 'viewer', sharedAt: ago(5 * 3600_000), updatedAt: ago(2 * DAY) },
+      item: { id: 'shr_demo_deck', resourceType: 'deck', title: 'Organic functional groups', ownerName: 'Jonas Weber', role: 'editor', sharedAt: ago(5 * 3600_000), updatedAt: ago(2 * DAY) },
+      resourceId: DEMO_DECK_CLASS,
+      topic: 'Functional groups',
       view: {
         className: 'Organic Chemistry',
         topic: 'Functional groups',
@@ -132,7 +152,8 @@ function incoming(): Incoming[] {
       },
     },
     {
-      item: { id: 'shr_demo_map', resourceType: 'conceptMap', title: 'Lecture 6: the cell cycle', ownerName: 'Leo Martins', role: 'viewer', sharedAt: ago(3 * DAY), updatedAt: ago(3 * DAY) },
+      item: { id: 'shr_demo_map', resourceType: 'conceptMap', title: 'Lecture 6: the cell cycle', ownerName: 'Leo Martins', role: 'editor', sharedAt: ago(3 * DAY), updatedAt: ago(3 * DAY) },
+      resourceId: DEMO_MAP_ID,
       view: { className: 'Biology 101', lecture: 'Lecture 6: the cell cycle', week: 6, number: 3, promptTerms: ['interphase', 'mitosis', 'cytokinesis', 'checkpoint', 'cyclin', 'chromatid'] },
     },
   ];
@@ -162,11 +183,33 @@ function emailsOf(v: unknown): string[] {
   return out;
 }
 
-function applyChanges(share: Share, add: string[], remove: string[], link: unknown): Share {
-  const people = share.people.filter((p) => !remove.includes(p.email));
+const roleOf = (v: unknown): ShareRole => {
+  if (v === undefined || v === null) return 'viewer';
+  if (v === 'viewer' || v === 'editor') return v;
+  throw bad('role must be viewer or editor');
+};
+
+function rolesOf(v: unknown): { email: string; role: ShareRole }[] {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v)) throw bad('roles must be a list');
+
+  return v.map((r) => ({ email: String((r as { email?: unknown })?.email ?? '').toLowerCase(), role: roleOf((r as { role?: unknown })?.role) }));
+}
+
+function applyChanges(
+  share: Share,
+  add: string[],
+  remove: string[],
+  link: unknown,
+  role: ShareRole = 'viewer',
+  roles: { email: string; role: ShareRole }[] = [],
+): Share {
+  const people = share.people
+    .filter((p) => !remove.includes(p.email))
+    .map((p) => ({ ...p, role: roles.find((r) => r.email === p.email)?.role ?? p.role }));
 
   for (const email of add) {
-    if (!people.some((p) => p.email === email)) people.push({ email, role: 'viewer', name: null, joined: false });
+    if (!people.some((p) => p.email === email)) people.push({ email, role, name: null, joined: false });
   }
   let next: Share['link'] = share.link;
 
@@ -201,15 +244,20 @@ async function viewOf(found: Incoming): Promise<SharedView> {
       ? { ...(found.view as object), contentUrl: `data:application/json,${encodeURIComponent(sampleBoard(found.item.title))}` }
       : found.view;
 
+  const isOwner = found.item.ownerName === 'You';
+  const role: ShareRole = isOwner ? 'editor' : found.item.role;
+
   return {
     share: {
       id: found.item.id,
       resourceType: found.item.resourceType,
       title: found.item.title,
       ownerName: found.item.ownerName,
-      isOwner: found.item.ownerName === 'You',
-      role: 'viewer',
+      isOwner,
+      role,
+      ...(role === 'editor' && found.resourceId ? { resourceId: found.resourceId, topic: found.topic ?? null } : {}),
       updatedAt: found.item.updatedAt,
+      editedBy: found.item.editedBy ?? null,
     },
     content: content as SharedView['content'],
   };
@@ -269,13 +317,94 @@ async function fork(found: Incoming): Promise<ForkResult> {
   return result;
 }
 
+/* ------------------------------------------------------------------ «Can edit» writes on the invented items */
+
+const YOU = { name: 'You', at: null as string | null };
+
+function touch(found: Incoming) {
+  const now = new Date().toISOString();
+
+  found.item = { ...found.item, updatedAt: now, editedBy: { ...YOU, at: now } };
+}
+
+function deckWithQuestion(id: string): { found: Incoming; content: { questions: Question[] } } | null {
+  for (const found of incoming()) {
+    const content = found.view as { questions?: Question[] };
+
+    if (found.item.role === 'editor' && content.questions?.some((q) => q.id === id)) return { found, content: content as { questions: Question[] } };
+  }
+
+  return null;
+}
+
+/** PATCH / DELETE /questions/:id and POST /questions for the demo deck; undefined = not ours. */
+function editRoutes(method: string, segments: string[], body: Body): { value: unknown } | undefined {
+  if (segments[0] === 'questions' && segments[1] && segments.length === 2 && (method === 'PATCH' || method === 'DELETE')) {
+    const hit = deckWithQuestion(decodeURIComponent(segments[1]));
+
+    if (!hit) return undefined;
+    const index = hit.content.questions.findIndex((q) => q.id === decodeURIComponent(segments[1]));
+
+    if (method === 'DELETE') {
+      hit.content.questions.splice(index, 1);
+      touch(hit.found);
+
+      return { value: undefined };
+    }
+    if (body?.classId !== undefined || body?.topic !== undefined) throw new StudyApiError(403, 'Only the owner can change that', 'FORBIDDEN');
+    const prev = hit.content.questions[index];
+    const next = {
+      ...prev,
+      ...(typeof body?.stem === 'string' ? { stem: body.stem } : {}),
+      ...(typeof body?.answer === 'string' ? { answer: body.answer } : {}),
+      editedBy: { ...YOU, at: new Date().toISOString() },
+    } as Question;
+
+    hit.content.questions[index] = next;
+    touch(hit.found);
+
+    return { value: next };
+  }
+  if (segments[0] === 'questions' && segments.length === 1 && method === 'POST') {
+    const list = Array.isArray(body?.questions) ? (body!.questions as Record<string, unknown>[]) : [];
+    const found = incoming().find((i) => i.resourceId && i.resourceId === list[0]?.classId && i.item.role === 'editor');
+
+    if (!found || found.item.resourceType === 'conceptMap') return undefined;
+    const content = found.view as { questions: Question[] };
+    const added = list.map((raw) => ({
+      ...q(String(raw.stem ?? ''), String(raw.answer ?? ''), String(raw.topic ?? found.topic ?? 'General'), (raw.tags as string[]) ?? []),
+      editedBy: { ...YOU, at: new Date().toISOString() },
+    }));
+
+    content.questions.push(...added);
+    touch(found);
+
+    return { value: added };
+  }
+  if (segments[0] === 'concept-maps' && segments.length === 2 && method === 'PATCH') {
+    const found = incoming().find((i) => i.resourceId === decodeURIComponent(segments[1]) && i.item.resourceType === 'conceptMap');
+
+    if (!found) return undefined;
+    if (body?.score !== undefined || body?.notesPageIds !== undefined) throw new StudyApiError(403, 'Only the owner can change the score', 'FORBIDDEN');
+    const terms = Array.isArray(body?.promptTerms) ? (body!.promptTerms as unknown[]).map((t) => String(t).trim()).filter(Boolean) : [];
+
+    if (!terms.length) throw bad('promptTerms must be 1–15 terms');
+    touch(found);
+    found.view = { ...(found.view as object), promptTerms: terms, editedBy: found.item.editedBy } as SharedView['content'];
+
+    return { value: { id: found.resourceId, promptTerms: terms, editedBy: found.item.editedBy } };
+  }
+
+  return undefined;
+}
+
 /* ------------------------------------------------------------------ routes */
 
 function json(method: string, path: string, body: Body): { value: unknown } | undefined {
   const [pathname, search = ''] = path.split('?');
   const segments = pathname.split('/').filter(Boolean);
 
-  if (segments[0] !== 'share') return undefined;
+  if (segments[0] !== 'share') return editRoutes(method, segments, body);
   const [, a, b] = segments;
   const query = new URLSearchParams(search);
 
@@ -319,7 +448,7 @@ function json(method: string, path: string, body: Body): { value: unknown } | un
       createdAt: now,
       updatedAt: now,
     };
-    const share = applyChanges(base, emailsOf(body?.emails), [], body?.link);
+    const share = applyChanges(base, emailsOf(body?.emails), [], body?.link, roleOf(body?.role));
 
     mine.set(k, share);
 
@@ -334,7 +463,14 @@ function json(method: string, path: string, body: Body): { value: unknown } | un
 
       return { value: undefined };
     }
-    const share = applyChanges(entry[1], emailsOf(body?.addEmails), emailsOf(body?.removeEmails), body?.link);
+    const share = applyChanges(
+      entry[1],
+      emailsOf(body?.addEmails),
+      emailsOf(body?.removeEmails),
+      body?.link,
+      roleOf(body?.role),
+      rolesOf(body?.roles),
+    );
 
     mine.set(entry[0], share);
 

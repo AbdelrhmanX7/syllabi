@@ -2,11 +2,14 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { StudyClass } from "@/models/study/class";
 import { StudyItem, IStudyItem } from "@/models/study/item";
-import { StudyPage, IStudyPage, STUDY_PAGE_KINDS } from "@/models/study/page";
+import { StudyPage, IStudyPage, STUDY_PAGE_KINDS, PAGE_VERSION_LOG_MAX } from "@/models/study/page";
+import { Admin } from "@/models/admin";
 import { StudyModule } from "@/models/study/module";
 import { StudyLecture, IStudyLecture } from "@/models/study/lecture";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
-import { pageContentKey, presignedPutUrl, putStudyObject, signedGetUrl, studyObjectExists } from "@/services/study/storage";
+import { getStudyObject, pageContentKey, presignedPutUrl, putStudyObject, signedGetUrl, studyObjectExists } from "@/services/study/storage";
+import { editedByDto, editedByOf, scopedPage } from "@/services/share/edit";
+import { displayName, loadCaller, NamedCaller } from "@/services/share/access";
 import { itemsDto, LIST_PROJECTION } from "@/services/study/views";
 import { questionDto } from "@/services/study/questions";
 import { searchTranscripts } from "@/services/study/transcript-search";
@@ -16,6 +19,10 @@ import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
  * Notebook pages + search (contract "Notebook pages", P2). A page's board JSON is uploaded
  * straight to storage by presigned PUT; the BE only hands out versioned keys and flips the
  * pointer on commit (optimistic concurrency on `version`).
+ *
+ * Sharing: an editor of a page (services/share/edit.ts) may read it and write its content (GET page /
+ * content, PUT content / blob, commit, OCR), always under the owner's storage prefix. Renaming, filing,
+ * deleting, renders, rulers and annotations stay owner-only. Every commit records its author.
  */
 
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -34,6 +41,7 @@ export const pageDto = (p: IStudyPage) => ({
   week: p.week ?? null,
   moduleId: p.moduleId ? String(p.moduleId) : null,
   lecture: p.lecture ? { number: p.lecture.number ?? null, key: p.lecture.key, date: p.lecture.date } : null,
+  editedBy: editedByDto(p.editedBy, p.userId),
 });
 
 const validWeek = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30;
@@ -60,7 +68,7 @@ export const orgFieldError = (b: Record<string, unknown>): string | null => {
 };
 const toLecture = (l: any): PageLecture | null => (l ? { number: l.number ?? null, key: l.key, date: l.date } : null);
 
-const PAGE_PROJECTION = { ocrText: 0, renders: 0, annotations: 0 } as const;
+const PAGE_PROJECTION = { ocrText: 0, renders: 0, annotations: 0, versionLog: 0 } as const;
 
 const ownPage = async (req: Request, res: Response): Promise<IStudyPage | null> => {
   if (!isOid(req.params.id)) {
@@ -70,6 +78,20 @@ const ownPage = async (req: Request, res: Response): Promise<IStudyPage | null> 
   const page = await StudyPage.findOne({ _id: req.params.id, userId: uid(req), deletedAt: null }, PAGE_PROJECTION).lean<IStudyPage>();
   if (!page) fail(res, 404, "NOT_FOUND", "Page not found");
   return page;
+};
+
+/** The owner's page, or one shared with the caller as editor (`editor` set). 404 for anyone else. */
+const editablePage = async (req: Request, res: Response): Promise<{ page: IStudyPage; editor: NamedCaller | null } | null> => {
+  if (!isOid(req.params.id)) {
+    fail(res, 400, "INVALID_ID", "Invalid page id");
+    return null;
+  }
+  const found = await scopedPage(req, req.params.id, PAGE_PROJECTION);
+  if (!found) {
+    fail(res, 404, "NOT_FOUND", "Page not found");
+    return null;
+  }
+  return { page: found.doc, editor: found.editor };
 };
 
 export const listPages = wrap(async (req, res) => {
@@ -95,9 +117,22 @@ export const listPages = wrap(async (req, res) => {
 /** One page: the Page DTO + `markdown` = its stored OCR/search text (what `PUT /pages/:id/ocr` wrote). */
 export const getPage = wrap(async (req, res) => {
   if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid page id");
-  const page = await StudyPage.findOne({ _id: req.params.id, userId: uid(req), deletedAt: null }).lean<IStudyPage>();
-  if (!page) return fail(res, 404, "NOT_FOUND", "Page not found");
-  res.json({ ...pageDto(page), markdown: page.ocrText ?? null });
+  const found = await scopedPage(req, req.params.id, { renders: 0, annotations: 0, versionLog: 0 });
+  if (!found) return fail(res, 404, "NOT_FOUND", "Page not found");
+  const page = found.doc;
+  if (!found.editor) return res.json({ ...pageDto(page), markdown: page.ocrText ?? null });
+  // Someone else's page shared with the caller to edit: no class / lecture links into the owner's account.
+  const owner = await Admin.findById(page.userId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
+  res.json({
+    ...pageDto(page),
+    classId: null,
+    itemId: null,
+    lectureId: null,
+    moduleId: null,
+    lecture: null,
+    markdown: page.ocrText ?? null,
+    shared: { role: "editor", ownerName: displayName(owner) },
+  });
 });
 
 export const createPage = wrap(async (req, res) => {
@@ -190,8 +225,9 @@ export const patchPage = wrap(async (req, res) => {
 
 /** `{url, version, expiresAt}`; before the first commit `{url:null, version:0, expiresAt:null}`. */
 export const getPageContent = wrap(async (req, res) => {
-  const page = await ownPage(req, res);
-  if (!page) return;
+  const found = await editablePage(req, res);
+  if (!found) return;
+  const { page } = found;
   if (!page.version || !page.contentKey) return res.json({ url: null, version: 0, expiresAt: null });
   const { url, expiresAt } = await signedGetUrl(page.contentKey, { contentType: "application/json" });
   res.json({ url, version: page.version, expiresAt });
@@ -202,8 +238,9 @@ const intOf = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v
 export const putPageContent = wrap(async (req, res) => {
   const baseVersion = intOf(req.body?.baseVersion);
   if (baseVersion === null) return fail(res, 400, "VALIDATION_ERROR", "baseVersion must be a non-negative integer");
-  const page = await ownPage(req, res);
-  if (!page) return;
+  const found = await editablePage(req, res);
+  if (!found) return;
+  const { page } = found;
   if (baseVersion !== page.version)
     return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
   const version = page.version + 1;
@@ -211,26 +248,40 @@ export const putPageContent = wrap(async (req, res) => {
   res.json({ uploadUrl: url, version, expiresAt });
 });
 
-/** Compare-and-set on the version: two racing commits of the same version → exactly one wins (null = lost). */
-const casCommit = (page: IStudyPage, version: number, key: string) =>
-  StudyPage.findOneAndUpdate(
+/** Who is writing: the editor, else the owner (looked up for the name). */
+const authorOf = async (req: Request, editor: NamedCaller | null) => editor ?? (await loadCaller(req.adminId));
+
+/**
+ * Compare-and-set on the version: two racing commits of the same version → exactly one wins (null =
+ * lost). The same update records the author (editedBy + one versionLog entry, newest last, capped).
+ */
+const casCommit = (page: IStudyPage, version: number, key: string, author: NamedCaller | null, restoredFrom: number | null = null) => {
+  const at = new Date();
+  return StudyPage.findOneAndUpdate(
     { _id: page._id, userId: page.userId, deletedAt: null, version: version - 1 },
-    { $set: { version, contentKey: key, updatedAt: new Date() } },
+    {
+      $set: { version, contentKey: key, updatedAt: at, ...(author ? { editedBy: editedByOf(author) } : {}) },
+      ...(author
+        ? { $push: { versionLog: { $each: [{ version, userId: author.userId, name: author.name, at, restoredFrom }], $slice: -PAGE_VERSION_LOG_MAX } } }
+        : {}),
+    },
     { new: true, projection: PAGE_PROJECTION, timestamps: false }
   ).lean<IStudyPage>();
+};
 
 export const commitPageContent = wrap(async (req, res) => {
   const version = intOf(req.body?.version);
   if (!version) return fail(res, 400, "VALIDATION_ERROR", "version must be a positive integer");
-  const page = await ownPage(req, res);
-  if (!page) return;
+  const found = await editablePage(req, res);
+  if (!found) return;
+  const { page, editor } = found;
   const stale = () =>
     res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
   if (version !== page.version + 1) return stale();
   const key = pageContentKey(String(page.userId), String(page._id), version);
   if (!(await studyObjectExists(key)))
     return res.status(409).json({ message: "The upload for this version was not found — PUT the content first", code: "UPLOAD_MISSING", currentVersion: page.version });
-  const updated = await casCommit(page, version, key);
+  const updated = await casCommit(page, version, key, await authorOf(req, editor));
   if (!updated) return stale();
   res.json(pageDto(updated));
 });
@@ -244,8 +295,9 @@ export const putPageBlob = wrap(async (req, res) => {
   const raw = req.query.baseVersion;
   const baseVersion = typeof raw === "string" && /^\d{1,15}$/.test(raw) ? Number(raw) : null;
   if (baseVersion === null) return fail(res, 400, "VALIDATION_ERROR", "baseVersion must be a non-negative integer");
-  const page = await ownPage(req, res);
-  if (!page) return;
+  const found = await editablePage(req, res);
+  if (!found) return;
+  const { page, editor } = found;
   const body: unknown = req.body;
   if (!Buffer.isBuffer(body) || body.length === 0) return fail(res, 400, "EMPTY_BODY", "Request body is empty");
   try {
@@ -259,7 +311,7 @@ export const putPageBlob = wrap(async (req, res) => {
   const version = page.version + 1;
   const key = pageContentKey(String(page.userId), String(page._id), version);
   await putStudyObject(key, body, "application/json");
-  const updated = await casCommit(page, version, key);
+  const updated = await casCommit(page, version, key, await authorOf(req, editor));
   if (!updated) return stale(page.version);
   const { expiresAt } = await signedGetUrl(key, { contentType: "application/json" });
   res.json({ version, expiresAt });
@@ -276,11 +328,69 @@ export const deletePage = wrap(async (req, res) => {
 export const putPageOcr = wrap(async (req, res) => {
   const text = req.body?.text;
   if (typeof text !== "string" || text.length > MAX_OCR_CHARS) return fail(res, 400, "VALIDATION_ERROR", `text must be a string (max ${MAX_OCR_CHARS} chars)`);
-  const page = await ownPage(req, res);
-  if (!page) return;
+  const found = await editablePage(req, res);
+  if (!found) return;
+  const { page } = found;
   // OCR is metadata: it must not move `updatedAt`, which means "content changed".
   await StudyPage.updateOne({ _id: page._id, userId: page.userId }, { $set: { ocrText: text.trim() || null, ocrUpdatedAt: new Date() } }, { timestamps: false });
   res.status(204).end();
+});
+
+// ─── earlier versions (owner only) ──────────────────────────────────────────────────────
+
+export const VERSIONS_PAGE = 30;
+
+/**
+ * `GET /pages/:id/versions?before=N` → `{current, items: [{version, by, at, restoredFrom}], next}`:
+ * the newest VERSIONS_PAGE versions below `before` (default: all up to the current one), newest
+ * first. `by` / `at` come from the version log (null for versions written before it existed, or by
+ * the AI drawing tools). `next` = the `before` for the following page, or null.
+ */
+export const listPageVersions = wrap(async (req, res) => {
+  if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid page id");
+  const page = await StudyPage.findOne({ _id: req.params.id, userId: uid(req), deletedAt: null }, { version: 1, versionLog: 1, userId: 1 }).lean<IStudyPage>();
+  if (!page) return fail(res, 404, "NOT_FOUND", "Page not found");
+  const raw = req.query.before;
+  const before = typeof raw === "string" && /^\d{1,9}$/.test(raw) ? Math.min(Number(raw), page.version + 1) : page.version + 1;
+  const log = new Map((page.versionLog ?? []).map((e) => [e.version, e]));
+  const items = [];
+  for (let v = before - 1; v >= 1 && items.length < VERSIONS_PAGE; v--) {
+    const e = log.get(v);
+    items.push({
+      version: v,
+      by: e ? { name: e.name || "Someone", isOwner: String(e.userId) === String(page.userId) } : null,
+      at: e ? new Date(e.at).toISOString() : null,
+      restoredFrom: e?.restoredFrom ?? null,
+    });
+  }
+  const last = items[items.length - 1]?.version ?? 1;
+  res.json({ current: page.version, items, next: last > 1 ? last : null });
+});
+
+/**
+ * `POST /pages/:id/versions/:version/restore {baseVersion}` → the Page DTO. Owner only. Copies the
+ * stored board of `version` into a NEW version (nothing is overwritten, so the page as it was stays
+ * an earlier version too). 409 STALE_VERSION when `baseVersion` is not the current version; 404 when
+ * that version is no longer stored.
+ */
+export const restorePageVersion = wrap(async (req, res) => {
+  const target = Number(req.params.version);
+  const baseVersion = intOf(req.body?.baseVersion);
+  if (!Number.isInteger(target) || target < 1) return fail(res, 400, "VALIDATION_ERROR", "version must be a positive integer");
+  if (baseVersion === null) return fail(res, 400, "VALIDATION_ERROR", "baseVersion must be a non-negative integer");
+  const page = await ownPage(req, res);
+  if (!page) return;
+  if (baseVersion !== page.version)
+    return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
+  if (target >= page.version) return fail(res, 400, "VALIDATION_ERROR", "Pick an earlier version");
+  const from = pageContentKey(String(page.userId), String(page._id), target);
+  if (!(await studyObjectExists(from))) return fail(res, 404, "NOT_FOUND", "That version is no longer stored");
+  const version = page.version + 1;
+  const key = pageContentKey(String(page.userId), String(page._id), version);
+  await putStudyObject(key, await getStudyObject(from), "application/json");
+  const updated = await casCommit(page, version, key, await loadCaller(req.adminId), target);
+  if (!updated) return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
+  res.json(pageDto(updated));
 });
 
 // ─── search ─────────────────────────────────────────────────────────────────────────────

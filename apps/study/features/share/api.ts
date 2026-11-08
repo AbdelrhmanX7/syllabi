@@ -1,5 +1,6 @@
 // Sharing endpoints (`/share`, live when it is in LIVE_ROUTES, else features/share/mock.ts) + query hooks.
-import type { ForkRecord, ForkResult, Share, SharedView, SharedWithMeItem, ShareResourceType, ShareTarget } from './types';
+import type { ForkRecord, ForkResult, Share, SharedView, SharedWithMeItem, ShareResourceType, ShareRole, ShareTarget } from './types';
+import type { Question } from '@/lib/api/types';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -12,7 +13,12 @@ const refQuery = (t: Pick<ShareTarget, 'resourceType' | 'resourceId' | 'topic'>)
   `resourceType=${enc(t.resourceType)}&resourceId=${enc(t.resourceId)}${t.topic ? `&topic=${enc(t.topic)}` : ''}`;
 
 export const getMyShare = (t: ShareTarget) => studyGet<{ share: Share | null }>(`/share/mine?${refQuery(t)}`);
-export const createShare = (t: ShareTarget, body: { emails?: string[]; link?: boolean }) =>
+export interface PersonRole {
+  email: string;
+  role: ShareRole;
+}
+
+export const createShare = (t: ShareTarget, body: { emails?: string[]; role?: ShareRole; link?: boolean }) =>
   studyPost<{ share: Share }>('/share', {
     resourceType: t.resourceType,
     resourceId: t.resourceId,
@@ -21,7 +27,10 @@ export const createShare = (t: ShareTarget, body: { emails?: string[]; link?: bo
     title: t.title,
     ...body,
   });
-export const patchShare = (id: string, body: { addEmails?: string[]; removeEmails?: string[]; link?: boolean }) =>
+export const patchShare = (
+  id: string,
+  body: { addEmails?: string[]; role?: ShareRole; removeEmails?: string[]; roles?: PersonRole[]; link?: boolean },
+) =>
   studyPatch<{ share: Share }>(`/share/${enc(id)}`, body);
 export const deleteShare = (id: string) => studyDelete(`/share/${enc(id)}`);
 export const listSharedWithMe = () => studyGet<{ items: SharedWithMeItem[] }>('/share/with-me');
@@ -53,22 +62,26 @@ export function useShareMutations(target: ShareTarget) {
   const key = shareKeys.mine(target);
   const put = (share: Share | null) => client.setQueryData(key, share);
 
-  /** Add people / toggle the link: creates the share on first use. */
+  /** Add people (with `role`) / change roles / remove / toggle the link: creates the share on first use. */
   const update = useMutation({
     mutationFn: async ({
       current,
       addEmails,
+      role,
       removeEmails,
+      roles,
       link,
     }: {
       current: Share | null | undefined;
       addEmails?: string[];
+      role?: ShareRole;
       removeEmails?: string[];
+      roles?: PersonRole[];
       link?: boolean;
     }) =>
       current
-        ? (await patchShare(current.id, { addEmails, removeEmails, link })).share
-        : (await createShare(target, { emails: addEmails, link })).share,
+        ? (await patchShare(current.id, { addEmails, role, removeEmails, roles, link })).share
+        : (await createShare(target, { emails: addEmails, role, link })).share,
     onSuccess: put,
   });
   const stop = useMutation({
@@ -153,3 +166,41 @@ export function forkHref(result: ForkResult): string {
       return `/concept-maps/?classId=${enc(result.classId ?? '')}&map=${enc(result.resourceId)}`;
   }
 }
+
+/* ------------------------------------------------------------------ editing the original (Can edit) */
+
+// Editors write through the normal study routes with the owner's ids; the server checks the share.
+export const patchSharedQuestion = (id: string, patch: { stem?: string; answer?: string }) =>
+  studyPatch<Question>(`/questions/${enc(id)}`, patch);
+export const deleteSharedQuestion = (id: string) => studyDelete(`/questions/${enc(id)}`);
+export const addSharedQuestion = (q: { classId: string; topic: string; stem: string; answer: string; tags: string[] }) =>
+  studyPost<Question[]>('/questions', { questions: [{ ...q, type: 'free' }] });
+export const patchSharedMapTerms = (id: string, promptTerms: string[]) =>
+  studyPatch<{ id: string; promptTerms: string[] }>(`/concept-maps/${enc(id)}`, { promptTerms });
+
+/** After an edit: refresh the shared view and the "Shared with me" list. */
+export function useSharedEdit<TArgs, TResult>(shareId: string, fn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: shareKeys.view(shareId) });
+      void client.invalidateQueries({ queryKey: shareKeys.withMe });
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ earlier versions of a notebook page (owner) */
+
+export interface PageVersion {
+  version: number;
+  by: { name: string; isOwner: boolean } | null;
+  at: string | null;
+  restoredFrom: number | null;
+}
+
+export const listPageVersions = (pageId: string) =>
+  studyGet<{ current: number; items: PageVersion[]; next: number | null }>(`/pages/${enc(pageId)}/versions`);
+export const restorePageVersion = (pageId: string, version: number, baseVersion: number) =>
+  studyPost<{ version: number }>(`/pages/${enc(pageId)}/versions/${version}/restore`, { baseVersion });
