@@ -1,0 +1,30 @@
+{
+  "name": "@repo/whiteboard-core",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./id": "./src/id.ts",
+    "./storage/indexeddb": "./src/storage/indexeddb.ts",
+    "./defaults": "./src/defaults.ts",
+    "./page-operations": "./src/page-operations.ts",
+    "./image-page-background": "./src/image-page-background.ts",
+    "./import-file-kinds": "./src/import-file-kinds.ts",
+    "./olf-import": "./src/olf-import.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "tsx": "4.22.4",
+    "typescript": "5.6.3"
+  }
+}

@@ -1,0 +1,117 @@
+# Syllabi self-hosted stack: API + MongoDB (single-node replica set) + Redis + MinIO.
+#
+#   cd apps/server
+#   cp .env.example .env      # set JWT_SECRET, MINIO_ROOT_PASSWORD, owner + AI keys
+#   docker compose up -d --build
+#
+# Only the API is published, and only on 127.0.0.1:5000. MongoDB, Redis and MinIO have NO
+# published ports: they are reachable only on the internal compose network. To use the server
+# from a tablet, put a reverse proxy with TLS in front of 127.0.0.1:5000 and set PUBLIC_BASE_URL.
+#
+# Values under `environment:` override the same names from .env, so the container always talks
+# to the bundled services. MinIO stays private: the API streams files through itself
+# (STORAGE_PROXY=true), so the bucket never needs a public url or CORS.
+name: syllabi
+
+services:
+  server:
+    build:
+      context: ../..
+      dockerfile: apps/server/Dockerfile
+      target: runtime
+    image: syllabi-server:local
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: "5000"
+      NODE_ENV: production
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5000}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in apps/server/.env}
+      MONGODB_URI: mongodb://mongo:27017/syllabi?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: s3
+      STORAGE_PROXY: "true"
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET:-syllabi}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-syllabi}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in apps/server/.env}
+      S3_FORCE_PATH_STYLE: "true"
+      S3_PRESIGN_ENDPOINT: ""
+      S3_PUBLIC_URL: ""
+      S3_PUBLIC_BASE_URL: ""
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    ports:
+      - "127.0.0.1:5000:5000"
+    # Chromium (page renders, lecture PDFs) needs more than docker's 64 MB default /dev/shm.
+    shm_size: 1gb
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-data:/data/db
+    # Transactions need a replica set; this initiates a single-node one on first start.
+    # The member host is the compose service name, so the API can resolve it.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }" | grep -q 1
+      interval: 5s
+      timeout: 10s
+      start_period: 20s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-syllabi}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in apps/server/.env}
+    volumes:
+      - minio-data:/data
+
+  # One-shot: wait for MinIO, then create the (private) bucket if it does not exist.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-syllabi}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in apps/server/.env}
+      S3_BUCKET: ${S3_BUCKET:-syllabi}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        for i in $$(seq 1 60); do
+          mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1 && break;
+          sleep 1;
+        done &&
+        mc mb --ignore-existing "local/$$S3_BUCKET" &&
+        mc anonymous set none "local/$$S3_BUCKET"
+
+volumes:
+  mongo-data:
+  redis-data:
+  minio-data:

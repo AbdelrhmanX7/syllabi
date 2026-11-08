@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in Syllabi doesn't work or looks wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Calendar
+        2. Switch to Month
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Android app (APK)
+        - Web app
+        - Self-hosted server
+        - Landing page (syllabi.studio)
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: e.g. Galaxy Tab A7, Android 12, WebView 103 / Chrome 120 on macOS
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Data source
+      options:
+        - Demo mode (no server)
+        - My own server
+        - Not sure
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, logs or anything else
+      description: Please remove personal data (names, grades, course details) before posting.

@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "plugins": [{ "name": "next" }],
+    "types": ["node", "react", "react-dom"],
+    "paths": {
+      "@/*": ["./*"],
+      "@repo/auth": ["../../packages/auth/src"],
+      "@repo/auth/*": ["../../packages/auth/src/*"],
+      "@repo/ui": ["../../packages/ui/src"],
+      "@repo/ui/*": ["../../packages/ui/src/*"],
+      "@repo/utils": ["../../packages/utils/src"],
+      "@repo/utils/*": ["../../packages/utils/src/*"],
+      "@repo/whiteboard-core": ["../../packages/whiteboard-core/src"],
+      "@repo/whiteboard-core/*": ["../../packages/whiteboard-core/src/*"],
+      "@repo/whiteboard-react": ["../../packages/whiteboard-react/src"],
+      "@repo/whiteboard-react/*": ["../../packages/whiteboard-react/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "src-tauri", "out", "android-dist"]
+}

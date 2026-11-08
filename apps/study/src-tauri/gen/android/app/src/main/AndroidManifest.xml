@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Lecture recording is `getUserMedia({audio})` inside the WebView. wry's WebChromeClient turns
+         the page's AUDIO_CAPTURE request into a runtime request for these two, so they only have to be
+         declared here. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- navigator.vibrate(): the short tick when an S Pen button gesture fires (normal permission). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- In-app update (AppUpdater.kt): hand the downloaded APK to the system installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- A Galaxy Tab with an S Pen is the target device; nothing is a hard requirement so the APK
+         still installs on an emulator. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.study"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- sensorLandscape: the tablet is used in landscape with the pen; it may be flipped either way
+             but never rotates into portrait mid-stroke. orientation|screenSize are in configChanges so
+             a flip never recreates the activity (the WebView keeps the live board). -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:screenOrientation="sensorLandscape"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Share target: photos and PDFs from Gallery, Files, screenshots or a Quick Share
+                 arrival. ShareReceiver.kt copies them into the cache; the page shows «Shared to Study». -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+        <!-- The installer reads the downloaded update from the app cache through this provider. -->
+        <provider
+            android:name=".UpdateFileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+    </application>
+</manifest>

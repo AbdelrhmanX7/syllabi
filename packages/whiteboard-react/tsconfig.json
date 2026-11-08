@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // Pin the global type libraries: tsc otherwise auto-includes every package
+    // under node_modules/@types, and @types/minimatch is a deprecated STUB with
+    // no .d.ts. That fails as TS2688 during config resolution, before any
+    // checking runs — so `tsc --noEmit` reported one unrelated-looking error and
+    // zero type errors while checking nothing at all.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

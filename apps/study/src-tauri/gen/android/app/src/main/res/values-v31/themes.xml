@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.study" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Shown until the WebView paints: the launcher mark on the accent colour (drawable/splash.xml). -->
+        <item name="android:windowBackground">@drawable/splash</item>
+        <!-- Android 12+ system splash: same colour and mark as the launcher icon. -->
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+    </style>
+</resources>

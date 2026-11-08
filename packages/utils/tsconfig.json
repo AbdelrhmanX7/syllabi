@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // `rootDir` is gone rather than widened: the base config sets `noEmit`, so
+    // it never produced a `dist/` to constrain, and leaving it at `./src` would
+    // reject `tests/` the moment they joined `include`.
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules"]
+}

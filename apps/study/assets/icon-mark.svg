@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Study's mark: an open notebook with a spark. Drawn on a 108dp adaptive-icon canvas, kept inside
+       the 66dp safe zone (21..87) so Android's masks never clip it. Transparent; the background is the
+       accent blue (#2563EB) set by scripts/gen-icons.mjs. -->
+  <!-- left page -->
+  <path d="M53 42 C 46.5 36.8, 37.5 35.6, 28 37.2 L 28 72.6 C 37.5 71, 46.5 72.2, 53 77.4 Z" fill="#FFFFFF"/>
+  <!-- right page (a touch of tint so the two pages read as two) -->
+  <path d="M55 42 C 61.5 36.8, 70.5 35.6, 80 37.2 L 80 72.6 C 70.5 71, 61.5 72.2, 55 77.4 Z" fill="#DBEAFE"/>
+  <!-- rules on the pages -->
+  <g stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" fill="none">
+    <path d="M34 47.5 L 46.5 49.5"/>
+    <path d="M34 54.5 L 46.5 56.5"/>
+    <path d="M34 61.5 L 46.5 63.5"/>
+    <path d="M61.5 49.5 L 74 47.5"/>
+    <path d="M61.5 56.5 L 74 54.5"/>
+    <path d="M61.5 63.5 L 74 61.5"/>
+  </g>
+  <!-- spark -->
+  <path d="M77 20.5 L 79.9 28.1 L 87.5 31 L 79.9 33.9 L 77 41.5 L 74.1 33.9 L 66.5 31 L 74.1 28.1 Z" fill="#FDE047"/>
+</svg>

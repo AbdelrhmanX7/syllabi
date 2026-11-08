@@ -1,0 +1,19 @@
+# OPT-IN: enable the C++ code runner. READ THE README "Code runner" SECTION FIRST.
+#
+#   DOCKER_GID=$(stat -c %g /var/run/docker.sock) \
+#     docker compose -f docker-compose.yml -f docker-compose.code-exec.yml up -d --build
+#
+# This mounts the host's docker socket into the API container. Anything that can talk to that
+# socket can start privileged containers and mount the host filesystem, i.e. it is root on the
+# host. Every signed-in user can submit code. Only use this on a machine you are willing to
+# trust to that, with a strong owner password.
+services:
+  server:
+    build:
+      target: runtime-code
+    environment:
+      CODE_EXEC_ENABLED: "true"
+    group_add:
+      - ${DOCKER_GID:?set DOCKER_GID to the group id of /var/run/docker.sock}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Syllabi",
+  "version": "0.1.0",
+  "identifier": "studio.syllabi.app",
+  "build": {
+    "beforeDevCommand": "ANDROID_BUILD=1 node ./node_modules/.bin/next dev --port 3016 --webpack",
+    "devUrl": "http://localhost:3016",
+    "beforeBuildCommand": "node scripts/android-export.mjs",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Syllabi",
+        "fullscreen": true,
+        "decorations": false,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": false,
+    "targets": [],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

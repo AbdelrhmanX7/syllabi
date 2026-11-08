@@ -1,0 +1,1182 @@
+/* da-v2 design system — Scrapbook (Direction B) primitive styles.
+ * SOURCE OF TRUTH. Apps must import from `@repo/ui/styles/scrapbook.css`.
+ * Do not maintain a copy under apps/* — change tokens here and they propagate.
+ *
+ * IBM Plex Sans (the "IBM Plex Sans Arabic" family, full Latin set) is the body face.
+ * Caveat handwritten accents are loaded per-app — NOT here, because a Google Fonts
+ * @import is render-blocking on every app that consumes the design system.
+ */
+
+/* ============================================================
+   Tokens — exposed at :root so any descendant can read them.
+   The legacy `.sk` scope below mirrors the same values for
+   apps that wrap a region with `<div className="sk">`.
+   ============================================================ */
+:root {
+  --ink: #18204a;
+  --paper: #fbfaf6;
+  --paper-2: #f1eee4;
+  --p: #2f5bea;
+  --p-light: #6e8cff;
+  --p-dark: #2349c9;
+  --citrine: #ffc93c;
+  --pink: #ec4899;
+  --b: #006fee;
+  --g: #22c55e; /* L* 70.2 / chroma 73.7; ink label 8.34:1 */
+  --amber: #f59e0b;
+  --red: #e11d48;
+
+  --pink-soft: #fda4af;
+  --blue-soft: #93c5fd;
+  --green-soft: #86efac;
+  --amber-soft: #fcd34d;
+  --primary-soft: #e3e9fd;
+  --default-soft: #ffffff;
+  /* Danger's soft fill used to borrow --pink-soft. Pink and red are different
+     families, and in dark the shared token forced danger into a desaturated
+     maroon. Split them: in LIGHT this is byte-identical to the old --pink-soft
+     (#fda4af), so nothing moves; in dark it becomes a real red (see below). */
+  --red-soft: #fda4af;
+
+  /* Brand-as-FOREGROUND. A brand color has to be dark enough to carry white
+     text when it's a solid fill, which makes it too dark to BE text on a dark
+     page (#2f5bea on the dark canvas is 2.7:1 — below AA). So a brand used as
+     a label/icon/outline-button text takes these instead: identical to the
+     brand in light mode, lightened just enough to clear 4.5:1 in dark. The
+     solid fills keep the true brand color — only the foreground shifts. */
+  /* These were originally set identical to the brand fills, on the assumption
+     that a light-mode brand color is always safe as text. It isn't: on the cream
+     paper (#fbfaf6) the fills measure green 2.49:1, amber 2.11:1, pink 3.46:1 —
+     all below AA. Darkened just enough to clear 4.5:1 while staying on-hue. The
+     solid fills (--g, --amber, --pink) are unchanged; only the foreground moves. */
+  /* SEMANTIC secondary, kept separate from --b (literal blue). Identical in
+     this palette, but --b also paints `sk-blue` decoration, which must stay
+     blue when the brand no longer is. Defined by indirection so the dark block
+     only has to move --b / --blue-soft / --b-text once. */
+  --s: var(--b);
+  --s-soft: var(--blue-soft);
+  --s-text: var(--b-text);
+
+  /* Foreground for text on the SOLID brand fills. Was a literal '#ffffff' in
+     tokens.ts, which is right for purple (7.15:1) and wrong for any palette
+     whose brand is light — an amber brand takes white to 1.99:1. Moves with
+     the fill. */
+  --p-fg: #ffffff;
+  --s-fg: #ffffff;
+
+  /* Focus ring — TWO layers, because a single citrine outline is invisible.
+     Measured: citrine on paper is 1.29:1, and on
+     --surface-3 only 1.09:1, against the 3:1 WCAG 2.2 SC 2.4.11 requires.
+     Button already shipped the two-layer form and passes; Link, Snippet and
+     every .sk-input used the bare outline and did not. The EDGE carries the
+     contrast (18.65:1 on paper, 14.28:1 on white); citrine carries the
+     identity. Do NOT collapse this to one colour, and do NOT repurpose
+     --citrine — it is also the chip fill, the highlight and a tape colour.
+
+     Deliberately NOT inverted in dark. The tempting argument is that the edge
+     (#18204a) is only 1.07:1 against the dark page — but the edge is not
+     ADJACENT to the page: the stacking is element | 2px edge | 3px citrine |
+     page, so it is the citrine that touches the page, at 13.49:1 (measured).
+     Inverting the edge in dark would also make .sk-input draw a cream band
+     where Button/Link/Snippet draw a dark one — same interaction, two looks. */
+  --focus-ring: var(--citrine);
+  --focus-ring-edge: var(--line-on-brand);
+  --focus-ring-shadow: 0 0 0 2px var(--focus-ring-edge), 0 0 0 5px var(--focus-ring);
+
+  --p-text: #2f5bea; /* 7.02:1 on paper */
+  --b-text: #006fee; /* 4.57:1 */
+  --g-text: #047857; /* was #10b981 (2.49:1) → 5.93:1 */
+  --amber-text: #b45309; /* was #f59e0b (2.11:1) → 5.06:1 */
+  --red-text: #e11d48; /* 4.61:1 */
+  --pink-text: #be185d; /* was #ec4899 (3.46:1) → 6.05:1 */
+
+  /* ---- Role tokens ------------------------------------------------------
+     `--ink` used to do three jobs at once: text, border, and hard-shadow.
+     A theme flip that is correct for text is wrong for the other two — a
+     cream border reads as neon wireframe and a cream shadow reads as a light
+     leak (a shadow is the ABSENCE of light; it must stay dark in both themes).
+     So the three roles are separate tokens. Never draw a border with --ink or
+     cast a hard shadow with --ink; use --line and --shadow-c. */
+
+  /* Border / drawn outline. The scrapbook's 2.5px stroke. */
+  --line: #18204a;
+  --line-strong: #18204a;
+  /* Hairline dividers, subtle internal rules. */
+  --line-soft: rgba(24, 32, 74, 0.12);
+
+  /* Outline drawn AROUND a brand-CONSTANT fill (solid purple/orange/red button,
+     citrine chip). Sibling of --ink-const: the fill doesn't flip, so its outline
+     must not flip either. Drawing one with the themed --line is what put a dim
+     lavender (#4a4f7d) halo around the purple button in dark — 1.09:1 against
+     its own fill, so it read as a smudge rather than an ink line. Constant
+     #18204a is 2.66:1 against that same purple and is IDENTICAL to the light
+     value of --line, so light mode does not move. */
+  --line-on-brand: #18204a;
+
+  /* Hard offset shadow color. Stays dark in BOTH themes. */
+  --shadow-c: #18204a;
+
+  /* Ink that never flips — for text/marks sitting on a brand-constant fill
+     (citrine, purple, solid brand buttons). Those fills stay put across
+     themes, so their foreground must stay put too. */
+  --ink-const: #18204a;
+
+  /* Muted / secondary text. */
+  --ink-muted: rgba(24, 32, 74, 0.62);
+
+  /* ---- Surface ladder ---------------------------------------------------
+     Elevation as luminance. Each step is a perceptible move, so a card reads
+     as raised off the page instead of dissolving into it. */
+  --surface-0: #fbfaf6; /* page / desk */
+  --surface-1: #ffffff; /* card — raised paper */
+  --surface-2: #ffffff; /* popover, menu, tooltip — above the card */
+  --surface-3: #f1eee4; /* hover / pressed / highest */
+
+  /* RGB triplets — consumed by the Tailwind preset as
+     `rgb(var(--ink-rgb) / <alpha-value>)` so slash opacity modifiers
+     (text-ink/65, border-ink/20, text-paper/60, …) actually compile.
+     MUST stay in sync with the hex tokens above (light AND dark). */
+  --ink-rgb: 24 32 74; /* #18204a */
+  --paper-rgb: 251 250 246; /* #fbfaf6 */
+  --paper-2-rgb: 241 238 228; /* #f1eee4 */
+  --citrine-rgb: 255 201 60; /* #ffc93c */
+  --line-rgb: 24 32 74; /* #18204a */
+  --line-strong-rgb: 24 32 74; /* #18204a */
+  --ink-const-rgb: 24 32 74; /* #18204a — never flips, see --ink-const */
+  --line-on-brand-rgb: 24 32 74; /* #18204a — never flips, see --line-on-brand */
+
+  /* Dot color for halftone canvas. Theme-aware. Kept subtle in light mode
+     (paper is already textured-feeling); a touch more visible in dark mode
+     where the deep navy needs more contrast to read as "paper" not "void". */
+  --sk-dot: rgba(24, 32, 74, 0.1);
+
+  /* Card surface — pure white in light mode so cards pop on cream page bg.
+     In dark mode it shifts to a slightly lighter navy than the page so cards
+     read as "raised paper" instead of blending into the void. */
+  --card-bg: #ffffff;
+
+  /* Soft paper-sheet shadow — natural blur, no offset. Reads as "paper on a
+     desk" not "stamp pasted on". Theme-aware so dark mode gets a deeper
+     opacity to compensate for the ambient darkness. */
+  --card-shadow:
+    0 1px 2px rgba(24, 32, 74, 0.05), 0 6px 18px rgba(24, 32, 74, 0.07), 0 14px 40px rgba(24, 32, 74, 0.06);
+  --card-shadow-h:
+    0 2px 4px rgba(24, 32, 74, 0.06), 0 10px 24px rgba(24, 32, 74, 0.09), 0 22px 50px rgba(24, 32, 74, 0.08);
+
+  /* Hairline edge — barely visible in light, more visible in dark. */
+  --card-edge: rgba(24, 32, 74, 0.1);
+}
+
+/* The `--sk-*` aliases are declared at :root (not only inside `.sk`) because
+   legacy component CSS reads them as `var(--sk-ink, #18204a)`. Scoped to `.sk`
+   alone they were UNDEFINED on any page that didn't wrap content in a `.sk`
+   element, so every such call silently fell back to the hard-coded light-mode
+   hex — which is why borders and shadows stayed navy in dark mode and vanished.
+   Declared here they inherit, and the dark block below flips them once. */
+:root,
+.sk {
+  --sk-p: var(--p);
+  --sk-p3: var(--p-dark);
+  --sk-ink: var(--ink);
+  --sk-paper: var(--paper);
+  --sk-paper2: var(--paper-2);
+  --sk-citrine: var(--citrine);
+  --sk-pink: var(--pink);
+  --sk-blue: var(--b);
+  --sk-green: var(--g);
+  --sk-amber: var(--amber);
+  --sk-red: var(--red);
+
+  --sk-pink-soft: var(--pink-soft);
+  --sk-blue-soft: var(--blue-soft);
+  --sk-green-soft: var(--green-soft);
+  --sk-amber-soft: var(--amber-soft);
+}
+
+/* ============================================================
+   Dark theme.
+
+   NOT a straight ink<->paper polarity swap. The scrapbook's identity is
+   paper + a drawn ink outline + a hard cast shadow, and two of those three
+   break under a naive flip:
+     - a cream BORDER reads as a neon wireframe, not a drawn line;
+     - a cream SHADOW reads as a light leak — physically backwards, since a
+       shadow is the absence of light.
+   So in dark mode: text flips to cream, the outline becomes a *dimmed*
+   lavender-navy line, and the hard shadow stays DARK (deeper than the page).
+   The metaphor is chalk on a dark desk, not a photo negative.
+
+   Brand colors (purple/citrine/blue/green/amber/red) stay constant — identity
+   is not a theme.
+   Activated by `.dark` (next-themes default), `.da-dark`, or
+   `[data-theme="dark"]`.
+   ============================================================ */
+.dark,
+.da-dark,
+[data-theme='dark'],
+.starlight,
+[data-theme='starlight'] {
+  --ink: #f1eee4; /* text flips to a creamy off-white (chalk) */
+
+  /* ---- Warning: amber -> ORANGE in dark -------------------------------------
+     Amber (#f59e0b) is a yellow. Yellow only survives on a dark page by going
+     dark itself, and a dark yellow is olive — which is exactly what the flat
+     warning fill was (#4a3815, 56% sat: mud). Orange holds its identity at low
+     lightness, so the warning family rotates ~13deg of hue in dark. Light mode
+     keeps amber untouched. This is a chroma/hue tune for the medium, not a new
+     brand color.
+       solid #fb923c + --ink-const #18204a  = 8.39:1  (AAA)
+       flat  #6b2f0d + --ink     #f1eee4    = 9.13:1  (AAA), 1.90:1 vs page
+       text  #fdba74 on page #0f1430        = 11.59:1 (AAA) */
+  --amber: #fb923c;
+  --amber-soft: #6b2f0d; /* was #4a3815 olive mud — now 78% sat, reads orange */
+
+  /* ---- Danger: a real red, not maroon ---------------------------------------
+     The flat danger fill borrowed --pink-soft (#4a1f2c, 41% sat) -> dark maroon.
+     A first pass at #701528 was still maroon, and the reason is instructive: at
+     luminance 0.041 it was spending almost none of its budget. A cream label
+     only needs the fill to stay under luminance 0.154 to clear AA, so there was
+     2.4x of headroom going unused. RED goes muddy at low lightness much faster
+     than orange does (which is why --amber-soft survives at lum 0.052 and this
+     did not), so danger legitimately needs to sit lighter.
+       flat #b01236 — lum 0.099, 81% sat (was 68%)
+         + --ink #f1eee4 = 6.23:1 (AA), 2.78:1 vs page (was 1.70:1)
+     The SOLID fill deliberately stays #e11d48: it carries white at 4.70:1 (AA).
+     Brightening it (e.g. #f43f5e) drops white to 3.67:1 and FAILS AA, so the
+     "more saturated" ask is paid out in the soft fill and the text token, which
+     sit on dark surfaces and can afford the extra chroma.
+       text #ff8494 on page #0f1430 = 8.36:1 (AAA) */
+  --red-soft: #b01236;
+  /* --paper is the PAPER SURFACE (what a Card paints with — `bg-paper` is the
+     background of ~29 components), NOT the page. The page is the HeroUI
+     `background` token = --surface-0. So paper sits one rung ABOVE the page,
+     which is what makes a card read as raised. Point it at the page rung and
+     every card dissolves into the canvas. */
+  --paper: #141a3b; /* --surface-1 — raised paper */
+  --paper-2: #222b5c; /* --surface-2 */
+  /* Brand colors unchanged on purpose: identity ≠ theme. */
+
+  /* RGB triplets flip with their hex twins (citrine stays brand-constant). */
+  --ink-rgb: 241 238 228; /* #f1eee4 */
+  --paper-rgb: 20 26 59; /* #141a3b */
+  --paper-2-rgb: 34 43 92; /* #222b5c */
+
+  /* Outline: visible enough to define an edge at 2.5px, dim enough that a
+     page full of bordered controls doesn't read as glowing wireframe. */
+  --line: #4a4f7d;
+  --line-strong: #6e74ab;
+  --line-soft: rgba(241, 238, 228, 0.12);
+  --line-rgb: 74 79 125; /* #4a4f7d */
+  --line-strong-rgb: 110 116 171; /* #6e74ab */
+
+  /* Hard shadow stays dark — deeper than --surface-0 so the offset still
+     reads as a cast shadow against every rung of the ladder. */
+  --shadow-c: #0a0e24;
+
+  /* --ink-const is intentionally NOT redefined: text on citrine/brand fills
+     must stay dark in both themes. */
+
+  --ink-muted: rgba(241, 238, 228, 0.6);
+
+  /* Surface ladder — each rung a perceptible step lighter, tinted toward the
+     brand's indigo so the neutrals never read as dead gray. */
+  --surface-0: #0f1430;
+  --surface-1: #141a3b;
+  --surface-2: #222b5c;
+  --surface-3: #2d376e;
+
+  /* Soft fills — desaturated dark equivalents so chip/alert tints
+     still read against a dark page. (--amber-soft and --red-soft are set
+     above with the warning/danger families.) */
+  --pink-soft: #4a1f2c; /* pink chips only — danger now uses --red-soft */
+  --blue-soft: #1a2f4f;
+  --green-soft: #0f3a2c;
+  --primary-soft: #2d376e;
+  --default-soft: #222b5c;
+
+  /* Brand-as-foreground, lightened to clear 4.5:1 on the dark surfaces. The
+     brand fills themselves (--p, --b, --red …) are deliberately NOT changed. */
+  --p-text: #c3d0fb;
+  --b-text: #59a1f4;
+
+  /* --s / --s-soft / --s-text MUST be declared here, not left to the `:root`
+     aliases (`--s-soft: var(--blue-soft)` etc). A custom property whose value is
+     a `var()` is substituted at computed-value time ON THE ELEMENT THE
+     DECLARATION APPLIES TO — so `:root` resolves the alias once and descendants
+     inherit the finished value. Redefining `--blue-soft` here moves --blue-soft
+     and nothing else.
+     That is invisible while the theme class sits on <html> (same element as
+     :root, so the alias re-resolves) and breaks the moment a theme ISLAND
+     appears — `<div class="dark">` inside a light page, which Tabs.stories
+     documents as a supported pattern. Inside one, --s-soft stayed light-blue
+     #93c5fd under dark ink: measured 1.60:1 in light.
+     Verified in a standalone repro: --b and --blue-soft flip inside the island,
+     --s and --s-soft do not. Pre-existing since the aliases were added. */
+  --s-soft: #1a2f4f; /* mirrors --blue-soft above */
+  --s-text: #59a1f4; /* mirrors --b-text above */
+  --g-text: #34d399;
+  --amber-text: #fdba74; /* orange-300 — was #fbbf24 (yellow); 11.59:1 on page */
+  --red-text: #ff8494; /* was #fb7185; cleaner + brighter, 8.36:1 on page */
+  --pink-text: #f472b6;
+
+  /* Light dots over dark canvas — slightly higher opacity than light mode
+     since the dark surface needs more contrast for the texture to read. */
+  --sk-dot: rgba(241, 238, 228, 0.1);
+
+  /* Card surface — one rung above the page so cards read as raised. */
+  --card-bg: #141a3b;
+
+  /* Stronger shadows in dark — deeper opacity since the ambient is dark. */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.35), 0 14px 40px rgba(0, 0, 0, 0.3);
+  --card-shadow-h: 0 2px 4px rgba(0, 0, 0, 0.34), 0 10px 24px rgba(0, 0, 0, 0.4), 0 22px 50px rgba(0, 0, 0, 0.36);
+
+  /* Stronger hairline edge against dark surfaces. */
+  --card-edge: rgba(241, 238, 228, 0.12);
+}
+
+/* ============================================================
+   Starlight — a web-only selectable theme (apps/web, apps/admin).
+
+   It is a DARK theme in HeroUI terms (background #4b6973, foreground #f6faf8)
+   but it is NOT the navy dark theme: it is slate-teal, over a starfield photo
+   backdrop. Two things follow, and they pull in opposite directions:
+
+   1. It MUST take the dark ROLE tokens — hence `.starlight` in the selector
+      list above. Without it the html element only gets class="starlight",
+      HeroUI goes dark, but --ink stays light-mode navy (#18204a) and every
+      scrapbook surface renders inverted: dark ink on a dark page, 3.23:1.
+      (next-themes can't map starlight -> "dark starlight"; classList.add
+      rejects a string with a space, so this has to be solved here.)
+
+   2. It must NOT take the dark SURFACE ladder, or every scrapbook card becomes
+      a navy slab sitting on a teal photograph. So the surfaces are re-pointed
+      below to starlight's own hue family.
+
+   Why the ladder goes DARKER than the page instead of lighter: starlight's own
+   content1..4 (#44807F/#4f8c8b/#679f9e/#83b4b4) are mid-tone teals that do not
+   carry its near-white foreground — they measure 4.30 / 3.66 / 2.84 / 2.18:1,
+   all below AA. Elevating by lightening is therefore not available here. Over a
+   photographic backdrop the correct move is the opposite: a darker card cuts a
+   readable scrim out of the image. Every rung below clears AA against #f6faf8.
+
+   --shadow-c, --ink-const and --line-on-brand are deliberately NOT redefined:
+   they are constants, and citrine/brand fills must behave identically here.
+   ============================================================ */
+.starlight,
+[data-theme='starlight'] {
+  --ink: #f6faf8; /* starlight's own cool near-white, not the navy theme's cream */
+  --ink-rgb: 246 250 248;
+  --ink-muted: rgba(246, 250, 248, 0.62);
+
+  /* Surface ladder — slate-teal scrims. fg contrast in comments. */
+  --surface-0: #4b6973; /* page — matches HeroUI `background`   5.59:1 */
+  --surface-1: #2b4a52; /* card                                 9.05:1 */
+  --surface-2: #35565f; /* popover / menu                       7.53:1 */
+  --surface-3: #40646d; /* hover / pressed                      6.12:1 */
+
+  --paper: #2b4a52; /* --surface-1 — the card surface */
+  --paper-2: #35565f; /* --surface-2 */
+  --paper-rgb: 43 74 82;
+  --paper-2-rgb: 53 86 95;
+  --card-bg: #2b4a52;
+
+  /* Card sits 1.62:1 off the page — a stronger step than the navy theme's 1.10,
+     because it has to read against a photo rather than a flat fill. */
+
+  /* Drawn outline — teal, lifted off the card by 3.10:1. */
+  --line: #6f9aa3;
+  --line-strong: #8ab2ba;
+  --line-soft: rgba(246, 250, 248, 0.14);
+  --line-rgb: 111 154 163;
+  --line-strong-rgb: 138 178 186;
+
+  --sk-dot: rgba(246, 250, 248, 0.12);
+  --card-edge: rgba(246, 250, 248, 0.14);
+}
+
+
+
+/* ============================================================
+   Cream paper background w/ halftone dots
+   ============================================================ */
+/* Flat. Clay fills are solid — the paper-to-paper2 gradient went with the
+   scrapbook, and the standing preference is against gradient washes. */
+.sk-paper {
+  background-color: var(--sk-paper, #fbfaf6);
+}
+
+/* `.sk-dots`, `.sk-dots-fine` and `.sk-paper-grain` are GONE. Paper grain is
+   named in the clay brief as one of the scrapbook extras that dies with it, and
+   no app or component referenced them after the sweep. The one functional user
+   — the whiteboard's PointerSurface, where the dots are a measurement backdrop
+   rather than decoration — now inlines the same gradient, so it keeps its look
+   without depending on a rule that no longer exists. */
+
+
+/* ============================================================
+   Handwritten accent typography
+   ============================================================ */
+.sk-hand,
+.font-hand {
+  font-family: 'Caveat', cursive;
+  font-weight: 700;
+}
+
+/* Citrine highlight on <em> inside scrapbook headlines. */
+.sk-em {
+  font-style: normal;
+  background: linear-gradient(180deg, transparent 60%, var(--sk-citrine, #ffc93c) 60%);
+  padding: 0 6px;
+  border-radius: 2px;
+}
+
+/* The swipe only covers the lower 40% of the line, so each glyph straddles the
+   page and the highlight. Text can't be pinned to one of them: dark ink would
+   vanish against the dark page above the swipe, and cream would vanish against
+   solid citrine below it. Instead the swipe itself becomes a translucent wash
+   in dark mode — still reads as a highlighter, but cream text carries across
+   both halves. */
+.dark .sk-em,
+[data-theme='dark'] .sk-em,
+.starlight .sk-em,
+[data-theme='starlight'] .sk-em {
+  background: linear-gradient(180deg, transparent 60%, rgba(253, 224, 71, 0.28) 60%);
+}
+
+/* ============================================================
+   Halftone-tile background — theme-aware. Used by onboarding and
+   any page that wants to opt in to the paper canvas locally.
+   The body already paints this site-wide via apps/web globals.css
+   so this is redundant on top of body but harmless.
+   ============================================================ */
+/* Anchored to --surface-0 (the page rung), not --paper. --paper is the raised
+   card surface; painting a page canvas with it would put the canvas at the same
+   elevation as the cards sitting on it. */
+.sk-canvas {
+  background-color: var(--surface-0);
+  background-image:
+    radial-gradient(circle at 2px 2px, var(--sk-dot) 1px, transparent 1.4px),
+    linear-gradient(180deg, var(--surface-0) 0%, var(--surface-1) 100%);
+  background-size:
+    18px 18px,
+    100% 100%;
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes sk-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(0.6deg);
+  }
+  75% {
+    transform: rotate(-0.6deg);
+  }
+}
+
+.sk-wiggle {
+  animation: sk-wiggle 3s ease-in-out infinite;
+}
+
+@keyframes sk-pulse-citrine {
+  0%,
+  100% {
+    box-shadow:
+      4px 4px 0 var(--shadow-c),
+      0 0 0 0 rgba(253, 224, 71, 0.7);
+  }
+  50% {
+    box-shadow:
+      4px 4px 0 var(--shadow-c),
+      0 0 0 6px rgba(253, 224, 71, 0);
+  }
+}
+
+.sk-pulse {
+  animation: sk-pulse-citrine 1.6s ease-out infinite;
+}
+
+@keyframes sk-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes sk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sk-toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes sk-float {
+  0%,
+  100% {
+    transform: translateY(0) var(--sk-extra,);
+  }
+  50% {
+    transform: translateY(-6px) var(--sk-extra,);
+  }
+}
+
+/* ============================================================
+   Tape (decorative). Used by Card/Modal and as a standalone
+   prop on Tape component.
+   ============================================================ */
+.sk-tape {
+  position: absolute;
+  width: 80px;
+  height: 22px;
+  background: rgba(255, 235, 120, 0.85);
+  border-left: 1px dashed rgba(0, 0, 0, 0.18);
+  border-right: 1px dashed rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  transform: rotate(-4deg);
+  pointer-events: none;
+}
+
+.sk-tape-yellow {
+  background: rgba(255, 235, 120, 0.85);
+}
+.sk-tape-pink {
+  background: rgba(252, 165, 165, 0.85);
+}
+.sk-tape-blue {
+  background: rgba(147, 197, 253, 0.85);
+}
+.sk-tape-green {
+  background: rgba(134, 239, 172, 0.85);
+}
+
+/* ============================================================
+   Pin (decorative)
+   ============================================================ */
+.sk-pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sk-red, #e11d48);
+  border: 2px solid var(--line);
+  box-shadow: 1.5px 1.5px 0 var(--shadow-c);
+  pointer-events: none;
+}
+
+/* ============================================================
+   Legacy CSS-class primitives kept for backwards-compat with
+   apps/web/components/scrapbook prototype. New code should use
+   the React components in @repo/ui directly.
+   ============================================================ */
+.sk-btn {
+  /* Default fill is the brand purple (a CONSTANT), so the default outline is
+     the constant one. The themed --line would go dim-lavender on it in dark. */
+  --sk-btn-bg: var(--sk-p);
+  --sk-btn-fg: #fff;
+  --sk-btn-line: var(--line-on-brand);
+  --sk-btn-shadow: var(--shadow-c);
+  --sk-btn-rot: -0.5deg;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--sk-btn-fg);
+  background: var(--sk-btn-bg);
+  border: 2.5px solid var(--sk-btn-line);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 4px 4px 0 var(--sk-btn-shadow);
+  transform: rotate(var(--sk-btn-rot));
+  transition:
+    transform 80ms cubic-bezier(0.3, 0.6, 0.2, 1.2),
+    box-shadow 80ms,
+    background 150ms,
+    color 150ms;
+}
+
+.sk-btn:focus {
+  outline: none;
+}
+
+.sk-btn:not(:disabled):hover {
+  transform: rotate(var(--sk-btn-rot)) translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--sk-btn-shadow);
+}
+
+.sk-btn:not(:disabled):active {
+  transform: rotate(var(--sk-btn-rot)) translate(4px, 4px);
+  box-shadow: 0 0 0 var(--sk-btn-shadow);
+}
+
+.sk-btn:focus-visible {
+  box-shadow:
+    4px 4px 0 var(--sk-btn-shadow),
+    0 0 0 3px var(--sk-citrine),
+    0 0 0 4.5px var(--line-strong);
+}
+
+.sk-btn:disabled,
+.sk-btn[aria-disabled='true'] {
+  background: var(--surface-3);
+  color: var(--ink-muted);
+  --sk-btn-line: var(--line-soft);
+  --sk-btn-shadow: var(--line-soft);
+  cursor: not-allowed;
+  transform: rotate(0deg);
+  box-shadow: 3px 3px 0 var(--sk-btn-shadow);
+  opacity: 0.6;
+}
+
+.sk-btn-sm {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.sk-btn-lg {
+  height: 52px;
+  padding: 0 26px;
+  font-size: 15px;
+}
+
+/* Brand-constant fill -> constant outline. See --line-on-brand. */
+.sk-btn-primary {
+  --sk-btn-bg: var(--sk-p);
+  --sk-btn-fg: #fff;
+  --sk-btn-line: var(--line-on-brand);
+}
+
+/* These sit on a THEMED surface, not a brand fill, so they take the themed
+   outline back off the base rule. */
+.sk-btn-ghost {
+  --sk-btn-bg: var(--surface-1);
+  --sk-btn-fg: var(--ink);
+  --sk-btn-line: var(--line);
+}
+
+.sk-btn-destructive {
+  --sk-btn-bg: var(--surface-1);
+  --sk-btn-fg: #c11574;
+  --sk-btn-line: #c11574;
+}
+
+.sk-btn-subtle {
+  --sk-btn-bg: var(--surface-1);
+  --sk-btn-fg: var(--ink);
+  --sk-btn-line: var(--line);
+  height: 44px;
+  font-weight: 700;
+}
+
+.sk-btn-loading {
+  cursor: progress;
+  color: transparent !important;
+}
+.sk-btn-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.6' stroke-linecap='round'><path d='M12 3 a9 9 0 0 1 9 9'><animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='0.8s' repeatCount='indefinite'/></path></svg>")
+    center/18px no-repeat;
+}
+
+.sk-btn-ghost.sk-btn-loading::after,
+.sk-btn-subtle.sk-btn-loading::after,
+.sk-btn-destructive.sk-btn-loading::after {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%230d0e24' stroke-width='2.6' stroke-linecap='round'><path d='M12 3 a9 9 0 0 1 9 9'><animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='0.8s' repeatCount='indefinite'/></path></svg>");
+}
+
+/* The spinner stroke above is baked into the data URI, so it can't read a var.
+   On a dark surface the navy stroke is invisible — swap in the cream one. */
+.dark .sk-btn-ghost.sk-btn-loading::after,
+.dark .sk-btn-subtle.sk-btn-loading::after,
+.dark .sk-btn-destructive.sk-btn-loading::after,
+[data-theme='dark'] .sk-btn-ghost.sk-btn-loading::after,
+[data-theme='dark'] .sk-btn-subtle.sk-btn-loading::after,
+[data-theme='dark'] .sk-btn-destructive.sk-btn-loading::after,
+.starlight .sk-btn-ghost.sk-btn-loading::after,
+.starlight .sk-btn-subtle.sk-btn-loading::after,
+.starlight .sk-btn-destructive.sk-btn-loading::after,
+[data-theme='starlight'] .sk-btn-ghost.sk-btn-loading::after,
+[data-theme='starlight'] .sk-btn-subtle.sk-btn-loading::after,
+[data-theme='starlight'] .sk-btn-destructive.sk-btn-loading::after {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23f5f1e6' stroke-width='2.6' stroke-linecap='round'><path d='M12 3 a9 9 0 0 1 9 9'><animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='0.8s' repeatCount='indefinite'/></path></svg>");
+}
+
+/* ============================================================
+   Legacy input/chip/badge/card/modal classes (kept for
+   backwards-compat). React versions live in @repo/ui.
+   ============================================================ */
+.sk-input-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk-input {
+  --sk-in-rot: -0.4deg;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  height: 48px;
+  padding: 0 14px;
+  background: var(--surface-1);
+  border: 2.5px solid var(--line);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow-c);
+  transform: rotate(var(--sk-in-rot));
+  transition:
+    transform 100ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease;
+  outline: none;
+}
+
+.sk-input::placeholder {
+  font-family: 'Caveat', cursive;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--ink-muted);
+}
+
+.sk-input:focus-visible {
+  /* Was `outline: 2px solid var(--sk-citrine)` — measured 1.24:1 against paper,
+     an indicator you cannot see. See --focus-ring-shadow.
+     The hard offset shadow is RESTATED here on purpose: `box-shadow` replaces,
+     it does not compose, so setting only the ring silently deleted the 4px 4px
+     drop shadow the input carries at rest — the scrapbook's whole "drawn
+     object" read, gone at exactly the moment the control is in use. That is the
+     cost of moving a focus indicator from `outline` (its own property) onto
+     `box-shadow` (a shared one), and any future ring token must keep it. */
+  outline: none;
+  box-shadow: 4px 4px 0 var(--shadow-c), var(--focus-ring-shadow);
+}
+
+.sk-input-sm {
+  height: 40px;
+  font-size: 14px;
+}
+.sk-input-lg {
+  height: 56px;
+  font-size: 17px;
+}
+
+.sk-input[aria-invalid='true'],
+.sk-input.sk-input-invalid {
+  border-color: var(--sk-red);
+  box-shadow: 4px 4px 0 var(--sk-red);
+}
+
+.sk-input-hint {
+  font-family: 'Caveat', cursive;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink-muted);
+  padding: 0 4px;
+}
+
+.sk-chip {
+  /* Citrine is brand-constant, so its foreground AND its outline must be too —
+     a flipping --ink would put cream text on yellow, and a flipping --line would
+     ring it in dim lavender. Fill, label and outline move as one. */
+  --sk-chip-bg: var(--sk-citrine);
+  --sk-chip-fg: var(--ink-const);
+  --sk-chip-line: var(--line-on-brand);
+  --sk-chip-rot: -1deg;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 2px solid var(--sk-chip-line);
+  background: var(--sk-chip-bg);
+  color: var(--sk-chip-fg);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 var(--shadow-c);
+  transform: rotate(var(--sk-chip-rot));
+  cursor: pointer;
+  transition:
+    transform 80ms cubic-bezier(0.3, 0.6, 0.2, 1.2),
+    box-shadow 80ms;
+  user-select: none;
+}
+
+.sk-chip-citrine {
+  --sk-chip-bg: var(--sk-citrine);
+  --sk-chip-fg: var(--ink-const);
+  --sk-chip-line: var(--line-on-brand);
+}
+/* Soft fills flip with the theme, so their label AND outline take the flipping
+   --ink / --line — fill and its marks always move together. */
+.sk-chip-pink {
+  --sk-chip-bg: var(--sk-pink-soft);
+  --sk-chip-fg: var(--ink);
+  --sk-chip-line: var(--line);
+}
+.sk-chip-blue {
+  --sk-chip-bg: var(--sk-blue-soft);
+  --sk-chip-fg: var(--ink);
+  --sk-chip-line: var(--line);
+}
+.sk-chip-green {
+  --sk-chip-bg: var(--sk-green-soft);
+  --sk-chip-fg: var(--ink);
+  --sk-chip-line: var(--line);
+}
+.sk-chip-amber {
+  --sk-chip-bg: var(--sk-amber-soft);
+  --sk-chip-fg: var(--ink);
+  --sk-chip-line: var(--line);
+}
+
+.sk-chip:hover {
+  transform: rotate(var(--sk-chip-rot)) translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--shadow-c);
+}
+.sk-chip:active {
+  transform: rotate(var(--sk-chip-rot)) translate(2px, 2px);
+  box-shadow: 0 0 0 var(--shadow-c);
+}
+
+/* Selected fills with the text color and inverts the label to the page color,
+   so the pair stays legible whichever way the theme flips. */
+.sk-chip-selected {
+  --sk-chip-bg: var(--ink);
+  --sk-chip-fg: var(--paper);
+  --sk-chip-line: var(--line);
+  box-shadow: 3px 3px 0 var(--sk-citrine);
+}
+
+.sk-chip-static {
+  cursor: default;
+}
+
+.sk-chip-static:hover {
+  transform: rotate(var(--sk-chip-rot));
+  box-shadow: 2px 2px 0 var(--shadow-c);
+}
+
+/* Fill and foreground must flip together. The default fill is citrine, which is
+   brand-constant, so it takes the constant ink. The soft variants below flip
+   their fill with the theme (light pastel -> dim dark), so they take the
+   flipping --ink and stay legible on either. */
+/* The rim is a mid-tone OF THE FILL, not the scrapbook's near-black ink — the
+   one clay rule the first pass here left unapplied.
+   Derived once from `--sk-badge-bg` so a variant only has to declare its fill.
+   Mixed at 50% toward the theme foreground, which is the `control` strength:
+   a badge face is a pale WASH, and a wash mixed at the softer profiles produces
+   a paler wash — the same reason `clayVars` needed `shapeFrom`. `clayVars` is a
+   TS helper and unavailable in a stylesheet, so this mixes the way `.clay-stage`
+   and `.clay-well` in this same file already do. Mixing toward the FOREGROUND
+   (which flips with the theme) keeps it visible in both. */
+.sk-badge {
+  --sk-badge-bg: var(--sk-citrine);
+  --sk-badge-fg: var(--ink-const);
+  --sk-badge-line: color-mix(in srgb, var(--sk-badge-bg) 50%, hsl(var(--heroui-foreground)));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 2px solid var(--sk-badge-line);
+  background: var(--sk-badge-bg);
+  color: var(--sk-badge-fg);
+  font-weight: 800;
+  font-size: 11px;
+  border-radius: 10px;
+  font-family: inherit;
+}
+/* The `2px 2px 0` diagonal and `transform: rotate(var(--sk-badge-rot))` are
+   gone. A badge is INERT — a lip would say "push me" when there is nothing to
+   push — and clay has no rotation at all.
+   `--sk-badge-rot` was written by hand in five app files. Those writes are
+   removed too: leaving them would be the CTASection failure exactly, an app
+   setting a variable nothing reads, with no error and no warning. */
+
+.sk-badge-pink {
+  --sk-badge-bg: var(--sk-pink-soft);
+  --sk-badge-fg: var(--ink);
+}
+.sk-badge-blue {
+  --sk-badge-bg: var(--sk-blue-soft);
+  --sk-badge-fg: var(--ink);
+}
+.sk-badge-green {
+  --sk-badge-bg: var(--sk-green-soft);
+  --sk-badge-fg: var(--ink);
+}
+.sk-badge-amber {
+  --sk-badge-bg: var(--sk-amber-soft);
+  --sk-badge-fg: var(--ink);
+}
+
+.sk-card {
+  --sk-card-rot: -0.4deg;
+  --sk-card-shadow-color: var(--shadow-c);
+  position: relative;
+  background: var(--surface-1);
+  border: 2.5px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 5px 5px 0 var(--sk-card-shadow-color);
+  transform: rotate(var(--sk-card-rot));
+}
+
+.sk-card-shadow-primary {
+  --sk-card-shadow-color: var(--p);
+}
+
+.sk-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.sk-modal-card {
+  position: relative;
+  background: var(--surface-2);
+  border: 2.5px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 6px 6px 0 var(--shadow-c);
+  padding: 28px 22px 22px;
+  max-width: 440px;
+  width: 100%;
+  transform: rotate(-0.5deg);
+}
+
+/* ============================================================
+   Icon micro-animations
+   ============================================================ */
+@keyframes sk-icon-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+@keyframes sk-icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes sk-icon-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes sk-icon-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+@keyframes sk-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sk-icon-wiggle {
+  animation: sk-icon-wiggle 380ms ease-in-out;
+}
+.sk-icon-pop {
+  animation: sk-icon-pop 320ms cubic-bezier(0.3, 0.6, 0.2, 1.2);
+}
+.sk-icon-bounce {
+  animation: sk-icon-bounce 380ms ease-in-out;
+}
+.sk-icon-shake {
+  animation: sk-icon-shake 280ms ease-in-out;
+}
+.sk-icon-spin {
+  animation: sk-icon-spin 700ms cubic-bezier(0.5, 0.1, 0.5, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-icon-wiggle,
+  .sk-icon-pop,
+  .sk-icon-bounce,
+  .sk-icon-shake,
+  .sk-icon-spin {
+    animation: none;
+  }
+}
+
+/* ── Clay buttons ───────────────────────────────────────────────────────────
+   The pressable-slab shape ported from SugarCoach's landing page. The three
+   shadow states are real CSS rather than Tailwind arbitrary `shadow-` utilities
+   arbitrary values: those failed to generate at all here (computed
+   `box-shadow: none`) because the JIT content scan had already run before the
+   component's directory existed. A hand-written rule cannot go missing that way,
+   and a hover/active box-shadow cannot be expressed inline in `style` regardless.
+   The per-instance colours still come from inline `--clay-*` vars, so the rule
+   stays colour-agnostic and themes with the palette.
+   ─────────────────────────────────────────────────────────────────────────── */
+.clay-btn {
+  box-shadow: var(--clay-rest);
+}
+/* Hover ONLY — deliberately not `:focus-visible`.
+   Coupling them closed the lip on focus while the button stood still, unless
+   every component remembered a matching `translate-y`. Audited across the 16
+   files using this class: where the rule actually applies to a focusable
+   element it was 0 for 2 — `Navbar` and `Drawer` were both sliding 2px,
+   including in a component derived from the reference implementation.
+   The failure modes are asymmetric. Coupled, forgetting the travel is a SILENT
+   2px slide only a bottom-edge measurement across three states reveals.
+   Decoupled, the worst case is a keyboard user getting a ring but no lift —
+   visually complete, and nothing to remember.
+   Under clay the focus ring is an `outline`, a complete indicator on its own,
+   so the lip is redundant affordance rather than necessary accessibility. That
+   was NOT true under the scrapbook, where the ring shared `box-shadow` with the
+   cast shadow.
+   And the two make different claims: hover says the pointer is ON this, which
+   implies imminent contact; focus says the keyboard is here. Only the first
+   should preview the press.
+   POSTSCRIPT, measured 2026-08-27: the decoupling has a mirror defect, and it
+   was live in 7 of 7 clay components. Every one of them still wrote a
+   `focus-visible` travel, so on focus they moved 2px DOWN with the lip still at
+   rest depth — the drawn bottom edge slid 133 -> 135 instead of holding. The
+   asymmetry argument above is right but was applied to the wrong half: what
+   matters is that writing NOTHING must be correct. All seven focus travels are
+   removed, so it now is. Do not add one back. */
+.clay-btn:hover {
+  box-shadow: var(--clay-hover);
+}
+.clay-btn:active {
+  box-shadow: var(--clay-active);
+}
+
+/* Static clay surfaces (tier 2) and recessed fields (tier 3). Same var contract
+   as `.clay-btn`; the difference is that these do not translate on hover, since
+   a card is not pressed and a hole does not rise. */
+.clay-surface {
+  box-shadow: var(--clay-rest);
+}
+.clay-surface:hover {
+  box-shadow: var(--clay-hover);
+}
+/* A raised surface that does NOT answer the cursor. A dialog, a drawer, a toast
+   — anything that is elevated but not interactive. `.clay-surface`'s hover lift
+   is an affordance lie on those: the panel is not going anywhere. Use
+   `.clay-surface` only where the whole surface is genuinely pressable (a
+   clickable card). Found by the Modal/Drawer port, which had to pin
+   `--clay-hover` locally to get this. */
+.clay-panel {
+  box-shadow: var(--clay-rest);
+}
+.clay-field {
+  box-shadow: var(--clay-rest);
+}
+.clay-field:focus-within {
+  box-shadow: var(--clay-active);
+}
+
+/* The Storybook stage — the frame every story renders its component inside.
+   It was `sk-paper sk-dots-fine rounded-sk-lg [border:2.5px solid var(--line)]
+   shadow-sk-lg`, repeated in 42 story files: paper grain, an ink border and a
+   hard diagonal shadow, i.e. four things that die with the scrapbook language,
+   wrapped around every clay component being reviewed.
+   Defined once here rather than fixed per-file, because 42 agents each
+   restyling their own frame is how you end up with 42 different frames. */
+.clay-stage {
+  background: var(--surface-0);
+  border-radius: 24px;
+  border: 3px solid var(--clay-stage-edge, color-mix(in srgb, var(--surface-0) 90%, hsl(var(--heroui-foreground))));
+  box-shadow:
+    0 8px 0 color-mix(in srgb, var(--surface-0) 80%, hsl(var(--heroui-foreground))),
+    0 12px 30px color-mix(in srgb, hsl(var(--heroui-foreground)) 8%, transparent);
+}
+
+/* The recessed specimen frame inside a story. Pairs with `.clay-stage`: the
+   stage is the raised tray the story sits on, the well is the sunken area a
+   specimen sits IN. Recessed-inside-raised keeps the two levels legible —
+   nesting a second stage repeats the same 8px lip twice and flattens them.
+   It is also honest: these frames are inert, and a raised tray that cannot be
+   pressed is an affordance lie.
+
+   NOTE the inset mixes toward `--shadow-c`, NOT `--heroui-foreground`. The
+   foreground is cream in dark, which turns the "shadow" into a light band along
+   the top inner edge — a bevel-OUT, i.e. an embossed pill rather than a groove.
+   Same trap that `clayVars` shipped with; see the header of `components/clay.ts`.
+   The BORDER still mixes toward the foreground, because a rim should follow the
+   theme even though a shadow must not. */
+.clay-well {
+  background: var(--surface-0);
+  border-radius: 18px;
+  border: 3px solid color-mix(in srgb, var(--surface-0) 90%, hsl(var(--heroui-foreground)));
+  /* Two-sided, for the reason in `components/clay.ts`: in dark, --shadow-c is
+     already darker than --surface-0, so the top shadow alone moves ~4 luma and
+     the well reads as a flat outlined box. The bottom highlight carries it
+     there and is near-invisible in light. */
+  box-shadow:
+    inset 0 4px 4px color-mix(in srgb, var(--surface-0) 80%, var(--shadow-c)),
+    inset 0 -2px 3px color-mix(in srgb, var(--surface-0) 78%, #ffffff);
+}
+
+/* Menu / listbox item hover. The wash colour is per-item — it follows the item's
+   own `color` prop so a destructive action does not highlight the same shade as
+   a neutral one — and a per-item colour cannot be expressed as a Tailwind hover
+   class. The component sets `--item-accent` inline; this rule washes it. */
+.clay-item:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--item-accent) 16%, transparent);
+}

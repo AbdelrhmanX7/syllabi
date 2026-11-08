@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Study main window on Android: the bundled static export talks to the backend over HTTPS and keeps notes in IndexedDB, so the shell exposes only the core runtime, the app version and the fullscreen/focus window controls that exist on mobile, plus the `shell_info` build-identity command, `update_feed` (reads the release feed; the bucket has no CORS) and `youtube_captions` (YouTube caption fetch from the device — the backend's IP is blocked by YouTube).",
+  "platforms": [
+    "android",
+    "iOS"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:app:allow-version",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "allow-shell-info",
+    "allow-update-feed",
+    "allow-youtube-captions"
+  ]
+}

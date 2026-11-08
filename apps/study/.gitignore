@@ -1,0 +1,12 @@
+# Archived Android APKs written by scripts/android-release.mjs (named by version + HEAD sha); build outputs, never committed.
+android-dist/
+# Fonts copied in by `npm run copy-fonts` (packages/ui/fonts is the source of truth).
+public/font/
+# Design-hook cache written by the impeccable PostToolUse hook; not a build input.
+.impeccable/
+
+# Mock fixtures captured from a real Canvas account (capture.mjs) — personal data, never committed.
+lib/api/mock/fixtures/*.json
+lib/api/mock/fixtures/local/
+# Release build settings (STUDY_BUILD_API=…), see scripts/lib/release-api.mjs.
+.env.release.local

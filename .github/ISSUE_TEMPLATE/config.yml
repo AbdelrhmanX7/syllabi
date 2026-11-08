@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/AbdelrhmanX7/syllabi/discussions
+    about: Ask a question or talk an idea through in Discussions.
+  - name: Security problem
+    url: https://github.com/AbdelrhmanX7/syllabi/security/advisories/new
+    about: Report vulnerabilities privately, not in a public issue.

@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest something Syllabi should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to get done?
+      description: Describe the study task or problem, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you picture it working. Sketches and screenshots are welcome.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Classes / Today
+        - Calendar
+        - Notebooks / pen board
+        - AI tutor
+        - Question bank
+        - Lectures
+        - Concept maps
+        - Phone inbox
+        - Server / self-hosting
+        - Other
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself.

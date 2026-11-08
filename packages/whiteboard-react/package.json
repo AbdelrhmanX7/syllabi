@@ -1,0 +1,41 @@
+{
+  "name": "@repo/whiteboard-react",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./telemetry": "./src/telemetry.ts",
+    "./auto-color": "./src/auto-color.ts",
+    "./concept-layout": "./src/concept-layout.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test 'src/components/whiteboard/brushes/*.test.ts' 'src/components/whiteboard/utils/*.test.ts' 'src/components/whiteboard/*.test.tsx' 'src/components/whiteboard/hooks/*.test.tsx' 'src/components/whiteboard/ai/*.test.ts' 'src/components/whiteboard/ai/glyphBank/*.test.ts' 'src/components/whiteboard/autoColor/*.test.ts' 'src/i18n/*.test.ts'"
+  },
+  "dependencies": {
+    "@heroui/react": "2.7.9",
+    "@repo/ui": "workspace:*",
+    "@repo/whiteboard-core": "workspace:*",
+    "fabric": "^7.2.0",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.511.0",
+    "motion": "^12.23.24",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "5.5.207"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "26.1.0",
+    "tsx": "4.22.4",
+    "typescript": "5.6.3"
+  }
+}

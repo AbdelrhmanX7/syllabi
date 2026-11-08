@@ -1,0 +1,326 @@
+@import '@repo/ui/styles/scrapbook.css';
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/font/Inter-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url('/font/BricolageGrotesque-latin.woff2') format('woff2');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Study's own palette — calm, paper-like, high contrast. RGB triplets so Tailwind can compile
+   opacity modifiers (`bg-st-surface/80`). Dark values follow `.dark` (next-themes, attribute=class). */
+:root {
+  --st-bg: 251 250 246;
+  --st-surface: 255 255 255;
+  --st-raised: 241 238 228;
+  --st-fg: 24 32 74;
+  --st-muted: 90 97 131;
+  --st-line: 228 224 211;
+  --st-accent: 47 91 234;
+  --st-accent-fg: 255 255 255;
+  --st-accent-soft: 227 233 253;
+  /* Clay buttons: a darker rung of each fill for its edge + straight-down lip. */
+  --st-accent-lip: 43 76 190;
+  --st-star-lip: 214 150 20;
+  --st-danger-lip: 176 52 40;
+  --st-clay-edge: 205 209 224;
+  --st-star: 255 201 60;
+  --st-star-soft: 255 243 209;
+  --st-star-fg: 24 32 74;
+  --st-ink: 24 32 74;
+  --st-shadow: 24 32 74;
+  --st-danger: 220 76 62;
+  --st-warn: 217 138 11;
+  --st-ok: 46 158 110;
+  /* Concept-map inks by branch (conceptColors.ts: every one ≥ 4.5:1 on this page); -m = the link phrase's muted ink. */
+  --cm-root: #1e2a4a;
+  --cm-root-m: #36425c;
+  --cm-b0: #1d4ed8;
+  --cm-b0-m: #3657b1;
+  --cm-b1: #0f766e;
+  --cm-b1-m: #2d6f72;
+  --cm-b2: #b45309;
+  --cm-b2-m: #905a35;
+  --cm-b3: #7e22ce;
+  --cm-b3-m: #703dab;
+  --cm-b4: #be123c;
+  --cm-b4-m: #963354;
+  --cm-b5: #4d7c0f;
+  --cm-b5-m: #537339;
+  color-scheme: light;
+}
+
+.dark {
+  --st-bg: 15 20 48;
+  --st-surface: 20 26 59;
+  --st-raised: 34 43 92;
+  --st-fg: 241 238 228;
+  --st-muted: 154 160 188;
+  --st-line: 45 55 110;
+  --st-accent: 110 140 255;
+  --st-accent-fg: 15 20 48;
+  --st-accent-soft: 45 55 110;
+  --st-accent-lip: 64 92 214;
+  --st-star-lip: 196 140 24;
+  --st-danger-lip: 190 80 70;
+  --st-clay-edge: 58 70 132;
+  --st-star: 255 201 60;
+  --st-star-soft: 34 43 92;
+  --st-star-fg: 24 32 74;
+  --st-ink: 228 224 211;
+  --st-shadow: 10 14 36;
+  --st-danger: 240 122 110;
+  --st-warn: 242 179 75;
+  --st-ok: 92 201 149;
+  /* Concept-map inks by branch (conceptColors.ts: every one ≥ 4.5:1 on this page); -m = the link phrase's muted ink. */
+  --cm-root: #e0e7ff;
+  --cm-root-m: #c7cee3;
+  --cm-b0: #93c5fd;
+  --cm-b0-m: #99bae1;
+  --cm-b1: #5eead4;
+  --cm-b1-m: #79d0c9;
+  --cm-b2: #fdba74;
+  --cm-b2-m: #d8b38f;
+  --cm-b3: #d8b4fe;
+  --cm-b3-m: #c2b0e2;
+  --cm-b4: #fda4af;
+  --cm-b4-m: #d8a6b3;
+  --cm-b5: #86efac;
+  --cm-b5-m: #91d3b1;
+  color-scheme: dark;
+
+  /* The shared design system's dark theme is NAVY (scrapbook.css `.dark`, @repo/ui theme.ts): every
+     `@repo/ui` popover, menu, modal and the board engine's panels painted #14162c/#1d1f3c slabs on
+     Study's neutral #0f1430 page, with cream ink and indigo lines — two dark themes on one screen.
+     Re-point that ladder at Study's own rungs (the same move `.starlight` makes in scrapbook.css), so
+     every shared surface reads as part of this app. Brand fills and text tints are left alone. */
+  --ink: #f1eee4;
+  --ink-rgb: 241 238 228;
+  --ink-muted: rgba(241, 238, 228, 0.62);
+  --paper: #141a3b;
+  --paper-2: #222b5c;
+  --paper-rgb: 20 26 59;
+  --paper-2-rgb: 34 43 92;
+  --card-bg: #141a3b;
+  --card-edge: rgba(241, 238, 228, 0.12);
+  --surface-0: #0f1430;
+  --surface-1: #141a3b;
+  --surface-2: #222b5c;
+  --surface-3: #2d376e;
+  --default-soft: #222b5c;
+  --line: #3a4580;
+  --line-strong: #5a6aa8;
+  --line-soft: rgba(241, 238, 228, 0.12);
+  --line-rgb: 58 69 128;
+  --line-strong-rgb: 90 106 168;
+  --sk-dot: rgba(241, 238, 228, 0.08);
+  /* HeroUI's twins of the same ladder (H S% L%, the plugin's own format). */
+  --heroui-background: 231 52% 12%;
+  --heroui-foreground: 45 33% 92%;
+  --heroui-content1: 231 49% 15%;
+  --heroui-content2: 231 46% 25%;
+  --heroui-content3: 231 42% 30%;
+  --heroui-content4: 231 38% 36%;
+  --heroui-default-50: 231 49% 15%;
+  --heroui-default-100: 231 46% 25%;
+  --heroui-default-200: 231 42% 30%;
+  --heroui-default-300: 231 38% 36%;
+  --heroui-default-400: 231 20% 60%;
+  --heroui-default-500: 231 20% 68%;
+  --heroui-default: 231 42% 30%;
+
+  /* The board toolbar is a light glass in the shared engine (toolbarSurfaces.ts reads these with
+     light fallbacks); in Study's dark theme it is a dark bar like the rest of the chrome. */
+  --wb-tb-shell: #141a3b;
+  --wb-tb-shell-line: #2d376e;
+  --wb-tb-fade: rgba(30, 30, 33, 0.96);
+  --wb-tb-section: #222b5c;
+  --wb-tb-section-line: #2d376e;
+  --wb-tb-accent-section: #2e2715;
+  --wb-tb-accent-section-line: #5c4a1a;
+  --wb-tb-idle-face: #222b5c;
+  --wb-tb-idle-label: #e4e0d3;
+  --wb-tb-idle-wash: #2d376e;
+  --wb-tb-active-face: #f1eee4;
+  --wb-tb-active-label: #18204a;
+  --wb-tb-primary-face: #0f2c40;
+  --wb-tb-primary-label: #7dd3fc;
+  --wb-tb-primary-wash: #133a54;
+  --wb-tb-danger-face: #3b1219;
+  --wb-tb-danger-label: #fda4af;
+  --wb-tb-danger-wash: #4c1a23;
+  --wb-tb-warning-face: #3a2a0c;
+  --wb-tb-warning-label: #fcd34d;
+  --wb-tb-warning-wash: #4a360f;
+  --wb-tb-success-face: #0b3324;
+  --wb-tb-success-label: #6ee7b7;
+  --wb-tb-success-wash: #0f4430;
+  --wb-tb-secondary-face: #2a1f4d;
+  --wb-tb-secondary-label: #c4b5fd;
+  --wb-tb-secondary-wash: #352863;
+}
+
+/* Board toolbar shell + its sections in dark (the engine paints them as light glass by default). */
+.dark [data-wb-toolbar-bar] {
+  background: var(--wb-tb-shell);
+  border-color: var(--wb-tb-shell-line);
+}
+.dark [data-wb-toolbar-trailing] {
+  border-color: var(--wb-tb-shell-line);
+}
+.dark [data-wb-toolbar-section] {
+  background: var(--wb-tb-section);
+  border-color: var(--wb-tb-section-line);
+  box-shadow: none;
+}
+.dark [data-wb-toolbar-section='accent'] {
+  background: var(--wb-tb-accent-section);
+  border-color: var(--wb-tb-accent-section-line);
+}
+
+/* Brand type (matches the landing page): Bricolage Grotesque for headings, Inter for everything else. */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: 'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+html,
+body {
+  height: 100%;
+  direction: ltr;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-st-bg text-st-fg antialiased;
+  font-feature-settings:
+    'cv11',
+    'ss01';
+  overscroll-behavior: none;
+}
+
+/* A narrow board (split screen, a side pane): the chips in its top-end cluster show icons only. */
+[data-board-compact='true'] [data-chip-label] {
+  display: none;
+}
+
+/* Grid items default to min-width:auto, so one long nowrap row widens its track past the screen.
+   Every grid in the app lets its items shrink instead (truncation then works as written). */
+.grid > * {
+  min-width: 0;
+}
+
+/* The S Pen hovers; nothing in the shell should select text on a long press. */
+.st-no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* App shell height: 100vh fallback (Chrome < 108), the dynamic viewport where supported so a phone's
+   URL bar never hides the bottom of the scroll area. */
+.st-full-h { height: 100vh; }
+@supports (height: 100dvh) {
+  .st-full-h { height: 100dvh; }
+}
+
+/* Phone bottom bar (components/layout/BottomNav, < md): its height + the home-indicator inset.
+   Content padding and fixed banners/toasts offset by this; 0 on tablets and up (the Rail shows). */
+.st-shell { --st-nav-offset: 0px; }
+@media (max-width: 767.98px) {
+  .st-shell { --st-nav-offset: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Canvas HTML bodies (pages, assignments, announcements) — readable defaults without a prose plugin. */
+.st-prose {
+  @apply text-base leading-7;
+}
+.st-prose h1,
+.st-prose h2,
+.st-prose h3,
+.st-prose h4 {
+  @apply mb-2 mt-6 font-semibold;
+}
+.st-prose h1 {
+  @apply text-2xl;
+}
+.st-prose h2 {
+  @apply text-xl;
+}
+.st-prose h3 {
+  @apply text-lg;
+}
+.st-prose p,
+.st-prose ul,
+.st-prose ol,
+.st-prose table,
+.st-prose pre {
+  @apply my-3;
+}
+.st-prose ul {
+  @apply list-disc pl-6;
+}
+.st-prose ol {
+  @apply list-decimal pl-6;
+}
+.st-prose a {
+  @apply text-st-accent underline underline-offset-2;
+}
+.st-prose img,
+.st-prose iframe,
+.st-prose video {
+  @apply my-3 max-w-full rounded-st;
+}
+.st-prose pre,
+.st-prose code {
+  @apply rounded-md bg-st-raised font-mono text-sm;
+}
+.st-prose pre {
+  @apply overflow-x-auto p-3;
+}
+.st-prose code {
+  @apply px-1 py-0.5;
+}
+.st-prose table {
+  @apply w-full border-collapse text-sm;
+}
+.st-prose th,
+.st-prose td {
+  @apply border border-st-line px-2 py-1 text-left;
+}
+.st-prose blockquote {
+  @apply border-l-4 border-st-line pl-4 text-st-muted;
+}
+
+/* Enter motion for sheets / modals: transform + opacity only (cheap on the A7), off for reduced motion. */
+@keyframes st-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes st-sheet-in { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
+.st-fade-in { animation: st-fade-in 160ms ease-out both; }
+.st-sheet-in { animation: st-sheet-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+@media (prefers-reduced-motion: reduce) {
+  .st-fade-in, .st-sheet-in { animation: none; }
+}

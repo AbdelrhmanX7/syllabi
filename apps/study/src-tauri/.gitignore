@@ -1,0 +1,14 @@
+/target
+# Dedicated cargo target dir of scripts/android-release.mjs --from-commit (clean-checkout builds).
+/target-release-clean
+# Tauri's generated ACL/config schemas are build outputs; the Android gradle project under
+# /gen/android IS committed (manifest permissions, S Pen bridge activity) — only its outputs are ignored.
+/gen/schemas
+/gen/android/.gradle
+/gen/android/build
+/gen/android/app/build
+/gen/android/app/.cxx
+/gen/android/local.properties
+/gen/android/key.properties
+/gen/android/app/src/main/jniLibs
+/gen/android/.idea

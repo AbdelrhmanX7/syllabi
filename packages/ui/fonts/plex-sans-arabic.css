@@ -1,0 +1,103 @@
+/* IBM Plex Sans Arabic (SIL OFL 1.1, see IBMPlexSansArabic-OFL.txt) — shared @font-face declarations.
+   Font files are copied to each app's public/font/ by the "copy-fonts" script. */
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic Thin'),
+    local('IBMPlexSansArabic-Thin'),
+    url('/font/IBMPlexSansArabic-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic ExtraLight'),
+    local('IBMPlexSansArabic-ExtraLight'),
+    url('/font/IBMPlexSansArabic-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic Light'),
+    local('IBMPlexSansArabic-Light'),
+    url('/font/IBMPlexSansArabic-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic Regular'),
+    local('IBMPlexSansArabic-Regular'),
+    url('/font/IBMPlexSansArabic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic Medium'),
+    local('IBMPlexSansArabic-Medium'),
+    url('/font/IBMPlexSansArabic-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic SemiBold'),
+    local('IBMPlexSansArabic-SemiBold'),
+    url('/font/IBMPlexSansArabic-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src:
+    local('IBM Plex Sans Arabic Bold'),
+    local('IBMPlexSansArabic-Bold'),
+    url('/font/IBMPlexSansArabic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* A root-level DEFAULT, deliberately not `* { ... !important }`.
+
+   The old rule was wrong twice over. `!important` outranks even a plain inline
+   `style={{ fontFamily }}`, so no component could ever opt out — a monospace
+   loader in @repo/ui had its font stack silently ignored in every app, and the
+   mismatch between the width it measured and the glyphs that actually painted
+   made the animation jitter. And `*` matches every element DIRECTLY, so a child
+   of a `.font-mono` or `.font-hand` parent got Plex back: a direct match beats
+   an inherited value, which defeats the whole point of setting a family at the
+   top. Even without `!important`, `*` was the wrong tool.
+
+   Setting the family here instead lets it INHERIT, so any utility class or inline
+   style legitimately wins and `font-mono` subtrees stay monospace. Form controls
+   don't inherit font by default, but Tailwind preflight already emits
+   `button, input, optgroup, select, textarea { font-family: inherit }` and is not
+   disabled in any app, so they follow along.
+
+   Most apps don't need this at all — packages/ui/tailwind.preset.js sets the same
+   stack as `fontFamily.sans` and preflight applies it to `html`. This is the
+   fallback for apps that don't use the preset. */
+:root {
+  font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+}

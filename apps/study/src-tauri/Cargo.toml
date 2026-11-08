@@ -1,0 +1,27 @@
+[package]
+name = "ka-study"
+version = "0.1.0"
+description = "Study — personal study app (Tauri 2 Android shell)"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "ka_study_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# The shell is deliberately thin: the frontend is a static export bundled into the APK and talks
+# to the backend over HTTPS; notes live in the WebView's IndexedDB. No sidecar, no updater, no
+# recorder plugin — the Android build only needs the core runtime (plus `devtools` so the WebView
+# inspector works on a release build for on-device diagnosis).
+tauri = { version = "2", features = ["devtools"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# YouTube captions fetched on the tablet (src/youtube_captions.rs). ureq 2 is a small blocking client
+# whose `tls` feature is rustls + ring + bundled webpki roots: pure Rust (ring's C is built by the
+# NDK clang tauri-cli already configures), no OpenSSL, no platform-verifier JNI — unlike reqwest's
+# `rustls` feature (aws-lc-rs + cmake), which does not cross-compile cleanly for Android.
+ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "json"] }

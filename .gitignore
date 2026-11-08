@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+target
+.env.local
+.env*.local
+android-dist
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+CLAUDE.local.md
+.playwright-mcp/

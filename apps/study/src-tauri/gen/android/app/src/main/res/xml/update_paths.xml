@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AppUpdater.kt downloads into <cache>/updates/; FileExporter.kt stages share-sheet exports in
+     <cache>/exports/ (Android 9 and older). Only these directories are shareable. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+    <cache-path name="exports" path="exports/" />
+</paths>

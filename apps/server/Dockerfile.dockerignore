@@ -1,0 +1,12 @@
+# Build context is the repo root; only the server and the workspace manifests are sent.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/server
+apps/server/node_modules
+apps/server/dist
+apps/server/public
+apps/server/.env
+apps/server/.env.*
+!apps/server/.env.example
