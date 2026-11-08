@@ -8,7 +8,7 @@ export type SessionState = 'checking' | 'signed-in' | 'signed-out';
  * Live sign-in state. Read off the cookie on every evaluation (the 401 interceptor deletes it
  * without a re-render) and re-checked each minute so an overnight expiry flips the banner on its own.
  */
-export function useSession(): { state: SessionState; name: string } {
+export function useSession(): { state: SessionState; name: string; email: string } {
   const { token, userData } = useGetUserData();
   const [state, setState] = useState<SessionState>('checking');
   const tokenValue = typeof token === 'string' ? token : '';
@@ -26,5 +26,9 @@ export function useSession(): { state: SessionState; name: string } {
     return () => window.clearInterval(timer);
   }, [tokenValue]);
 
-  return { state, name: (userData?.name || userData?.username || '').trim() };
+  return {
+    state,
+    name: (userData?.name || userData?.username || '').trim(),
+    email: (userData?.email || '').trim(),
+  };
 }

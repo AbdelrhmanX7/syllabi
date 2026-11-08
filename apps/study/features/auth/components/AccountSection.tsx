@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { KeyRound, LogIn, LogOut, MailCheck, Trash2, UserPlus } from 'lucide-react';
-import { useRouter } from 'next/router';
+import { KeyRound, LogIn, MailCheck, Trash2, UserPlus } from 'lucide-react';
 
 import { changePassword, deleteAccount, resendVerification, useAccount } from '../api';
 import { describeAuthError } from '../lib/auth-url';
@@ -11,25 +9,9 @@ import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ActionButton, Badge, ErrorNote, Field, LinkButton, LoadingRows, SectionTitle, Surface } from '@/components/ui/primitives';
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
-import { STUDY_USER_KEY, useAuthCookie } from '@/lib/auth';
+import { useSignOut } from '@/hooks/useSignOut';
+import { SignOutButton } from '@/components/layout/SignOutButton';
 import { BUILD_STAMP } from '@/lib/platform/runtime';
-
-function useSignOut() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { removeAuthToken } = useAuthCookie();
-
-  return async () => {
-    await removeAuthToken();
-    try {
-      localStorage.removeItem(STUDY_USER_KEY);
-    } catch {
-      // ignore
-    }
-    queryClient.clear();
-    void router.replace('/login/');
-  };
-}
 
 function ChangePasswordForm({ needsCurrent, onDone }: { needsCurrent: boolean; onDone: (message: string) => void }) {
   const [current, setCurrent] = useState('');
@@ -203,9 +185,7 @@ export function AccountSection() {
             <KeyRound className='h-4 w-4' /> {hasPassword ? 'Change password' : 'Set a password'}
           </ActionButton>
         )}
-        <ActionButton onClick={() => void signOut()}>
-          <LogOut className='h-4 w-4' /> Sign out
-        </ActionButton>
+        <SignOutButton />
         {user && (
           <ActionButton className='sm:ml-auto' loading={deleting} variant='danger' onClick={() => setConfirmDelete(true)}>
             <Trash2 className='h-4 w-4' /> Delete account

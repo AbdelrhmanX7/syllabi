@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 
 import { ArrowLeftRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { SwatchPicker } from '@repo/ui';
 
 import { HsvPicker } from './HsvPicker';
 import { DEFAULT_COLORS } from './types';
@@ -139,20 +140,16 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         </div>
       ) : null}
 
-      <div className='grid grid-cols-5 gap-2'>
-        {palette.map((c) => (
-          <button
-            key={c}
-            aria-label={c}
-            className={`h-7 w-7 cursor-pointer rounded-full border-2 transition-transform hover:scale-110 ${
-              editingColor === c ? 'border-primary ring-primary/30 scale-110 ring-2' : 'border-default-300'
-            }`}
-            style={{ backgroundColor: c }}
-            type='button'
-            onClick={() => applyColor(c)}
-          />
-        ))}
-      </div>
+      <SwatchPicker
+        colors={palette}
+        columns={5}
+        label={label ?? t('color.palette')}
+        size='md'
+        value={editingColor}
+        onChange={(next) => {
+          if (next) applyColor(next);
+        }}
+      />
 
       {/* Current colour + its hex on the left, the system colour picker behind one bordered chip. */}
       <div className='border-divider flex items-center gap-2 border-t pt-3'>

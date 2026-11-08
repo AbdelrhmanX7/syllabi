@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 import { ALL_LINKS, RailItem, SignUpCta, isLinkActive } from './Rail';
+import { SignOutButton } from './SignOutButton';
 
 import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
@@ -100,14 +101,18 @@ export function BottomNav() {
 
       {moreOpen && (
         <Sheet
-          subtitle={[
-            mode === 'mock' ? 'Demo mode' : '',
-            session.state === 'signed-in' ? session.name || 'Signed in' : session.state === 'signed-out' ? 'Signed out' : '',
-          ]
+          subtitle={[mode === 'mock' ? 'Demo mode' : '', session.state === 'signed-in' ? session.email || session.name : '']
             .filter(Boolean)
             .join(' · ')}
-          // Demo mode: the sign-up button sits in the sheet's footer (outside the scroll box, so its lip is never cut).
-          footer={backendUrl ? undefined : <SignUpCta />}
+          // Footer (outside the sheet's scroll box, so a lip is never cut): Sign out when signed in, the
+          // sign-up button in demo mode.
+          footer={
+            session.state === 'signed-in' ? (
+              <SignOutButton className='w-full' />
+            ) : backendUrl ? undefined : (
+              <SignUpCta />
+            )
+          }
           title='More'
           onClose={() => setMoreOpen(false)}
         >

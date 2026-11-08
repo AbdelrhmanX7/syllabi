@@ -116,7 +116,7 @@ export function TranscriptPanel({ segments, currentSec = 0, clock, onSeek }: Tra
       <div className='flex items-center gap-2 border-b border-st-line p-3'>
         <input
           aria-label='Search transcript'
-          className='h-10 w-full rounded-st border-2 border-st-clay-edge bg-st-surface px-3 text-sm outline-none focus:border-st-accent'
+          className='h-10 w-full rounded-st border-2 border-st-control-edge bg-st-surface px-3 text-sm outline-none focus:border-st-accent'
           placeholder='Search transcript'
           type='search'
           value={query}

@@ -617,6 +617,7 @@ function BackendSection() {
 
 export default function SettingsPage() {
   const session = useSession();
+  const { backendUrl } = useBackendSettings();
   const { theme, setTheme } = useTheme();
   // next-themes has no theme during SSR; paint the picker after mount so hydration matches.
   const [mounted, setMounted] = useState(false);
@@ -643,7 +644,13 @@ export default function SettingsPage() {
             ))}
           </div>
         }
-        subtitle={session.state === 'signed-in' ? `Signed in as ${session.name || 'you'}` : 'Signed out'}
+        subtitle={
+          session.state === 'signed-in'
+            ? `Signed in as ${session.email || session.name || 'you'}`
+            : backendUrl
+              ? 'Signed out'
+              : 'Demo mode'
+        }
         title='Settings'
       />
 

@@ -80,7 +80,7 @@ export function GuideEditor({ classId }: { classId: string }) {
           <textarea
             spellCheck
             aria-label='Class guide markdown'
-            className='rounded-st border-st-clay-edge bg-st-surface text-st-fg focus:border-st-accent min-h-[420px] w-full border-2 p-3 font-mono text-sm leading-6 focus:outline-none'
+            className='rounded-st border-st-control-edge bg-st-surface text-st-fg focus:border-st-accent min-h-[420px] w-full border-2 p-3 font-mono text-sm leading-6 focus:outline-none'
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {

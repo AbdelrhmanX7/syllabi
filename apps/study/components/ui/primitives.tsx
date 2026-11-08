@@ -301,14 +301,17 @@ export function LinkButton({
   children,
   variant = "secondary",
   className,
+  "aria-label": ariaLabel,
 }: {
   href: string;
   children: ReactNode;
   variant?: ButtonVariant;
   className?: string;
+  "aria-label"?: string;
 }) {
   return (
     <Link
+      aria-label={ariaLabel}
       className={cn(BUTTON_BASE, BUTTON_VARIANT[variant], className)}
       href={href}
     >
@@ -339,7 +342,7 @@ export function FilterChip({
         "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-sm border-2 px-3 text-[13px] font-semibold transition-[transform,box-shadow,border-color] duration-100 active:translate-y-[2px] active:shadow-none",
         active
           ? "border-st-accent bg-st-accent-soft text-st-fg shadow-[0_3px_0_rgb(var(--st-accent))]"
-          : "border-st-clay-edge bg-st-surface text-st-fg shadow-[0_3px_0_rgb(var(--st-clay-edge))] hover:border-st-accent",
+          : "border-st-control-edge bg-st-surface text-st-fg shadow-[0_3px_0_rgb(var(--st-clay-edge))] hover:border-st-accent",
       )}
       type="button"
       onClick={onClick}
@@ -477,4 +480,4 @@ export function Field({
 }
 
 export const INPUT_CLASS =
-  "min-h-11 w-full rounded-st border-2 border-st-clay-edge bg-st-surface px-3 text-sm text-st-fg placeholder:text-st-muted focus:border-st-accent focus:outline-none focus:ring-2 focus:ring-st-accent/25";
+  "min-h-11 w-full rounded-st border-2 border-st-control-edge bg-st-surface px-3 text-sm text-st-fg placeholder:text-st-muted focus:border-st-accent focus:outline-none focus:ring-2 focus:ring-st-accent/25";

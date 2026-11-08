@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Baseline, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Scissors, Sparkles, Trash2 } from 'lucide-react';
+import { ColorSwatch } from '@repo/ui';
 
 import { STROKE_WIDTHS } from './types';
 import { MODERN_CHROME_REACH } from './utils/selectionChrome';
@@ -162,16 +163,14 @@ export function SelectionActionBar({
           <div className='border-ink/10 mb-1.5 flex flex-col gap-1 border-b px-0.5 pb-1.5'>
             <div className='flex flex-wrap gap-0.5'>
               {colors.map((color) => (
-                <button
+                <ColorSwatch
                   key={color}
-                  aria-label={t('selection.colorN', { color })}
-                  className={LABELED_SWATCH_CLASS}
+                  className='h-11 w-11'
+                  color={color}
                   data-color={color}
-                  type='button'
+                  label={t('selection.colorN', { color })}
                   onClick={() => onColor(color)}
-                >
-                  <span className='ring-ink/20 block h-7 w-7 rounded-full ring-1 ring-inset' style={{ background: color }} />
-                </button>
+                />
               ))}
             </div>
             <div aria-label={t('selection.width')} className='flex flex-wrap gap-0.5' role='group'>
@@ -288,16 +287,14 @@ export function SelectionActionBar({
         <div className='flex flex-col gap-1 px-1 pt-1'>
           <div className='flex flex-wrap gap-1'>
             {colors.map((color) => (
-              <button
+              <ColorSwatch
                 key={color}
-                aria-label={t('selection.colorN', { color })}
-                className='hover:bg-ink/5 flex h-11 w-11 items-center justify-center rounded-xl'
+                className='h-11 w-11'
+                color={color}
                 data-color={color}
-                type='button'
+                label={t('selection.colorN', { color })}
                 onClick={() => onColor(color)}
-              >
-                <span className='border-ink/25 block h-7 w-7 rounded-full border' style={{ background: color }} />
-              </button>
+              />
             ))}
           </div>
           <div aria-label={t('selection.width')} className='border-ink/10 flex flex-wrap gap-1 border-t pt-1' role='group'>

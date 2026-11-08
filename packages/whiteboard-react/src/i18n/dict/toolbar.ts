@@ -166,6 +166,7 @@ export const TOOLBAR_STRINGS = {
   'color.secondaryShort': 'Secondary',
   'color.toSwitch': 'Tap to switch',
   'color.custom': 'Custom colour',
+  'color.palette': 'Colours',
   'bg.blank': 'Blank',
   'bg.grid': 'Grid',
   'bg.lined': 'Lined',

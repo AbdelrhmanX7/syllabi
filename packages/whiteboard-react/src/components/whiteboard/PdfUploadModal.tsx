@@ -11,7 +11,7 @@ import {
   suggestNextPdfPageRange,
 } from '@repo/whiteboard-core';
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Progress } from '@repo/ui';
-import { AlertCircle, CheckCircle2, FileText, FileUp, Info, LoaderCircle, RotateCcw, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileText, FileUp, Info, LoaderCircle, RotateCcw, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { usePdfRenderer } from './hooks/usePdfRenderer';
@@ -514,9 +514,19 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
   return (
     <Modal isOpen={isOpen} portalContainer={portalContainer} size='lg' onClose={onClose}>
       <ModalContent>
-        <ModalHeader className='flex items-center gap-2'>
+        <ModalHeader className='flex-row items-center gap-2 text-start'>
           <FileUp className='text-primary h-5 w-5' />
-          <span>{onImagesSelected ? t('upload.title.pdfImage') : t('upload.title.pdf')}</span>
+          <span className='min-w-0 flex-1'>{onImagesSelected ? t('upload.title.pdfImage') : t('upload.title.pdf')}</span>
+          <Button
+            isIconOnly
+            aria-label={t('ai.close')}
+            isDisabled={isRendering || isAnalyzing || isCommittingImport}
+            size='sm'
+            variant='light'
+            onPress={onClose}
+          >
+            <X className='h-5 w-5' />
+          </Button>
         </ModalHeader>
 
         <ModalBody>
@@ -579,7 +589,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                   <div className='flex flex-wrap items-center gap-2'>
                     <span className='text-default-500 text-xs'>{t('upload.nextSuggestion')}</span>
                     <button
-                      className='border-primary/20 text-primary hover:bg-primary/5 rounded-sm border bg-white px-3 py-1 text-xs transition-colors'
+                      className='border-primary/20 text-primary hover:bg-primary/5 rounded-sm border bg-content1 px-3 py-1 text-xs transition-colors'
                       type='button'
                       onClick={() => applyPageRangeSelection(lastImportedPdf.suggestedRange)}
                     >
@@ -613,7 +623,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                     </p>
                   </div>
                   {summary ? (
-                    <div className='rounded-sm bg-white px-3 py-1 text-[11px] text-slate-600 shadow-sm'>
+                    <div className='rounded-sm border border-default-200 bg-content1 px-3 py-1 text-[11px] text-default-600'>
                       {t('upload.selectedOfTotal', { n: summary.selectedPageCount, total: summary.totalPages })}
                     </div>
                   ) : null}
@@ -623,7 +633,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                     className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
                       pageSelectionMode === 'all'
                         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                        : 'border-default-300 hover:border-primary/40 bg-white text-slate-600'
+                        : 'border-default-300 hover:border-primary/40 bg-content1 text-default-600'
                     }`}
                     type='button'
                     onClick={() => applyPageRangeSelection(DEFAULT_PDF_PAGE_RANGE)}
@@ -634,7 +644,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                     className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
                       pageSelectionMode === 'range'
                         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                        : 'border-default-300 hover:border-primary/40 bg-white text-slate-600'
+                        : 'border-default-300 hover:border-primary/40 bg-content1 text-default-600'
                     }`}
                     type='button'
                     onClick={() => setPageSelectionMode('range')}
@@ -647,7 +657,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                     <label className='flex flex-col gap-1'>
                       <span className='text-default-500 text-xs font-medium'>Start</span>
                       <input
-                        className='border-2 border-[rgb(var(--st-clay-edge,205_209_224))] focus:border-[rgb(var(--st-accent,47_91_234))] focus:ring-primary/20 w-full rounded-xl bg-white px-3 py-2 text-sm outline-none focus:ring-4'
+                        className='border-2 border-[rgb(var(--st-control-edge,205_209_224))] focus:border-[rgb(var(--st-accent,47_91_234))] focus:ring-primary/20 w-full rounded-xl bg-content1 text-foreground px-3 py-2 text-sm outline-none focus:ring-4'
                         inputMode='numeric'
                         min='1'
                         placeholder='35'
@@ -659,7 +669,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                     <label className='flex flex-col gap-1'>
                       <span className='text-default-500 text-xs font-medium'>To</span>
                       <input
-                        className='border-2 border-[rgb(var(--st-clay-edge,205_209_224))] focus:border-[rgb(var(--st-accent,47_91_234))] focus:ring-primary/20 w-full rounded-xl bg-white px-3 py-2 text-sm outline-none focus:ring-4'
+                        className='border-2 border-[rgb(var(--st-control-edge,205_209_224))] focus:border-[rgb(var(--st-accent,47_91_234))] focus:ring-primary/20 w-full rounded-xl bg-content1 text-foreground px-3 py-2 text-sm outline-none focus:ring-4'
                         inputMode='numeric'
                         min='1'
                         placeholder='45'
@@ -673,21 +683,21 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                 {rangeSelectionError ? <p className='text-danger text-xs'>{rangeSelectionError}</p> : null}
                 <div className='flex flex-wrap gap-2'>
                   <button
-                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-white px-3 py-1 text-xs text-slate-600 transition-colors'
+                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-content1 px-3 py-1 text-xs text-default-600 transition-colors'
                     type='button'
                     onClick={() => applyPageRangeSelection(DEFAULT_PDF_PAGE_RANGE)}
                   >
                     {t('upload.allPages')}
                   </button>
                   <button
-                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-white px-3 py-1 text-xs text-slate-600 transition-colors'
+                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-content1 px-3 py-1 text-xs text-default-600 transition-colors'
                     type='button'
                     onClick={() => applyPageRangeSelection('1-50')}
                   >
                     {t('upload.first50')}
                   </button>
                   <button
-                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-white px-3 py-1 text-xs text-slate-600 transition-colors'
+                    className='border-default-300 hover:border-primary/40 rounded-sm border bg-content1 px-3 py-1 text-xs text-default-600 transition-colors'
                     type='button'
                     onClick={() => applyPageRangeSelection('1-100')}
                   >
@@ -695,7 +705,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                   </button>
                   {suggestedNextRange ? (
                     <button
-                      className='border-primary/20 text-primary hover:bg-primary/5 rounded-sm border bg-white px-3 py-1 text-xs transition-colors'
+                      className='border-primary/20 text-primary hover:bg-primary/5 rounded-sm border bg-content1 px-3 py-1 text-xs transition-colors'
                       type='button'
                       onClick={() => applyPageRangeSelection(suggestedNextRange)}
                     >
@@ -704,7 +714,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
                   ) : null}
                 </div>
                 {summary ? (
-                  <div className='rounded-md bg-white p-3 text-xs text-slate-600'>
+                  <div className='rounded-md border border-default-200 bg-content1 p-3 text-xs text-default-600'>
                     <p>{t('upload.storageNote')}</p>
                   </div>
                 ) : null}
@@ -712,7 +722,7 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
             ) : null}
 
             {summary && matchingImport && !pendingImport ? (
-              <div className='border-default-200 flex flex-col gap-2 rounded-xl border bg-white p-4'>
+              <div className='border-default-200 flex flex-col gap-2 rounded-xl border bg-content1 p-4'>
                 <p className='text-foreground text-sm font-semibold'>{t('upload.alreadyImported')}</p>
                 <p className='text-default-500 text-xs'>
                   {matchingImport.fileName || summary.fileName} • {formatPdfPageRange(alreadyImportedPageNumbers)}
@@ -732,14 +742,14 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
             ) : null}
 
             {advisoryWarnings.length > 0 ? (
-              <div className='flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-start'>
+              <div className='flex flex-col gap-2 rounded-xl border border-warning-200 bg-warning-50 p-4 text-start'>
                 <div className='flex items-center gap-2'>
-                  <Info className='h-4 w-4 flex-shrink-0 text-amber-600' />
-                  <p className='text-sm font-semibold text-amber-800'>{t(PDF_IMPORT_ADVISORY_TITLE)}</p>
+                  <Info className='h-4 w-4 flex-shrink-0 text-warning-600' />
+                  <p className='text-sm font-semibold text-warning-800'>{t(PDF_IMPORT_ADVISORY_TITLE)}</p>
                 </div>
                 <ul className='flex list-none flex-col gap-1.5 ps-6'>
                   {advisoryWarnings.map((warning) => (
-                    <li key={warning} className='text-xs leading-relaxed text-amber-700'>
+                    <li key={warning} className='text-xs leading-relaxed text-warning-700'>
                       {warning}
                     </li>
                   ))}
@@ -748,30 +758,30 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
             ) : null}
 
             {pendingImport ? (
-              <div className='flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-start'>
+              <div className='flex flex-col gap-2 rounded-xl border border-warning-200 bg-warning-50 p-4 text-start'>
                 <div className='flex items-center gap-2'>
-                  <Info className='h-5 w-5 flex-shrink-0 text-amber-600' />
-                  <p className='text-sm font-semibold text-amber-800'>{t(PDF_PARTIAL_IMPORT_TITLE)}</p>
+                  <Info className='h-5 w-5 flex-shrink-0 text-warning-600' />
+                  <p className='text-sm font-semibold text-warning-800'>{t(PDF_PARTIAL_IMPORT_TITLE)}</p>
                 </div>
                 <ul className='flex list-none flex-col gap-1.5 ps-7'>
                   {pendingImport.warnings.map((warning) => (
-                    <li key={warning} className='text-xs leading-relaxed text-amber-700'>
+                    <li key={warning} className='text-xs leading-relaxed text-warning-700'>
                       {warning}
                     </li>
                   ))}
                 </ul>
-                <p className='ps-7 text-xs leading-relaxed text-amber-700'>
+                <p className='ps-7 text-xs leading-relaxed text-warning-700'>
                   {t(PDF_PARTIAL_IMPORT_REASSURANCE)} {t('upload.readyCount', { n: pendingImport.result.pages.length })}
                 </p>
               </div>
             ) : null}
 
             {rescuedPageNumbers.length > 0 ? (
-              <div className='flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-4 text-start'>
-                <CheckCircle2 className='mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600' />
+              <div className='flex items-start gap-2 rounded-xl border border-primary-200 bg-primary-50 p-4 text-start'>
+                <CheckCircle2 className='mt-0.5 h-4 w-4 flex-shrink-0 text-primary-600' />
                 <div className='flex flex-col gap-1'>
-                  <p className='text-sm font-semibold text-sky-800'>{t(PDF_RESCUED_PAGES_TITLE)}</p>
-                  <p className='text-xs leading-relaxed text-sky-700'>
+                  <p className='text-sm font-semibold text-primary-800'>{t(PDF_RESCUED_PAGES_TITLE)}</p>
+                  <p className='text-xs leading-relaxed text-primary-700'>
                     {formatRescuedPdfPagesNotice(rescuedPageNumbers, locale)}
                   </p>
                 </div>
@@ -829,12 +839,6 @@ const PdfUploadModal: React.FC<PdfUploadModalProps> = ({
               onPress={handleCommitPendingImport}
             >
               {t('upload.addPages')}
-            </Button>
-          ) : null}
-
-          {!pendingImport ? (
-            <Button disabled={isRendering || isAnalyzing} variant='bordered' onPress={onClose}>
-              {t('pdflib.cancel')}
             </Button>
           ) : null}
 

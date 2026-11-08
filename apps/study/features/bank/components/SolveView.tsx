@@ -374,7 +374,7 @@ export function SolveView({
           <textarea
             autoCapitalize='off'
             autoCorrect='off'
-            className='min-h-[220px] w-full rounded-st border-2 border-st-clay-edge bg-st-bg p-3 font-mono text-sm leading-6 text-st-fg outline-none focus:border-st-accent'
+            className='min-h-[220px] w-full rounded-st border-2 border-st-control-edge bg-st-bg p-3 font-mono text-sm leading-6 text-st-fg outline-none focus:border-st-accent'
             disabled={Boolean(run.verdict)}
             placeholder={question.type === 'code_output' ? 'What does the program print?' : '// write your answer'}
             spellCheck={false}
@@ -397,7 +397,7 @@ export function SolveView({
 
       {!isCode && mode === 'typed' && !isMcq && !structured ? (
         <textarea
-          className='min-h-[160px] w-full rounded-st border-2 border-st-clay-edge bg-st-surface p-3 text-base leading-7 text-st-fg outline-none focus:border-st-accent'
+          className='min-h-[160px] w-full rounded-st border-2 border-st-control-edge bg-st-surface p-3 text-base leading-7 text-st-fg outline-none focus:border-st-accent'
           disabled={Boolean(run.verdict)}
           placeholder='Type your working, one step per line. $LaTeX$ is fine.'
           value={typed}

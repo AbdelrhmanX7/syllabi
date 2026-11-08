@@ -263,6 +263,10 @@ export type { SpacerProps, SpacerSpace } from './components/Spacer';
 export { User } from './components/User';
 export type { UserProps } from './components/User';
 
+// ColorSwatch / SwatchPicker — the designed colour picker (ink, pen, class colours).
+export { ColorSwatch, SwatchPicker, swatchLuminance } from './components/ColorSwatch';
+export type { ColorSwatchProps, ColorSwatchSize, SwatchOption, SwatchPickerProps } from './components/ColorSwatch';
+
 // Icon — hand-drawn registry + lucide wrapper + animation props.
 export { Icon, ICON_REGISTRY } from './components/Icon';
 export type { IconProps, IconHoverAnimation, IconTrigger, RegisteredIconName } from './components/Icon';

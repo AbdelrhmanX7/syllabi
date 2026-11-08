@@ -78,7 +78,7 @@ export function BankBrowser({
       <label className='relative block'>
         <Search className='pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-st-muted' />
         <input
-          className='h-12 w-full rounded-st border-2 border-st-clay-edge bg-st-surface pl-11 pr-11 text-base text-st-fg outline-none placeholder:text-st-muted focus:border-st-accent'
+          className='h-12 w-full rounded-st border-2 border-st-control-edge bg-st-surface pl-11 pr-11 text-base text-st-fg outline-none placeholder:text-st-muted focus:border-st-accent'
           placeholder='Search stems, topics, tags…'
           type='search'
           value={filters.q}

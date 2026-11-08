@@ -36,6 +36,7 @@ const config: Config = {
         'st-star-lip': 'rgb(var(--st-star-lip) / <alpha-value>)',
         'st-danger-lip': 'rgb(var(--st-danger-lip) / <alpha-value>)',
         'st-clay-edge': 'rgb(var(--st-clay-edge) / <alpha-value>)',
+        'st-control-edge': 'rgb(var(--st-control-edge) / <alpha-value>)',
         'st-star-soft': 'rgb(var(--st-star-soft) / <alpha-value>)',
         'st-star-fg': 'rgb(var(--st-star-fg) / <alpha-value>)',
         'st-ink': 'rgb(var(--st-ink) / <alpha-value>)',

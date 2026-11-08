@@ -249,6 +249,7 @@ These components are in `packages/ui/src/components/` and exported from the barr
 | **Button** | `Button` | P1 |
 | **Card** | `Card`, `CardHeader`, `CardBody`, `CardFooter`, `Tape`, `Pin`, `HolePunch` | P1 |
 | **Checkbox** | `Checkbox` | P1 |
+| **ColorSwatch** | `ColorSwatch`, `SwatchPicker`, `swatchLuminance` | 2026-11 |
 | **Chip** | `Chip` | P1 |
 | **Divider** | `Divider` | P2R5 |
 | **Drawer** | `Drawer`, `DrawerContent`, `DrawerHeader`, `DrawerBody`, `DrawerFooter` | P2R3 |

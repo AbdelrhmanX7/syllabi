@@ -813,7 +813,7 @@ function ExamRunner({
         <textarea
           autoCapitalize='off'
           autoCorrect='off'
-          className='min-h-[200px] w-full rounded-st border-2 border-st-clay-edge bg-st-bg p-3 font-mono text-sm leading-6 text-st-fg outline-none focus:border-st-accent'
+          className='min-h-[200px] w-full rounded-st border-2 border-st-control-edge bg-st-bg p-3 font-mono text-sm leading-6 text-st-fg outline-none focus:border-st-accent'
           placeholder={question.type === 'code_output' ? 'What does it print?' : '// your code'}
           spellCheck={false}
           value={draft.typed}

@@ -1,6 +1,7 @@
 import type { InkClass } from '@repo/whiteboard-react/auto-color';
 
 import { useState, useSyncExternalStore } from 'react';
+import { SwatchPicker } from '@repo/ui';
 import { DEFAULT_INK_PALETTE, INK_CLASSES } from '@repo/whiteboard-react/auto-color';
 
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
@@ -35,37 +36,18 @@ const subscribeMemory = (listener: () => void) => {
 function ClassColorRow({ cls, value }: { cls: InkClass; value: string | null | undefined }) {
   const fallback = DEFAULT_INK_PALETTE[cls];
   const current = value === undefined ? fallback : value;
-  const swatch = (colour: string | null, label: string) => {
-    const active = colour === current;
-
-    return (
-      <button
-        key={colour ?? 'ink'}
-        aria-label={label}
-        aria-pressed={active}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-st-fg' : 'border-transparent'}`}
-        type='button'
-        onClick={() => saveInkClassColor(cls, colour === fallback ? undefined : colour)}
-      >
-        <span
-          className='border-st-line flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold'
-          style={colour ? { background: colour } : undefined}
-        >
-          {colour ? null : 'Aa'}
-        </span>
-      </button>
-    );
-  };
-
   return (
     <div className='flex flex-col gap-1 py-2' data-ink-class-row={cls}>
       <p className='text-sm font-medium' style={{ color: current ?? undefined }}>
         {CLASS_NAME[cls]}
       </p>
-      <div className='flex flex-wrap gap-0.5' role='group'>
-        {swatch(null, `${CLASS_NAME[cls]}: keep the ink`)}
-        {SWATCHES.map((colour) => swatch(colour, `${CLASS_NAME[cls]}: ${colour}`))}
-      </div>
+      <SwatchPicker
+        colors={[{ value: null, label: `${CLASS_NAME[cls]}: keep the ink`, content: 'Aa' }, ...SWATCHES]}
+        getLabel={(colour) => `${CLASS_NAME[cls]}: ${colour}`}
+        label={`${CLASS_NAME[cls]} colour`}
+        value={current}
+        onChange={(colour) => saveInkClassColor(cls, colour === fallback ? undefined : colour)}
+      />
     </div>
   );
 }

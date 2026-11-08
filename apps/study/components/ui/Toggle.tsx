@@ -19,7 +19,7 @@ export function Toggle({
       className={cn(
         'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 transition-colors disabled:opacity-50',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-st-accent',
-        checked ? 'border-st-accent-lip bg-st-accent' : 'border-st-clay-edge bg-st-raised',
+        checked ? 'border-st-accent-lip bg-st-accent' : 'border-st-control-edge bg-st-raised',
       )}
       disabled={disabled}
       role='switch'

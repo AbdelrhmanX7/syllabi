@@ -47,8 +47,8 @@ export function AppShell({ children, pathname }: { children: ReactNode; pathname
   }
 
   return (
-    // `st-shell`: below md it sets --st-nav-offset (bottom bar height + safe area) for content padding
-    // and the fixed banners/toasts, so nothing hides behind the phone bottom bar.
+    // `st-shell`: below md it reserves --st-nav-offset (bottom bar height + safe area) as padding, so the
+    // scroll area stops at the bar and nothing hides behind it; fixed banners/toasts offset by it too.
     <div className='st-shell st-full-h bg-st-bg flex w-screen overflow-hidden'>
       <Rail />
       <main className='relative flex min-w-0 flex-1 flex-col overflow-y-auto'>
@@ -67,7 +67,7 @@ export function AppShell({ children, pathname }: { children: ReactNode; pathname
         )}
         <div
           className={cn(
-            'mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 pb-[calc(1.5rem+var(--st-nav-offset,0px))] pt-4',
+            'mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 pb-6 pt-4',
             'md:px-6 md:pb-16 md:pt-6 lg:px-10',
           )}
         >

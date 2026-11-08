@@ -190,7 +190,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
               <label className='space-y-1.5 text-sm'>
                 <span className='font-medium'>Class</span>
                 <select
-                  className='h-11 w-full rounded-st border-2 border-st-clay-edge bg-st-surface px-3'
+                  className='h-11 w-full rounded-st border-2 border-st-control-edge bg-st-surface px-3'
                   value={formClassId}
                   onChange={(event) => {
                     setFormClassId(event.target.value);
@@ -207,7 +207,7 @@ export function LecturesHome({ classId, lectureId, startAtSec, record = null }: 
               <label className='space-y-1.5 text-sm'>
                 <span className='font-medium'>Title</span>
                 <input
-                  className='h-11 w-full rounded-st border-2 border-st-clay-edge bg-st-surface px-3'
+                  className='h-11 w-full rounded-st border-2 border-st-control-edge bg-st-surface px-3'
                   value={formTitle}
                   onChange={(event) => setFormTitle(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && startRecording()}

@@ -85,6 +85,10 @@ lip+glow needs ~16px above and ~36px below). Rules:
 - Content inside a selectable row (Select option, list item) inherits the row colour
   (`opacity-75` for secondary text), never a fixed ink — the selected row is filled.
 
+- **Field/chip rims use `st-control-edge`** (inputs, filter chips, toggle tracks, swatch rims) — ≥ 3:1
+  against a card in dark (WCAG 1.4.11). `st-clay-edge` stays for card borders and lips (quieter).
+- **Colour pickers are `ColorSwatch` / `SwatchPicker` from `@repo/ui`** — never a hand-rolled dot button.
+
 - **One separator colour.** Every hairline (layout borders, `<Divider>`, table/list dividers) is
   `default-200`. Never mix a rim-coloured line next to a default-200 border.
 

@@ -36,6 +36,9 @@
   --st-star-lip: 214 150 20;
   --st-danger-lip: 176 52 40;
   --st-clay-edge: 205 209 224;
+  /* Rim of a FIELD or CHIP (inputs, filter chips, toggles, swatches): the rim is the control, so it owes
+     3:1 against the card (WCAG 1.4.11). Light keeps the clay edge; dark lifts it (see .dark). */
+  --st-control-edge: 205 209 224;
   --st-star: 255 201 60;
   --st-star-soft: 255 243 209;
   --st-star-fg: 24 32 74;
@@ -66,7 +69,7 @@
 .dark {
   /* «Notebook Blue at night»: a deep ink-blue desk with clearly stepped rungs (page → card → raised →
      hover, each ≈1.24:1 off the one below, so layers separate without borders doing all the work),
-     a crisp cobalt clay edge (2.3:1 on a card), warm chalk text and a vivid-not-neon periwinkle accent.
+     a crisp cobalt clay edge (2.3:1 on a card; field/chip rims use the lighter --st-control-edge, ≥ 3:1), warm chalk text and a vivid-not-neon periwinkle accent.
      Status hues are tuned to the same lightness band so none of them shouts. All text pairs ≥ 4.5:1. */
   --st-bg: 9 13 32; /* #090d20 page */
   --st-surface: 25 33 72; /* #192148 card / rail — 1.24:1 off the page */
@@ -81,6 +84,7 @@
   --st-star-lip: 196 140 24;
   --st-danger-lip: 196 87 75; /* #c4574b */
   --st-clay-edge: 70 86 168; /* #4656a8 cobalt edge + lip — 2.3:1 on a card, 2.9:1 on the page */
+  --st-control-edge: 106 124 204; /* #6a7ccc field/chip rim — 3.97:1 on a card, 3.19:1 on raised, 4.9:1 on the page */
   --st-star: 255 201 60;
   --st-star-soft: 58 48 22; /* #3a3016 warm wash, not another navy — chalk 10.9:1 */
   --st-star-fg: 24 32 74;
@@ -280,10 +284,15 @@ body {
 }
 
 /* Phone bottom bar (components/layout/BottomNav, < md): its height + the home-indicator inset.
-   Content padding and fixed banners/toasts offset by this; 0 on tablets and up (the Rail shows). */
+   The shell reserves it as padding, so the scroll area (main) ENDS at the top of the bar: nothing — a
+   last button, a sticky action row, a focused field — can ever sit under it. Fixed banners/toasts
+   offset by the same variable; 0 on tablets and up (the Rail shows). */
 .st-shell { --st-nav-offset: 0px; }
 @media (max-width: 767.98px) {
-  .st-shell { --st-nav-offset: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+  .st-shell {
+    --st-nav-offset: calc(4rem + 1px + env(safe-area-inset-bottom, 0px)); /* 64px items + the 1px top border */
+    padding-bottom: var(--st-nav-offset);
+  }
 }
 
 @layer utilities {

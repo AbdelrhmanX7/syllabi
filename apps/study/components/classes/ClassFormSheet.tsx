@@ -1,7 +1,8 @@
 import type { StudyClass } from '@/lib/api/types';
 
 import { useState } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { SwatchPicker } from '@repo/ui';
+import { Trash2 } from 'lucide-react';
 import { useRouter } from 'next/router';
 
 import { ActionButton, ErrorNote, Field, INPUT_CLASS } from '@/components/ui/primitives';
@@ -120,21 +121,7 @@ export function ClassFormSheet({ cls, onClose }: { cls?: StudyClass; onClose: ()
         </Field>
         <div className='flex flex-col gap-1.5'>
           <span className='text-st-fg text-sm font-medium'>Colour</span>
-          <div className='flex flex-wrap gap-3'>
-            {COLORS.map((swatch) => (
-              <button
-                key={swatch}
-                aria-label={`Colour ${swatch}`}
-                aria-pressed={color === swatch}
-                className='flex h-10 w-10 items-center justify-center rounded-full'
-                style={{ backgroundColor: swatch }}
-                type='button'
-                onClick={() => setColor(swatch)}
-              >
-                {color === swatch && <Check className='h-5 w-5 text-white' />}
-              </button>
-            ))}
-          </div>
+          <SwatchPicker colors={COLORS} getLabel={(swatch) => `Colour ${swatch}`} label='Class colour' value={color} onChange={(next) => next && setColor(next)} />
         </div>
         {error && <ErrorNote message={describeError(error)} />}
         <button className='hidden' type='submit' />

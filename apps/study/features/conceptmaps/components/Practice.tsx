@@ -279,7 +279,7 @@ function Picker({
             <div className='flex items-center gap-2'>
               <input
                 aria-label='Lecture number'
-                className='rounded-st border-st-clay-edge bg-st-surface text-st-fg min-h-10 w-28 border-2 px-2 text-sm'
+                className='rounded-st border-st-control-edge bg-st-surface text-st-fg min-h-10 w-28 border-2 px-2 text-sm'
                 disabled={predicting}
                 inputMode='numeric'
                 max={200}

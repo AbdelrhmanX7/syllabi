@@ -1,6 +1,7 @@
 import type { InkStroke } from '../lib/ink';
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { ColorSwatch } from '@repo/ui';
 import { Eraser, PenLine, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 
 import { drawStroke, eraseAt, isInkEmpty, rasterizeInk } from '../lib/ink';
@@ -378,32 +379,20 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
             <Eraser className='h-5 w-5' />
           </ToolButton>
           <span className='mx-1 h-6 w-px bg-st-raised' />
-          {(Object.keys(COLOR_LIGHT) as InkColor[]).map((token) => (
-            <button
-              key={token}
-              aria-label={`${token} ink`}
-              aria-pressed={color === token}
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition ${
-                color === token
-                  ? 'ring-2 ring-st-ink ring-offset-2 ring-offset-white dark:ring-offset-zinc-900'
-                  : ''
-              }`}
-              type='button'
-              onClick={() => {
-                setColor(token);
-                setTool('pen');
-              }}
-            >
-              <span
-                className='h-6 w-6 rounded-full border border-st-line/10 dark:hidden'
-                style={{ background: COLOR_LIGHT[token] }}
-              />
-              <span
-                className='hidden h-6 w-6 rounded-full border border-st-line/10 dark:block'
-                style={{ background: COLOR_DARK[token] }}
-              />
-            </button>
-          ))}
+          {(Object.keys(COLOR_LIGHT) as InkColor[]).map((token) => {
+            const pick = () => {
+              setColor(token);
+              setTool('pen');
+            };
+
+            // The ink renders lighter on a dark page, so each swatch shows the colour it will draw in.
+            return (
+              <React.Fragment key={token}>
+                <ColorSwatch className='h-11 w-11 dark:hidden' color={COLOR_LIGHT[token]} isSelected={color === token} label={`${token} ink`} onClick={pick} />
+                <ColorSwatch className='hidden h-11 w-11 dark:inline-flex' color={COLOR_DARK[token]} isSelected={color === token} label={`${token} ink`} onClick={pick} />
+              </React.Fragment>
+            );
+          })}
           <span className='flex-1' />
           <ToolButton disabled={!canUndo} label='Undo' onPress={() => undo()}>
             <Undo2 className='h-5 w-5' />
