@@ -6,7 +6,10 @@
  * installed build's (Android versionCode = minutes since 2026-01-01 UTC, strictly increasing).
  */
 
-const RELEASES_BASE = 'https://syllabi-studio.s3.eu-central-003.backblazeb2.com/study/';
+// Baked at build time by scripts/android-release.mjs from STUDY_FEED_PREFIX (public CI builds use
+// `study/public/`); the native shell's feed URL (src-tauri/src/lib.rs) comes from the same variable.
+const RELEASES_BASE =
+  process.env.NEXT_PUBLIC_RELEASES_BASE || 'https://syllabi-studio.s3.eu-central-003.backblazeb2.com/study/';
 
 export const UPDATE_FEED_URL = `${RELEASES_BASE}latest.json`;
 export const DOWNLOAD_PAGE_URL = `${RELEASES_BASE}index.html`;

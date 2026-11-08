@@ -91,6 +91,20 @@ The server is still catching up with the app, so a few features need a compatibl
 `node apps/study/scripts/android-release.mjs` builds a signed release. Set `STUDY_BUILD_API` to bake in a default
 server, or leave it empty for demo mode.
 
+### Releasing
+
+Releases are manual. In GitHub, open **Actions → Release → Run workflow** and pick the bump:
+
+- `patch` for small changes and fixes (0.1.0 → 0.1.1)
+- `minor` for new features (0.1.0 → 0.2.0)
+- `major` for breaking changes (0.1.0 → 1.0.0)
+
+Optional `notes` show in the in-app update banner and on top of the generated release notes. The workflow bumps
+the version, commits `Release vX.Y.Z` to `master`, tags it, builds the signed arm64 APK against
+`https://api.syllabi.studio`, attaches `syllabi-X.Y.Z-arm64.apk` to a GitHub Release and publishes it to the
+update feed, so installed apps offer the update. Tick `dry_run` to only build and verify the APK (downloadable
+from the run's artifacts) without bumping, tagging or publishing.
+
 ## Repository layout
 
 | Path | What's there |

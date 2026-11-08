@@ -27,8 +27,13 @@ fn shell_info() -> ShellInfo {
 }
 
 /// The published release feed (scripts/publish-android.mjs). Read here, not in the WebView: the
-/// bucket sends no CORS headers.
-const UPDATE_FEED_URL: &str = "https://syllabi-studio.s3.eu-central-003.backblazeb2.com/study/latest.json";
+/// bucket sends no CORS headers. Baked at compile time: scripts/android-release.mjs sets
+/// STUDY_UPDATE_FEED_URL from STUDY_FEED_PREFIX (public CI builds poll `study/public/latest.json`),
+/// unset = the default feed.
+const UPDATE_FEED_URL: &str = match option_env!("STUDY_UPDATE_FEED_URL") {
+    Some(url) => url,
+    None => "https://syllabi-studio.s3.eu-central-003.backblazeb2.com/study/latest.json",
+};
 
 /// `invoke('update_feed')` → the feed JSON as published; the page validates it (lib/platform/update-check.ts).
 #[tauri::command]

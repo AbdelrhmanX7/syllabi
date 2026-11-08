@@ -78,6 +78,8 @@ Every screen is built from the clay design system (`packages/ui` and `apps/study
 - Write the commit message as one line saying what changed and why, in plain words.
 - Fill in the pull request template. A maintainer reviews within a few days.
 - By contributing, you agree your work is released under the MIT license.
+- Don't bump versions in a pull request. The maintainer cuts releases with the manual **Release** workflow
+  (see [Releasing](README.md#releasing)).
 
 ## Code of Conduct
 

@@ -5,6 +5,7 @@
 //   node scripts/android-release.mjs --target x86_64 --debug   emulator build
 //   node scripts/android-release.mjs --no-frontend           reuse the existing out/ export
 //   node scripts/android-release.mjs --from-commit <sha>     build a CLEAN checkout of <sha> (below)
+//   STUDY_FEED_PREFIX=study/public node scripts/android-release.mjs   poll another update feed (CI public builds)
 //
 // What it does that a bare `tauri android build` does not (modelled on the whiteboard's script):
 // - loads the release signing env from $SYLLABI_RELEASE_ENV (default ~/.android/syllabi-release.env,
@@ -249,6 +250,20 @@ const pad = (value) => String(value).padStart(2, '0');
 const stampTime = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
 const buildStamp = `${version} · ${sha}${dirty} · ${stampTime}`;
 const versionCode = Math.floor((now.getTime() - Date.UTC(2026, 0, 1)) / 60_000);
+
+// Update feed: STUDY_FEED_PREFIX (bucket key prefix, default `study`) is baked into BOTH the native
+// shell (STUDY_UPDATE_FEED_URL, read by option_env! in src-tauri/src/lib.rs) and the page
+// (NEXT_PUBLIC_RELEASES_BASE, lib/platform/update-check.ts). Public CI builds use `study/public` so
+// they never read (or overwrite, via publish-android --feed) the default feed. Unset = defaults.
+const feedPrefix = (env.STUDY_FEED_PREFIX ?? '').trim().replace(/^\/+|\/+$/g, '');
+
+if (feedPrefix && feedPrefix !== 'study') {
+  const releasesBase = `https://syllabi-studio.s3.eu-central-003.backblazeb2.com/${feedPrefix}/`;
+
+  env.NEXT_PUBLIC_RELEASES_BASE = releasesBase;
+  env.STUDY_UPDATE_FEED_URL = `${releasesBase}latest.json`;
+  log(`update feed ${env.STUDY_UPDATE_FEED_URL}`);
+}
 
 env.NEXT_PUBLIC_BUILD_STAMP = buildStamp;
 // The in-app updater's fallback for the installed versionCode (the activity reports the real one).

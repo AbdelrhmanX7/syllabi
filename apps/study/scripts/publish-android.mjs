@@ -6,6 +6,7 @@
 //   node scripts/publish-android.mjs --notes "Faster sync"   shown in the in-app update banner
 //   node scripts/publish-android.mjs --dry-run               every check, no upload
 //   node scripts/publish-android.mjs --probe                 signed HEAD of latest.json: credentials + signing work
+//   node scripts/publish-android.mjs --feed study/public     publish to another feed (public CI builds)
 //
 // Bucket syllabi-studio (Backblaze B2, S3 API, eu-central-003), keys under study/:
 //   study/study-<version>-<sha>-arm64.apk   immutable
@@ -42,7 +43,14 @@ const BUCKET = 'syllabi-studio';
 const REGION = 'eu-central-003';
 const ENDPOINT_HOST = `s3.${REGION}.backblazeb2.com`;
 const PUBLIC_BASE = `https://${BUCKET}.${ENDPOINT_HOST}`;
-const PREFIX = 'study';
+// Feed key prefix: --feed <prefix> or STUDY_FEED_PREFIX, default `study`. Must match the prefix the
+// APK was built with (android-release.mjs bakes STUDY_FEED_PREFIX into the app's update check).
+const PREFIX = (option('--feed', '') || process.env.STUDY_FEED_PREFIX || 'study').trim().replace(/^\/+|\/+$/g, '');
+
+if (!/^study(\/[a-z0-9-]+)*$/.test(PREFIX)) {
+  console.error(`[publish-android] REFUSED — feed prefix "${PREFIX}" must be study or study/<name>`);
+  process.exit(1);
+}
 
 const dryRun = flag('--dry-run');
 // --replace-feed-app: allow replacing a feed published under a different bundle id (one-time id migration).
@@ -282,6 +290,7 @@ const latest = {
 
 log(`${apkName}: ${PACKAGE} ${version} versionCode ${versionCode} (published ${published?.versionCode ?? 'none'})`);
 log(`sha256 ${sha256}, ${(apk.length / 1048576).toFixed(1)} MB`);
+log(`feed ${PUBLIC_BASE}/${PREFIX}/latest.json`);
 
 /* ------------------------------------------------------------------ the download page */
 

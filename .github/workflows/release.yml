@@ -1,0 +1,199 @@
+name: Release
+
+# Manual Android releases. Actions → Release → Run workflow:
+#   type     patch = small changes / fixes, minor = new features, major = breaking changes
+#   notes    optional text shown in the in-app update banner and on top of the GitHub Release notes
+#   dry_run  build + verify a signed APK only (no version bump, no tag, no GitHub Release, no feed publish)
+#
+# Public builds talk to the hosted server and use their own update feed (study/public/latest.json), so
+# they never read or overwrite the default feed (study/latest.json) used by privately built APKs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: 'Version bump (patch = small changes, minor = new features, major = breaking)'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      notes:
+        description: 'Release notes (optional, shown in the in-app update banner)'
+        type: string
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run: build and verify the APK only (no bump, tag, release or publish)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  STUDY_BUILD_API: https://api.syllabi.studio
+  STUDY_FEED_PREFIX: study/public
+  NDK_VERSION: 27.2.12479018
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Bump version, commit, tag
+        id: version
+        env:
+          BUMP: ${{ inputs.type }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            version=$(node -p "require('./apps/study/src-tauri/tauri.conf.json').version")
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "Dry run: building $version from $(git rev-parse --short HEAD), nothing is bumped"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          version=$(node apps/study/scripts/bump-version.mjs "$BUMP")
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null || git ls-remote --exit-code --tags origin "v$version" >/dev/null; then
+            echo "::error::tag v$version already exists"; exit 1
+          fi
+          git add apps/study/package.json apps/study/src-tauri/tauri.conf.json apps/study/src-tauri/Cargo.toml apps/study/src-tauri/Cargo.lock
+          git commit -m "Release v$version"
+          # master may have moved since checkout: rebase the bump onto it and retry.
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:master; then pushed=1; break; fi
+            echo "push rejected (attempt $attempt), rebasing onto origin/master"
+            git pull --rebase origin master
+          done
+          [ "${pushed:-}" = 1 ] || { echo "::error::could not push the release commit"; exit 1; }
+          git tag -a "v$version" -m "Release v$version"
+          git push origin "v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tagged=true" >> "$GITHUB_OUTPUT"
+          echo "Release v$version at $(git rev-parse --short HEAD)"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            apps/study/src-tauri/gen/android/*.gradle*
+            apps/study/src-tauri/gen/android/app/build.gradle.kts
+            apps/study/src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Android SDK + NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/study/src-tauri -> target
+          shared-key: android-arm64
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          [ -n "$KEYSTORE_B64" ] || { echo "::error::ANDROID_KEYSTORE_B64 secret is missing"; exit 1; }
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "SYLLABI_KEYSTORE=$RUNNER_TEMP/release.jks"
+            echo "SYLLABI_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "SYLLABI_KEY_ALIAS=$KEY_ALIAS"
+            if [ -n "$KEY_PASSWORD" ]; then echo "SYLLABI_KEY_PASSWORD=$KEY_PASSWORD"; fi
+          } > "$RUNNER_TEMP/release.env"
+          echo "SYLLABI_RELEASE_ENV=$RUNNER_TEMP/release.env" >> "$GITHUB_ENV"
+
+      - name: Build signed arm64 APK
+        working-directory: apps/study
+        run: node scripts/android-release.mjs
+
+      - name: Verify APK
+        id: apk
+        working-directory: apps/study
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          apk=$(ls android-dist/study-"$VERSION"-*-arm64-release.apk 2>/dev/null | head -n1)
+          [ -n "$apk" ] || { ls -la android-dist || true; echo "::error::no signed, clean arm64 release APK was archived"; exit 1; }
+          case "$apk" in *-dirty-*|*-unsigned*) echo "::error::$apk is dirty or unsigned"; exit 1;; esac
+          feed="syllabi-studio.s3.eu-central-003.backblazeb2.com/$STUDY_FEED_PREFIX/latest.json"
+          unzip -p "$apk" 'lib/arm64-v8a/*' | grep -aqF "$feed" || { echo "::error::native shell does not poll $feed"; exit 1; }
+          grep -rqF "syllabi-studio.s3.eu-central-003.backblazeb2.com/$STUDY_FEED_PREFIX/" out/_next || { echo "::error::page does not use the $STUDY_FEED_PREFIX feed"; exit 1; }
+          grep -rqF "$STUDY_BUILD_API" out/_next || { echo "::error::$STUDY_BUILD_API is not baked in"; exit 1; }
+          echo "Feed $feed and API $STUDY_BUILD_API verified in $apk"
+          node scripts/publish-android.mjs --dry-run --apk "$apk" --feed "$STUDY_FEED_PREFIX"
+          cp "$apk" "$RUNNER_TEMP/syllabi-$VERSION-arm64.apk"
+          echo "path=$PWD/$apk" >> "$GITHUB_OUTPUT"
+          echo "asset=$RUNNER_TEMP/syllabi-$VERSION-arm64.apk" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syllabi-${{ steps.version.outputs.version }}-arm64${{ inputs.dry_run && '-dry-run' || '' }}
+          path: ${{ steps.apk.outputs.asset }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: GitHub Release
+        id: ghrelease
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          gh release create "v$VERSION" "${{ steps.apk.outputs.asset }}" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "Syllabi v$VERSION" \
+            --generate-notes --notes "$NOTES"
+
+      - name: Publish to the update feed
+        if: ${{ !inputs.dry_run }}
+        working-directory: apps/study
+        env:
+          B2_RELEASES_KEY_ID: ${{ secrets.B2_RELEASES_KEY_ID }}
+          B2_RELEASES_APP_KEY: ${{ secrets.B2_RELEASES_APP_KEY }}
+          NOTES: ${{ inputs.notes }}
+        run: node scripts/publish-android.mjs --apk "${{ steps.apk.outputs.path }}" --feed "$STUDY_FEED_PREFIX" --notes "$NOTES"
+
+      - name: Drop the tag of a release that never built
+        if: ${{ failure() && steps.version.outputs.tagged == 'true' && steps.ghrelease.outcome != 'success' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: git push origin --delete "v$VERSION" || true
