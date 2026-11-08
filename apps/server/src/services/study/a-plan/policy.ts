@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { StudyClassPolicy, IStudyClassPolicy, ClassPolicy, ClassPolicyQuote, PolicySlot } from "@/models/study/class-policy";
-import { newSpend, Spend, textJson } from "../ai-models";
+import { newSpend, Spend, textJson, spendForUser } from "../ai-models";
 import { recordStudyUsage } from "../usage";
 import { classifyAiError, logAiFailure } from "../ai-errors";
 import { verifyQuotes } from "./text-utils";
@@ -147,7 +147,7 @@ export function settlePolicy(raw: any, sourceText: string): { policy: ClassPolic
 
 export async function extractPolicy(text: string, className: string, spend: Spend): Promise<{ policy: ClassPolicy; dropped: ClassPolicyQuote[] }> {
   const source = text.slice(0, POLICY_MAX_CHARS);
-  const raw = await textJson(POLICY_SYSTEM_PROMPT, `CLASS: ${className}\n\nSYLLABUS:\n${source}`, spend, { maxTokens: 12_000, disableThinking: true });
+  const raw = await textJson(POLICY_SYSTEM_PROMPT, `CLASS: ${className}\n\nSYLLABUS:\n${source}`, spend, { maxTokens: 12_000, disableThinking: true, claude: "haiku" });
   if (!raw) throw new Error("policy extraction returned no JSON");
   return settlePolicy(raw, source);
 }
@@ -162,7 +162,7 @@ export async function ensurePolicy(
   const hash = doc.syllabus?.textHash ?? null;
   if (!hash || !doc.syllabus.text) return doc;
   if (!opts.force && doc.policy && doc.policyTextHash === hash) return doc;
-  const spend = newSpend();
+  const spend = await spendForUser(userId, { background: true });
   const started = Date.now();
   try {
     const { policy, dropped } = await extractPolicy(doc.syllabus.text, className, spend);

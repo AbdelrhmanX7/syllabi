@@ -1,6 +1,7 @@
 import { callVision } from "@/services/whiteboard-ai/vision";
 import { STUDY_VISION_MODELS, type Spend } from "../ai-models";
 import { toPng } from "../extract-sources";
+import { claudeForSpend } from "../ai-claude";
 
 /**
  * The lasso image (`context.imagePngB64`) is READ first — one short vision call, hard-capped at
@@ -29,6 +30,11 @@ export const decodeImageB64 = (v: unknown): Buffer | null => {
 export async function readLasso(image: Buffer, spend: Spend, signal: AbortSignal): Promise<string> {
   const png = await toPng(image);
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(LASSO_DEADLINE_MS)]);
+  if (spend.route !== "premium") {
+    // Non-premium: a short literal transcription → haiku, no retry inside the 20 s deadline.
+    const text = (await claudeForSpend(spend, { kind: "vision", choice: "haiku", system: "You transcribe what a student selected on their notes.", user: LASSO_READ_PROMPT, images: [{ data: png, mime: "image/png" }], maxTokens: 600, signal: deadline, maxRetries: 0 })).trim();
+    return /^\(?nothing readable\)?\.?$/i.test(text) ? "" : text.slice(0, 2000);
+  }
   try {
     const v = await callVision(png, "image/png", LASSO_READ_PROMPT, { signal: deadline, timeoutMs: PER_MODEL_MS, deadlineMs: LASSO_DEADLINE_MS, models: STUDY_VISION_MODELS });
     spend.visionCostUsd += v.costUsd;

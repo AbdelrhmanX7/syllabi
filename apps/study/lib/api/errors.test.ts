@@ -113,3 +113,14 @@ test('AI_NOT_ENABLED: one plain line, no retry', () => {
   assert.equal(retryUnlessAiQuota(0, error), false);
   assert.equal(isAiNotEnabled(new StudyApiError(403, 'Forbidden')), false);
 });
+
+test('AI resting codes: plain message, no auto-retry', () => {
+  const month = new StudyApiError(503, 'x', 'AI_BUDGET');
+  const day = new StudyApiError(429, 'x', 'AI_DAILY_LIMIT');
+
+  assert.equal(month.message, 'The AI is resting until next month.');
+  assert.equal(day.message, "You've used a lot of AI today — try again tomorrow.");
+  assert.equal(retryUnlessAiQuota(0, month), false);
+  assert.equal(retryUnlessAiQuota(0, day), false);
+  assert.equal(describeError({ code: 'AI_BUDGET' }), 'The AI is resting until next month.');
+});

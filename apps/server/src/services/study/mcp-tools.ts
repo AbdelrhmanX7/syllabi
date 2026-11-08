@@ -25,7 +25,7 @@ import { classifyAiError, logAiFailure } from "./ai-errors";
 import { buildStudyPlan, explainMistake } from "./mcp-ai";
 import { IMAGE_SIZES, ImageShape, imageGen, newSpend } from "./ai-models";
 import { recordStudyUsage } from "./usage";
-import { AI_NOT_ENABLED, aiEnabledFor } from "@/auth/verified";
+import { AI_NOT_ENABLED, aiEnabledFor, premiumAiFor } from "@/auth/verified";
 import { logger } from "@/services/logger.service";
 import { IStudyClass } from "@/models/study/class";
 import { getLectureMaterial } from "./lecture-material";
@@ -760,9 +760,9 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       annotations: WRITE,
     },
     async ({ prompt, shape, note, classId }) => {
-      if (!(await aiEnabledFor(userId))) return noAi();
+      if (!(await premiumAiFor(userId))) return noAi(); // image generation: premium only
       if (classId && !(await StudyClass.exists({ _id: classId, userId }))) return toolError("Class not found", "NOT_FOUND");
-      const spend = newSpend();
+      const spend = newSpend("premium", userId);
       const startedAt = Date.now();
       let image: Buffer;
       let model: string;

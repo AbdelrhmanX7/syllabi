@@ -6,6 +6,21 @@
 export const AI_QUOTA_CODE = 'AI_QUOTA';
 export const AI_QUOTA_MESSAGE = 'AI credits ran out — top up the AI account, then try again.';
 
+/** The server's monthly AI allowance for everyone is used up. Nothing to retry until next month. */
+export const AI_BUDGET_CODE = 'AI_BUDGET';
+export const AI_BUDGET_MESSAGE = 'The AI is resting until next month.';
+
+/** One account used the AI a lot today. Back tomorrow. */
+export const AI_DAILY_LIMIT_CODE = 'AI_DAILY_LIMIT';
+export const AI_DAILY_LIMIT_MESSAGE = "You've used a lot of AI today — try again tomorrow.";
+
+/** The AI's resting, for the month or for today: no auto-retry. */
+export function isAiResting(error: unknown): boolean {
+  const code = !!error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+
+  return code === AI_BUDGET_CODE || code === AI_DAILY_LIMIT_CODE;
+}
+
 /** 403 from AI endpoints (tutor, extraction, `/study/ai/*`) until the account's email is confirmed. */
 export const EMAIL_NOT_VERIFIED_CODE = 'EMAIL_NOT_VERIFIED';
 export const EMAIL_NOT_VERIFIED_MESSAGE =
@@ -39,7 +54,11 @@ export class StudyApiError extends Error {
           ? EMAIL_NOT_VERIFIED_MESSAGE
           : code === AI_NOT_ENABLED_CODE
             ? AI_NOT_ENABLED_MESSAGE
-            : message,
+            : code === AI_BUDGET_CODE
+              ? AI_BUDGET_MESSAGE
+              : code === AI_DAILY_LIMIT_CODE
+                ? AI_DAILY_LIMIT_MESSAGE
+                : message,
     );
     this.name = 'StudyApiError';
     this.status = status;
@@ -79,7 +98,7 @@ export function isAiQuotaError(error: unknown): boolean {
 
 /** React Query `retry`: once for a flaky network, never for an empty AI account. */
 export const retryUnlessAiQuota = (failureCount: number, error: unknown): boolean =>
-  failureCount < 1 && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error);
+  failureCount < 1 && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error) && !isAiResting(error);
 
 export const NETWORK_MESSAGE = 'Lost connection to the server — check your internet and try again.';
 
@@ -123,6 +142,8 @@ export const NO_PROMPT_TERMS_MESSAGE = "Enter this map's concept list first";
 export function describeError(error: unknown, fallback = 'Something went wrong', network = NETWORK_MESSAGE): string {
   if (isAiQuotaError(error)) return AI_QUOTA_MESSAGE;
   if (isServerRestarting(error)) return SERVER_RESTARTING_MESSAGE;
+  if ((error as { code?: unknown } | null)?.code === AI_BUDGET_CODE) return AI_BUDGET_MESSAGE;
+  if ((error as { code?: unknown } | null)?.code === AI_DAILY_LIMIT_CODE) return AI_DAILY_LIMIT_MESSAGE;
   if ((error as { code?: unknown } | null)?.code === NO_PROMPT_TERMS_CODE) return NO_PROMPT_TERMS_MESSAGE;
   if (isEmailNotVerified(error)) return EMAIL_NOT_VERIFIED_MESSAGE;
   if (isAiNotEnabled(error)) return AI_NOT_ENABLED_MESSAGE;

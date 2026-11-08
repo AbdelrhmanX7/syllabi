@@ -230,3 +230,30 @@ export const checkInkQuota = async (user: Types.ObjectId, lines: number, now = D
     return null;
   }
 };
+
+// ─── non-premium accounts: the same classes from Claude haiku (services/study/ai-claude.ts) ───
+
+export const INK_CLAUDE_SYSTEM = [
+  "You label the lines of a student's handwritten study notes.",
+  "Classes: heading (a title / lesson / chapter line), term (the word being defined, often ends with ':' or '='),",
+  "definition (the text that defines a term), formula (an equation, law, chemical equation or a number with a unit),",
+  "example (an example, or text after e.g. / for example / ex:), keypoint (an emphasised must-remember note: important, note, !!, remember),",
+  "plain (anything else).",
+  'Reply as JSON: {"results":[{"i":<line number>,"cls":"<class>","confidence":<0..1>}]}, one entry per line given.',
+].join("\n");
+
+export function buildInkClaudeTurn(lines: InkLine[], sent: number[]): string {
+  return sent.map((i) => `${i}: ${lines[i].text}`).join("\n");
+}
+
+/** `{results:[{i, cls, confidence}]}` → the decisions-shaped answers parseInkAnswers reads. */
+export function inkAnswersFromClaude(out: unknown): Record<string, { choice: string; confidence: number }> {
+  const answers: Record<string, { choice: string; confidence: number }> = {};
+  const results = isObj(out) && Array.isArray(out.results) ? out.results : [];
+  for (const r of results) {
+    if (!isObj(r) || !Number.isInteger(r.i) || typeof r.cls !== "string") continue;
+    const choice = r.cls === "keypoint" ? "key-point" : r.cls;
+    answers[`g${r.i}`] = { choice, confidence: typeof r.confidence === "number" ? r.confidence : 0.5 };
+  }
+  return answers;
+}

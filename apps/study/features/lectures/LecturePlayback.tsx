@@ -14,7 +14,7 @@ import { formatClock } from './lib/transcript';
 import { AskTutorButton } from '@/features/tutor/components/AskTutorButton';
 import { useSeekTarget } from '@/features/tutor/lib/seek';
 import { resolveMediaUrl } from '@/lib/api/upload';
-import { useAiEnabled } from '@/hooks/useAiEnabled';
+import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
 
 export interface LecturePlaybackProps {
   lectureId: string;
@@ -49,7 +49,7 @@ export const LECTURE_STATUS_LABEL: Record<Lecture['status'], string> = {
 
 /** Replays a lecture: audio drives the notebook ink and the transcript; both seek the audio back. */
 export function LecturePlayback({ lectureId, onBack, startAtSec }: LecturePlaybackProps) {
-  const aiOn = useAiEnabled();
+  const voiceOn = useVoiceAiEnabled();
   const [lecture, setLecture] = useState<LectureDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<WhiteboardPage[] | null>(null);
@@ -178,7 +178,7 @@ export function LecturePlayback({ lectureId, onBack, startAtSec }: LecturePlayba
   const segments = lecture.transcript?.segments ?? [];
   const hasTranscript = segments.length > 0;
   const notReady = lecture.status === 'ready' && hasTranscript ? null : 'Available once the transcript is ready';
-  const canRetranscribe = aiOn && (lecture.status === 'failed' || (lecture.status === 'ready' && !hasTranscript));
+  const canRetranscribe = voiceOn && (lecture.status === 'failed' || (lecture.status === 'ready' && !hasTranscript));
   const retranscribe = async () => {
     setRetranscribing(true);
     try {

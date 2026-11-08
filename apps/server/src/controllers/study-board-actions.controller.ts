@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 import multer from "multer";
 import sharp from "sharp";
-import { newSpend } from "@/services/study/ai-models";
+import { newSpend, spendFor } from "@/services/study/ai-models";
 import { classifyAiError, logAiFailure } from "@/services/study/ai-errors";
 import { boardActionsFromPage, parseBoardInput } from "@/services/study/board-actions";
 import { isPngOrJpeg } from "@/services/study/concept-map-from-terms";
@@ -59,7 +59,7 @@ export const boardActions = wrap(async (req, res) => {
 
   const userId = uid(req);
   const startedAt = Date.now();
-  const spend = newSpend();
+  const spend = await spendFor(req);
   const ctrl = new AbortController();
   res.on("close", () => {
     if (!res.writableEnded) ctrl.abort();

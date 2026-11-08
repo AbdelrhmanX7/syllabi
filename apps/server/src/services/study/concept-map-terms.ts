@@ -4,7 +4,7 @@ import { IStudyConceptMap, StudyConceptMap } from "@/models/study/concept-map";
 import { IStudyItem, StudyItem } from "@/models/study/item";
 import { StudyAiUsage } from "@/models/study/ai-usage";
 import { logger } from "@/services/logger.service";
-import { newSpend, spendTotal, textJson } from "./ai-models";
+import { newSpend, spendTotal, textJson, spendForUser } from "./ai-models";
 import { aiEnabledFor } from "@/auth/verified";
 import { htmlToText } from "./extract-sources";
 import { splitTerms } from "./concept-map-parse";
@@ -105,12 +105,12 @@ async function attachmentTexts(userId: Types.ObjectId, item: IStudyItem): Promis
 }
 
 async function extractWithModel(userId: Types.ObjectId, text: string, system = TERMS_EXTRACT_SYSTEM_PROMPT): Promise<string[]> {
-  const spend = newSpend();
+  const spend = await spendForUser(userId, { background: true });
   const startedAt = Date.now();
   let status: "done" | "error" = "done";
   let error: string | null = null;
   try {
-    const raw = await textJson(system, text.slice(0, 20_000), spend, { maxTokens: 1024, disableThinking: true });
+    const raw = await textJson(system, text.slice(0, 20_000), spend, { maxTokens: 1024, disableThinking: true, claude: "haiku" });
     return cleanTerms((Array.isArray(raw?.terms) ? raw.terms : []).filter((t: unknown): t is string => typeof t === "string"));
   } catch (e) {
     status = "error";

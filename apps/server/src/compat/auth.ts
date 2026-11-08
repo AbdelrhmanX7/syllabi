@@ -18,7 +18,8 @@ import { randomBytes } from "crypto";
 import { Types } from "mongoose";
 import { Admin } from "@/models/admin";
 import { logger } from "@/services/logger.service";
-import { isAiAccount, isOwnerRole, isStudyRole } from "@/auth/roles";
+import { isOwnerRole, isStudyRole } from "@/auth/roles";
+import { aiTierOf } from "@/auth/ai-access";
 
 /** Secret for session JWTs and for everything derived from it (token encryption, dev upload HMAC). */
 export function getJwtSecret(): string | undefined {
@@ -68,7 +69,9 @@ export const adminVerification = async (req: Request, res: Response, next: NextF
     req.adminRole = admin.role ?? "admin";
     // Rows from before accounts have no flag stored: verified.
     req.emailVerified = admin.isVerified !== false;
-    req.aiEnabled = isAiAccount(admin.role, admin.premium);
+    const tier = aiTierOf(admin.role, admin.premium);
+    req.aiEnabled = tier !== "none";
+    req.aiRoute = tier === "none" ? "premium" : tier;
     logger.setUserContext({ userId: adminId, userRole: "Admin" });
     next();
   } catch (error: any) {

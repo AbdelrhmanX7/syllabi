@@ -1,4 +1,4 @@
-import { aiEnabledFrom } from '@/lib/ai/access';
+import { aiEnabledFrom, voiceAiEnabledFrom } from '@/lib/ai/access';
 import { useAccount } from '@/features/auth/api';
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
@@ -18,4 +18,16 @@ export function useAiEnabled(): boolean {
   const { userData } = useGetUserData();
 
   return aiEnabledFrom({ demo, signedIn, account: account.data, stored: userData });
+}
+
+/** Whether the voice AI parts show (dictation, transcribing a recording again): premium accounts. */
+export function useVoiceAiEnabled(): boolean {
+  const { mockMode } = useBackendSettings();
+  const session = useSession();
+  const signedIn = session.state === 'signed-in';
+  const demo = mockMode === 'mock';
+  const account = useAccount(signedIn && !demo);
+  const { userData } = useGetUserData();
+
+  return voiceAiEnabledFrom({ demo, signedIn, account: account.data, stored: userData });
 }

@@ -27,6 +27,13 @@ export async function cmTextJson(
 ): Promise<{ out: any; model: string; maxChars: number | null }> {
   const turn = (maxChars: number) => (typeof user === "string" ? user : user(maxChars));
   const budget = (maxChars: number) => (typeof user === "string" ? null : maxChars);
+  if (spend.route !== "premium") {
+    // Non-premium (Claude route): ONE call, no chain, packed at the smaller budget (the biggest
+    // cost lever). Sonnet: these turns grade / predict from a whole course pack.
+    const before = spend.models.length;
+    const out = await textJson(system, turn(CM_CONTEXT_BUDGET.deepseek), spend, { ...opts, claude: "sonnet" });
+    return { out, model: spend.models.length > before ? spend.models[spend.models.length - 1] : "anthropic/claude-sonnet-5-5", maxChars: budget(CM_CONTEXT_BUDGET.deepseek) };
+  }
   try {
     const r = await openRouterTextJson(system, turn(CM_CONTEXT_BUDGET.openrouter), spend, opts);
     if (r && r.out && typeof r.out === "object") return { ...r, maxChars: budget(CM_CONTEXT_BUDGET.openrouter) };

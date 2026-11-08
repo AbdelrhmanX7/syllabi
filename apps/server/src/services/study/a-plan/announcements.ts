@@ -7,6 +7,7 @@ import { logger } from "@/services/logger.service";
 import { htmlToText } from "../extract-sources";
 import { createLimiter } from "../canvas-client";
 import { newSpend, Spend, textJson } from "../ai-models";
+import { aiTierFor } from "@/auth/verified";
 import { recordStudyUsage } from "../usage";
 import { classifyAiError, logAiFailure } from "../ai-errors";
 import { bestTitleMatch, sha256 } from "./text-utils";
@@ -90,7 +91,7 @@ async function digestOne(ann: IStudyItem, ctx: { className: string; zone: string
     .map((i) => `- ${i.title.replace(/\s*\([^)]*\)/g, "").trim() || i.title}${i.dueAt ? ` (due ${DateTime.fromJSDate(i.dueAt, { zone: ctx.zone || DEFAULT_ZONE }).toFormat("yyyy-MM-dd HH:mm")})` : ""}`)
     .join("\n");
   const user = `CLASS: ${ctx.className}\nPOSTED: ${posted}\nITEMS:\n${itemList || "(none)"}\n\nTITLE: ${ann.title}\nANNOUNCEMENT:\n${htmlToText(ann.html ?? "").slice(0, 12_000)}`;
-  return normalizeDigest(await textJson(DIGEST_SYSTEM_PROMPT, user, spend, { maxTokens: 2000 }));
+  return normalizeDigest(await textJson(DIGEST_SYSTEM_PROMPT, user, spend, { maxTokens: 2000, claude: "haiku" }));
 }
 
 /**
@@ -115,10 +116,12 @@ export async function processDigests(
   let digested = 0;
   let failed = 0;
   let costUsd = 0;
+  const route = await aiTierFor(userId);
   await Promise.all(
     todo.map((ann) =>
       limit(async () => {
-        const spend = newSpend();
+        const spend = newSpend(route, userId);
+        spend.counted = true; // background sync work: not against the daily limit
         const started = Date.now();
         try {
           const d = await digestOne(ann, { className: cls.name, zone, items }, spend);

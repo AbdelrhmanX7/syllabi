@@ -23,7 +23,7 @@ import {
 import { stemHash, shingleHashes } from "@/services/study/dedupe";
 import { newSrs } from "@/services/study/fsrs";
 import { openStudySse, StudySse } from "@/services/study/sse";
-import { newSpend, Spend } from "@/services/study/ai-models";
+import { newSpend, Spend, spendForUser } from "@/services/study/ai-models";
 import { buildQuestionsFromImage, buildQuestionsFromText, generateSimilar, ReadTimeoutError } from "@/services/study/ai";
 import { AttemptInputError, AttemptPlan, planAttempt, runPlan, selfRatingOf } from "@/services/study/attempt-grading";
 import { htmlToText, parsePageRange, rasterisePdfRange, SourceError, toPng } from "@/services/study/extract-sources";
@@ -92,8 +92,8 @@ async function runSse(
   extra: { questionId?: Types.ObjectId; classId?: Types.ObjectId | null } = {}
 ) {
   const startedAt = Date.now();
+  const spend = await spendForUser(userId);
   const raw = openStudySse(res);
-  const spend = newSpend();
   let recorded = false;
   const record = async (status: "done" | "error" | "stopped", error?: string, errorCode?: string) => {
     if (recorded) return;

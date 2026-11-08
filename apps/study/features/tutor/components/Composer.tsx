@@ -8,6 +8,7 @@ import { ArrowUp, Keyboard, Loader2, MessageCircle, Mic, PenLine, Square, Target
 
 import { canDictate } from '../lib/transcribe';
 import { useDictation } from '../useDictation';
+import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
 
 import { InkCanvas } from '@/features/bank';
 
@@ -56,6 +57,8 @@ export function Composer({
   }, [focusOnMount]);
 
   const [micAvailable, setMicAvailable] = useState(false);
+  // Dictation is speech to text: premium accounts only, even when the rest of the AI is on.
+  const voiceOn = useVoiceAiEnabled();
   const dictation = useDictation(
     (spoken) => {
       setText((current) => (current.trim() ? `${current.trimEnd()} ${spoken}` : spoken));
@@ -207,7 +210,7 @@ export function Composer({
           onKeyDown={onKeyDown}
         />
 
-        {micAvailable &&
+        {micAvailable && voiceOn &&
           (recording ? (
             <button
               aria-label='Stop recording'

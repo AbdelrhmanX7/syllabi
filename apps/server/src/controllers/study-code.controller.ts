@@ -6,7 +6,7 @@ import { CODE_PROJECT_ID_RE, IStudyCodeProject, StudyCodeProject } from "@/model
 import { runCode, SandboxError, validateFiles, validateRunBody } from "@/services/study/code/sandbox";
 import { buildReviewTurn, REVIEW_SYSTEM_PROMPT } from "@/services/study/code/review";
 import { textStream } from "@/services/study/ai-stream";
-import { newSpend, Spend } from "@/services/study/ai-models";
+import { newSpend, Spend, spendFor } from "@/services/study/ai-models";
 import { openStudySse } from "@/services/study/sse";
 import { logger } from "@/services/logger.service";
 import { classifyAiError, logAiFailure } from "@/services/study/ai-errors";
@@ -77,7 +77,7 @@ export const postReview = wrap(async (req, res) => {
 
   const userId = uid(req);
   const startedAt = Date.now();
-  const spend = newSpend();
+  const spend = await spendFor(req);
   const sse = openStudySse(res);
   try {
     await textStream(REVIEW_SYSTEM_PROMPT, buildReviewTurn(files, typeof prompt === "string" && prompt.trim() ? prompt.trim() : null), spend, (text) => sse.send("delta", { text }), {

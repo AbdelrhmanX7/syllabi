@@ -1,5 +1,6 @@
 import { logger } from "@/services/logger.service";
 import { getAiProvider } from "@/services/ai/config";
+import { ClaudeError } from "@/services/ai/claude";
 
 /**
  * The ONE place a failed AI call becomes a study error code. A provider that is out of credit
@@ -35,6 +36,9 @@ export const isAiQuotaError = (err: unknown): boolean => quotaIn(err);
 
 /** AI_QUOTA for an out-of-credit failure; otherwise the caller's fallback (default AI_FAILED). */
 export function classifyAiError(err: unknown, fallback: ClassifiedAiError = { code: "AI_FAILED", message: "The AI step failed — try again" }): ClassifiedAiError {
+  // The Claude path (non-premium accounts) carries its own code and plain message:
+  // AI_BUDGET (monthly cap), AI_DAILY_LIMIT, AI_REFUSED, AI_NOT_ENABLED. A plain failure keeps the caller's line.
+  if (err instanceof ClaudeError) return err.code === "AI_FAILED" ? fallback : { code: err.code, message: err.message };
   return isAiQuotaError(err) ? { code: AI_QUOTA_CODE, message: AI_QUOTA_MESSAGE } : fallback;
 }
 

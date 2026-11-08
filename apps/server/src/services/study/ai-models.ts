@@ -5,6 +5,12 @@ import { messageCostUsd } from "@/services/ai-chat/cost";
 import type { AiChatUsage } from "@/models/ai-chat-message";
 import { OPENROUTER_URL } from "@/services/ai-chat/openrouter-vision";
 import { guidedSystem } from "./class-guide";
+import type { Request } from "express";
+import { Types } from "mongoose";
+import type { AiTier } from "@/auth/ai-access";
+import { aiTierFor, aiTierOfRequest } from "@/auth/verified";
+import type { ClaudeEffort } from "@/services/ai/claude";
+import { claudeForSpend, type ClaudeChoice } from "./ai-claude";
 
 /**
  * The ONLY places the study module touches a model, so tests mock this one file.
@@ -14,6 +20,12 @@ import { guidedSystem } from "./class-guide";
  * json_object mode, cost derived with the chat billing table. Concept maps alone run their
  * text steps on STUDY_CM_TEXT_MODELS via OpenRouter first (`openRouterTextJson`, chained with
  * DeepSeek flash by ./cm-text). No env knobs.
+ *
+ * A spend carries the account's AI route (auth/ai-access.ts). "premium" runs exactly the chains
+ * above; "claude" (a non-premium account while Claude AI is open) sends the same call to Claude
+ * through ./ai-claude instead, with the same return contract (text falls back to DeepSeek when
+ * the Claude cap is reached or the call fails); "none" throws AI_NOT_ENABLED.
+ * Voice and image calls (asr, dictation, imageGen) are premium only and gated before they get here.
  */
 export const STUDY_VISION_MODELS = WHITEBOARD_VISION_MODELS;
 const VISION_TIMEOUT_MS = 120_000;
@@ -31,8 +43,35 @@ export interface Spend {
   audioCostUsd?: number;
   /** generate_image — image model calls via OpenRouter /images. */
   imageCostUsd?: number;
+  /** Whose models run (auth/ai-access.ts). Required at creation so no path defaults to the owner's bill. */
+  route: AiTier;
+  /** The account (Claude path: the per-person daily limit). */
+  userId?: string | null;
+  /** Claude path: this spend was already counted against the daily limit. */
+  counted?: boolean;
 }
-export const newSpend = (): Spend => ({ models: [], visionCostUsd: 0, textCostUsd: 0, audioCostUsd: 0, imageCostUsd: 0 });
+export const newSpend = (route: AiTier, userId?: string | Types.ObjectId | null): Spend => ({
+  models: [],
+  visionCostUsd: 0,
+  textCostUsd: 0,
+  audioCostUsd: 0,
+  imageCostUsd: 0,
+  route,
+  userId: userId ? String(userId) : null,
+});
+/** A spend for the signed-in caller (the route from adminVerification, or the database for MCP in-process requests). */
+export const spendFor = async (req: Request): Promise<Spend> => newSpend(await aiTierOfRequest(req), req.adminId ?? req.userId ?? null);
+/**
+ * A spend for an account with no request at hand (background jobs, MCP tools). `background`: work
+ * the account did not ask for just now (sync digests, summaries) — not counted against the
+ * per-person daily limit of the Claude path.
+ */
+export const spendForUser = async (userId: string | Types.ObjectId, opts: { background?: boolean } = {}): Promise<Spend> => {
+  const s = newSpend(await aiTierFor(userId), userId);
+  if (opts.background) s.counted = true;
+  return s;
+};
+export const isClaudeSpend = (s: Spend) => s.route === "claude";
 export const spendTotal = (s: Spend) => s.visionCostUsd + s.textCostUsd + (s.audioCostUsd ?? 0) + (s.imageCostUsd ?? 0);
 
 export async function visionCall(
@@ -40,8 +79,25 @@ export async function visionCall(
   mime: string,
   prompt: string,
   spend: Spend,
-  opts: { signal?: AbortSignal; json?: boolean; timeoutMs?: number; deadlineMs?: number; reasoning?: Record<string, unknown> } = {}
+  opts: { signal?: AbortSignal; json?: boolean; timeoutMs?: number; deadlineMs?: number; reasoning?: Record<string, unknown>; claude?: ClaudeChoice; maxTokens?: number } = {}
 ): Promise<string> {
+  if (spend.route !== "premium") {
+    const images = (Array.isArray(image) ? image : [image]) as Buffer[];
+    const timeoutMs = opts.deadlineMs ?? opts.timeoutMs;
+    const signal = timeoutMs ? AbortSignal.any([...(opts.signal ? [opts.signal] : []), AbortSignal.timeout(timeoutMs)]) : opts.signal;
+    return claudeForSpend(spend, {
+      kind: "vision",
+      choice: opts.claude ?? "sonnet",
+      system: "You read images of study material (notes, slides, pages, drawings) carefully and follow the instructions exactly.",
+      user: prompt,
+      images: images.map((data) => ({ data, mime })),
+      maxTokens: opts.maxTokens ?? 8192,
+      effort: opts.reasoning?.effort === "low" ? "low" : undefined,
+      signal,
+      json: opts.json,
+      maxRetries: opts.deadlineMs ? 0 : undefined,
+    });
+  }
   try {
     const v = await callVision(image, mime, prompt, {
       signal: opts.signal,
@@ -62,7 +118,32 @@ export async function visionCall(
 }
 
 /** One DeepSeek flash JSON call → parsed object (null when the reply was not JSON). */
-export async function textJson(system: string, user: string, spend: Spend, opts: { signal?: AbortSignal; maxTokens?: number; disableThinking?: boolean } = {}): Promise<any> {
+export async function textJson(
+  system: string,
+  user: string,
+  spend: Spend,
+  opts: { signal?: AbortSignal; maxTokens?: number; disableThinking?: boolean; claude?: ClaudeChoice; effort?: ClaudeEffort } = {}
+): Promise<any> {
+  if (spend.route !== "premium") {
+    const raw = await claudeForSpend(spend, {
+      kind: "text",
+      choice: opts.claude ?? "auto",
+      feature: system.split("\n")[0].slice(0, 160),
+      system: guidedSystem(system),
+      user,
+      maxTokens: opts.maxTokens ?? 8192,
+      effort: opts.effort ?? (opts.disableThinking ? "low" : undefined),
+      signal: opts.signal,
+      json: true,
+      deepseek: () => deepseekJsonRaw(system, user, spend, opts),
+    });
+    return parseJsonLoose(raw);
+  }
+  return parseJsonLoose(await deepseekJsonRaw(system, user, spend, opts));
+}
+
+/** One DeepSeek flash JSON call → the raw reply (cost and model recorded on the spend). */
+async function deepseekJsonRaw(system: string, user: string, spend: Spend, opts: { signal?: AbortSignal; maxTokens?: number; disableThinking?: boolean }): Promise<string> {
   const model = deepseekFlashModel();
   const params: OpenAI.ChatCompletionCreateParamsNonStreaming = {
     model,
@@ -88,7 +169,7 @@ export async function textJson(system: string, user: string, spend: Spend, opts:
     : null;
   spend.textCostUsd += messageCostUsd(usage, String(res.model || model), new Date());
   spend.models.push(String(res.model || model));
-  return parseJsonLoose(String(res.choices?.[0]?.message?.content ?? ""));
+  return String(res.choices?.[0]?.message?.content ?? "");
 }
 
 const usd = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
@@ -105,6 +186,8 @@ export async function openRouterTextJson(
   spend: Spend,
   opts: { signal?: AbortSignal; maxTokens?: number; timeoutMs?: number } = {}
 ): Promise<{ out: any; model: string }> {
+  // Premium only: ./cm-text sends the Claude route straight to textJson.
+  if (spend.route !== "premium") throw new Error("openRouterTextJson is for premium spends");
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
   let lastError: unknown = null;
@@ -158,6 +241,7 @@ export type ImageShape = keyof typeof IMAGE_SIZES;
  * moves on, a caller abort does not. Every attempt lands in `spend.models`; OpenRouter reports cost.
  */
 export async function imageGen(prompt: string, shape: ImageShape, spend: Spend, opts: { signal?: AbortSignal } = {}): Promise<{ image: Buffer; model: string }> {
+  if (spend.route !== "premium") throw new Error("image generation is premium only");
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
   let lastError: unknown = null;

@@ -2,9 +2,14 @@ import { NextFunction, Request, Response } from "express";
 import express from "express";
 import { Types } from "mongoose";
 import { StudyAiUsage } from "@/models/study/ai-usage";
-import { AI_QUOTA_CODE, AI_QUOTA_MESSAGE } from "@/services/study/ai-errors";
+import { AI_QUOTA_CODE, AI_QUOTA_MESSAGE, classifyAiError } from "@/services/study/ai-errors";
+import { aiTierOfRequest } from "@/auth/verified";
+import { newSpend, spendTotal, textJson } from "@/services/study/ai-models";
 import {
+  buildInkClaudeTurn,
   buildInkRequest,
+  INK_CLAUDE_SYSTEM,
+  inkAnswersFromClaude,
   callInkDecisions,
   checkInkQuota,
   InkUpstreamError,
@@ -28,7 +33,7 @@ export const inkJson = (req: Request, res: Response, next: NextFunction) =>
   });
 
 /** One `study_ai_usages` row per request — counts and spend only, NEVER the note text. */
-const writeInkUsage = async (userId: Types.ObjectId, row: { model: string; lineCount: number; startedAt: number; costUsd: number; status: "done" | "error"; error?: string; errorCode?: string }) => {
+const writeInkUsage = async (userId: Types.ObjectId, row: { model: string | string[]; lineCount: number; startedAt: number; costUsd: number; status: "done" | "error"; error?: string; errorCode?: string }) => {
   try {
     await StudyAiUsage.create({
       userId,
@@ -36,7 +41,7 @@ const writeInkUsage = async (userId: Types.ObjectId, row: { model: string; lineC
       status: row.status,
       error: row.error ?? null,
       errorCode: row.status === "error" ? row.errorCode ?? null : null,
-      models: [row.model],
+      models: Array.isArray(row.model) ? row.model : [row.model],
       textCostUsd: Number(row.costUsd.toFixed(6)),
       costUsd: Number(row.costUsd.toFixed(6)),
       latencyMs: Date.now() - row.startedAt,
@@ -66,6 +71,21 @@ export const inkClassify = wrap(async (req, res) => {
     return fail(res, 429, "QUOTA", "Ink classification quota exceeded");
   }
   if (!sent.length) return res.json({ results: parseInkAnswers({}, lines.length, sent) });
+
+  // Non-premium accounts (Claude AI open): the same classes from Claude haiku.
+  const tier = await aiTierOfRequest(req);
+  if (tier !== "premium") {
+    const spend = newSpend(tier, userId);
+    try {
+      const out = await textJson(INK_CLAUDE_SYSTEM, buildInkClaudeTurn(lines, sent), spend, { maxTokens: 1200, claude: "haiku", effort: "low" });
+      await writeInkUsage(userId, { model: spend.models, lineCount: sent.length, startedAt, costUsd: spendTotal(spend), status: "done" });
+      return res.json({ results: parseInkAnswers(inkAnswersFromClaude(out), lines.length, sent) });
+    } catch (e) {
+      const c = classifyAiError(e, { code: "AI_UPSTREAM", message: "Couldn't classify the lines this time — try again" });
+      await writeInkUsage(userId, { model: spend.models, lineCount: sent.length, startedAt, costUsd: spendTotal(spend), status: "error", error: String((e as Error)?.message ?? e).slice(0, 300), errorCode: c.code });
+      return fail(res, c.code === "AI_UPSTREAM" ? 502 : c.code === "AI_DAILY_LIMIT" ? 429 : c.code === "AI_NOT_ENABLED" ? 403 : 503, c.code, c.message);
+    }
+  }
 
   try {
     const r = await callInkDecisions(buildInkRequest(lines, sent));

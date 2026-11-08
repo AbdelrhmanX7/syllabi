@@ -5,7 +5,7 @@ import { IStudyClass, StudyClass } from "@/models/study/class";
 import { IStudyConceptMap, IStudyConceptMapAttempt, NOTES_PAGES_MAX, StudyConceptMap, StudyConceptMapAttempt } from "@/models/study/concept-map";
 import { IStudyPage, StudyPage } from "@/models/study/page";
 import { StudyAiUsage, StudyAiEndpoint } from "@/models/study/ai-usage";
-import { newSpend, Spend, spendTotal } from "@/services/study/ai-models";
+import { newSpend, Spend, spendTotal, spendFor, spendForUser } from "@/services/study/ai-models";
 import { cmTextJson } from "@/services/study/cm-text";
 import { predictConceptMap } from "@/services/study/concept-map-predict";
 import { CM_CONTEXT_MAX_CHARS, CmBlock, CmSource, conceptMapContext, dedupeSources, LectureScope, notesDigestFor, NotesPageFrame } from "@/services/study/concept-map-context";
@@ -92,8 +92,8 @@ type CmSse = Pick<StudySse, "send" | "signal"> & { done(data?: Record<string, un
 /** SSE + spend + class guide: the terminal frame goes out after the usage row is written (`done` carries its id). */
 async function runCm(res: Response, userId: Types.ObjectId, endpoint: StudyAiEndpoint, classId: Types.ObjectId | null, fn: (sse: CmSse, spend: Spend) => Promise<void>) {
   const startedAt = Date.now();
+  const spend = await spendForUser(userId);
   const raw = openStudySse(res);
-  const spend = newSpend();
   let settled = false;
   const settle = async (status: "done" | "error" | "stopped", error?: string, errorCode?: string) => {
     if (settled) return null;
@@ -645,7 +645,7 @@ export const shortAnswers = wrap(async (req, res) => {
   const cls = (await classOfMap(req, m)) as IStudyClass | null;
   if (!cls) return fail(res, 409, "CLASS_NOT_SYNCED", "This map's class has not synced from Canvas yet");
   const startedAt = Date.now();
-  const spend = newSpend();
+  const spend = await spendFor(req);
   let raws: any[];
   try {
     raws = await withClassGuide(userId, cls._id, () => generateShortAnswers(m, spend));

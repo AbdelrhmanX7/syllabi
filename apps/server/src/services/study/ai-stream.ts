@@ -3,6 +3,7 @@ import { deepseekFlashModel, getDeepSeekClient } from "@/services/ai/config";
 import { messageCostUsd } from "@/services/ai-chat/cost";
 import type { AiChatUsage } from "@/models/ai-chat-message";
 import type { Spend } from "./ai-models";
+import { claudeForSpend, type ClaudeChoice } from "./ai-claude";
 
 /**
  * Streaming DeepSeek flash text call (sibling of `textJson` in ./ai-models, kept in its own
@@ -16,8 +17,26 @@ export async function textStream(
   user: string,
   spend: Spend,
   onDelta: (text: string) => void,
-  opts: { signal?: AbortSignal; maxTokens?: number } = {}
+  opts: { signal?: AbortSignal; maxTokens?: number; claude?: ClaudeChoice } = {}
 ): Promise<string> {
+  if (spend.route !== "premium") {
+    // Non-premium: Claude (router-picked tier); DeepSeek only when Claude is unavailable and
+    // nothing was streamed yet — see ./ai-claude.
+    return claudeForSpend(spend, {
+      kind: "text",
+      choice: opts.claude ?? "auto",
+      system,
+      user,
+      maxTokens: opts.maxTokens ?? 4096,
+      signal: opts.signal,
+      onDelta,
+      deepseek: () => deepseekStream(system, user, spend, onDelta, opts),
+    });
+  }
+  return deepseekStream(system, user, spend, onDelta, opts);
+}
+
+async function deepseekStream(system: string, user: string, spend: Spend, onDelta: (text: string) => void, opts: { signal?: AbortSignal; maxTokens?: number }): Promise<string> {
   const model = deepseekFlashModel();
   const params: OpenAI.ChatCompletionCreateParamsStreaming = {
     model,

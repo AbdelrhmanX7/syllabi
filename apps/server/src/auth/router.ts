@@ -37,6 +37,7 @@ import {
 } from "@/auth/owner";
 import { memoryRateLimit } from "@/auth/rate-limit";
 import { listPremium, PremiumError, setPremium } from "@/auth/premium";
+import { claudeUsageReport } from "@/services/ai/claude-budget";
 
 const router = Router();
 
@@ -99,6 +100,17 @@ const premiumAnswer = async (res: Response, email: unknown, on: boolean) => {
 
 router.post("/premium", adminVerification, fullAdminOnly, (req: Request, res: Response) => premiumAnswer(res, req.body?.email, true));
 router.delete("/premium/:email", adminVerification, fullAdminOnly, (req: Request, res: Response) => premiumAnswer(res, req.params.email, false));
+
+// ─── Claude AI usage (non-premium accounts) — owner only ────────────────────────────────
+
+/** This month's Claude use per account (email, requests, costUsd), the total, the cap and the end date. */
+router.get("/claude-usage", adminVerification, fullAdminOnly, async (_req: Request, res: Response) => {
+  try {
+    res.json(await claudeUsageReport());
+  } catch (error: any) {
+    res.status(500).json({ message: error?.message ?? "Could not read the usage" });
+  }
+});
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 

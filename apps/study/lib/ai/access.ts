@@ -9,6 +9,8 @@
 export interface AiAccountLike {
   role?: string | null;
   premium?: boolean | null;
+  /** Voice (speech to text) AI. Newer servers send it; AI can be on while voice is not. */
+  voiceAi?: boolean | null;
 }
 
 export interface AiAccessInput {
@@ -29,6 +31,21 @@ export function aiEnabledFrom({ demo, signedIn, account, stored }: AiAccessInput
 
   if (!user) return true;
   if (isOwnerRole(user.role)) return true;
+
+  return user.premium !== false;
+}
+
+/**
+ * Whether the voice parts show (dictation, transcribing a recording again). Same fail-open rules;
+ * a server that sends `voiceAi` decides, an older one falls back to `premium`.
+ */
+export function voiceAiEnabledFrom({ demo, signedIn, account, stored }: AiAccessInput): boolean {
+  if (demo || !signedIn) return true;
+  const user = account === undefined ? stored : account;
+
+  if (!user) return true;
+  if (isOwnerRole(user.role)) return true;
+  if (typeof user.voiceAi === 'boolean') return user.voiceAi;
 
   return user.premium !== false;
 }

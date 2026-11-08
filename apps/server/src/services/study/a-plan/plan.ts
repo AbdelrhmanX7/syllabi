@@ -6,7 +6,7 @@ import { StudyClassPolicy, IStudyClassPolicy, ClassPolicy } from "@/models/study
 import { StudyAnnouncementDigest, IStudyAnnouncementDigest } from "@/models/study/announcement-digest";
 import { StudyAPlan, IStudyAPlan } from "@/models/study/a-plan";
 import { logger } from "@/services/logger.service";
-import { newSpend, textJson } from "../ai-models";
+import { newSpend, textJson, spendForUser } from "../ai-models";
 import { recordStudyUsage } from "../usage";
 import { classifyAiError, isAiQuotaError, logAiFailure } from "../ai-errors";
 import { CanvasDeps, CanvasGroups, clientFor, fetchCourseSyllabus, fetchSyllabusHints, loadAssignmentGroups } from "./canvas";
@@ -328,7 +328,7 @@ async function buildAPlanInner(userId: Types.ObjectId, classId: Types.ObjectId, 
     examsSchedule,
     // The guide itself reaches the model as system context (withClassGuide); not repeated here.
   };
-  const spend = newSpend();
+  const spend = await spendForUser(userId, { background: true });
   const started = Date.now();
   let synth: ReturnType<typeof sanitizeSynth> | null = null;
   try {

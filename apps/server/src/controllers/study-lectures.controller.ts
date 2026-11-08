@@ -17,7 +17,7 @@ import {
   studyObjectExists,
 } from "@/services/study/storage";
 import { JOB_STALE_MS, kickStudyJobs, kickUploadedTranscriptSummary, queueVideoTranscript } from "@/services/study/jobs";
-import { denyUnlessAi } from "@/auth/verified";
+import { denyUnlessPremiumAi } from "@/auth/verified";
 import { fail, isOid, uid, wrap } from "./study.controller";
 
 /**
@@ -380,7 +380,7 @@ const RETRANSCRIBABLE = ["ready", "failed"];
  * claim as finish: two racing calls → exactly one queues the run.
  */
 export const retranscribeLecture = wrap(async (req, res) => {
-  if (await denyUnlessAi(req, res)) return;
+  if (await denyUnlessPremiumAi(req, res)) return; // speech to text: premium only
   const lec = await ownLecture(req, res);
   if (!lec) return;
   if (!RETRANSCRIBABLE.includes(lec.status)) {

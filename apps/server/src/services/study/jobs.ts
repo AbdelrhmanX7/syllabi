@@ -16,7 +16,7 @@ import { ASR_MAX_SEC, transcribeAudioFile, transcriptText } from "./transcribe";
 import { extractFromTranscript } from "./extract";
 import { getStudyObject, lectureAudioKey, lectureChunkKey, putStudyObject } from "./storage";
 import { recordStudyUsage } from "./usage";
-import { AI_NOT_ENABLED, aiEnabledFor } from "@/auth/verified";
+import { AI_NOT_ENABLED, aiTierFor } from "@/auth/verified";
 import { AI_QUOTA_CODE, AI_QUOTA_MESSAGE, isAiQuotaError, logAiFailure } from "./ai-errors";
 
 /**
@@ -151,7 +151,7 @@ export async function transcribeYouTube(videoId: string, dir: string, spend: Spe
     }
   }
   // No captions: speech-to-text is a model call, an AI feature.
-  if (!ai) throw new JobError(AI_NOT_ENABLED.code, "This video has no captions, and turning its speech into text needs AI, which isn't on for your account");
+  if (!ai) throw new JobError(AI_NOT_ENABLED.code, "This video has no captions, and turning speech into text isn't on for your account yet");
   if (durationSec && durationSec > ASR_MAX_SEC) throw new JobError("AUDIO_TOO_LONG", `Video is longer than ${ASR_MAX_SEC / 3600} h`);
   const audio = await ytDlpAudio(videoId, dir);
   const r = await transcribeAudioFile(audio, dir, spend, { durationSec });
@@ -170,15 +170,18 @@ async function summaryOrNothing(segments: TranscriptSegment[], spend: Spend, ctx
 
 export async function processTranscriptJob(row: IStudyTranscript): Promise<void> {
   const startedAt = Date.now();
-  const spend = newSpend();
+  // Speech to text is premium only; the summary is any AI (non-premium: the Claude path).
+  const tier = await aiTierFor(row.userId);
+  const spend = newSpend(tier, row.userId);
+  spend.counted = true; // background job: not against the daily limit
   const fence = { _id: row._id, status: "processing", claimedAt: row.claimedAt };
   const setItem = (set: Record<string, unknown>) => StudyItem.updateOne({ _id: row.itemId, userId: row.userId }, { $set: set });
   try {
     if (row.attempts > JOB_MAX_ATTEMPTS) throw new JobError("JOB_GAVE_UP", `Gave up after ${JOB_MAX_ATTEMPTS} attempts`);
     const item = await StudyItem.findOne({ _id: row.itemId, userId: row.userId }, { type: 1, video: 1 }).lean<IStudyItem>();
     if (!item || item.type !== "video" || !item.video?.videoId) throw new JobError("NOT_A_VIDEO", "This item is not a video");
-    const ai = await aiEnabledFor(row.userId);
-    const out = await withTmp("study-tr-", (dir) => transcribeYouTube(item.video!.videoId, dir, spend, ai));
+    const ai = tier !== "none";
+    const out = await withTmp("study-tr-", (dir) => transcribeYouTube(item.video!.videoId, dir, spend, tier === "premium"));
     if (out.durationSec) await setItem({ "video.durationSec": out.durationSec });
     if (!out.segments.length) throw new JobError("NO_SPEECH", "No speech was found in this video");
     const { summary, keyPoints } = ai ? await summaryOrNothing(out.segments, spend, { itemId: String(row.itemId) }) : { summary: null, keyPoints: [] as string[] };
@@ -243,11 +246,13 @@ export async function concatLectureAudio(files: string[], ext: string, out: stri
 
 export const NO_SPEECH_WARNING = { code: "NO_SPEECH", message: "No speech was found in this recording — the ink and audio are still saved" };
 /** An account without AI: the recording (ink + audio) is kept, with no transcript, notes or questions. */
-export const NO_AI_WARNING = { code: AI_NOT_ENABLED.code, message: "Recording saved. Turning it into notes needs AI, which isn't on for your account." };
+export const NO_AI_WARNING = { code: AI_NOT_ENABLED.code, message: "Recording saved. Turning speech into notes isn't on for your account yet." };
 
 export async function processLectureJob(lec: IStudyLecture): Promise<void> {
   const startedAt = Date.now();
-  const spend = newSpend();
+  const tier = await aiTierFor(lec.userId);
+  const spend = newSpend(tier, lec.userId);
+  spend.counted = true; // background job: not against the daily limit
   const userId = String(lec.userId);
   const lectureId = String(lec._id);
   const fence = { _id: lec._id, status: "processing", claimedAt: lec.claimedAt };
@@ -257,8 +262,9 @@ export async function processLectureJob(lec: IStudyLecture): Promise<void> {
     const ext = lec.chunkExt ?? "webm";
     const reuse = lec.reuseAudio === true && !!lec.audio?.key;
     if (!reuse && n < 1) throw new JobError("CHUNKS_MISSING", "No audio chunks were uploaded");
-    // Transcription, summary and question extraction are model calls: AI accounts only.
-    const ai = await aiEnabledFor(lec.userId);
+    // Transcription (speech to text) is premium only; without a transcript there is nothing for
+    // the summary / question extraction to read, so the whole run needs premium.
+    const ai = tier === "premium";
 
     const { segments, durationSec } = await withTmp("study-lec-", async (dir) => {
       if (reuse) {
@@ -390,10 +396,12 @@ export async function summariseUploadedTranscript(opts: { itemId?: Types.ObjectI
   const row = await StudyTranscript.findOneAndUpdate(filter, { $set: { claimedAt: now } }, { new: true, sort: { updatedAt: 1 } }).lean<IStudyTranscript>();
   if (!row) return false;
   const startedAt = Date.now();
-  const spend = newSpend();
+  const tier = await aiTierFor(row.userId);
+  const spend = newSpend(tier, row.userId);
+  spend.counted = true; // background job: not against the daily limit
   let status: "done" | "error" = "done";
   let result: { summary: string | null; keyPoints: string[] } = { summary: null, keyPoints: [] };
-  const ai = await aiEnabledFor(row.userId);
+  const ai = tier !== "none";
   try {
     if (ai) result = await summariseTranscript(transcriptText(row.segments), spend);
   } catch (e) {

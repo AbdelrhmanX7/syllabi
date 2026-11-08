@@ -6,6 +6,7 @@ import { StudyLecture, IStudyLecture } from "@/models/study/lecture";
 import { StudyConversation, IStudyConversation, TUTOR_MODES, TutorMessage, TutorMode, TutorQuizState, TutorSource } from "@/models/study/conversation";
 import { logger } from "@/services/logger.service";
 import { newSpend, textJson, type Spend } from "../ai-models";
+import { aiTierFor } from "@/auth/verified";
 import { textStream } from "../ai-stream";
 import { recordStudyUsage } from "../usage";
 import { classifyAiError, logAiFailure } from "../ai-errors";
@@ -150,8 +151,10 @@ export async function runAsk(p: AskPrepared, sse: StudySse): Promise<void> {
 async function runTurn(p: AskPrepared, sse: StudySse, cls: ClassRef | null, guide: string | null): Promise<void> {
   const startedAt = Date.now();
   const conversationId = p.conversation?._id ?? new Types.ObjectId();
-  const textSpend = newSpend();
-  const visionSpend = newSpend();
+  const route = await aiTierFor(p.userId);
+  const textSpend = newSpend(route, p.userId);
+  const visionSpend = newSpend(route, p.userId);
+  visionSpend.counted = true; // one ask = one request against the daily limit (counted on the text side)
   const usageExtra = { itemId: p.itemId ?? p.videoAt?.itemId ?? null, lectureId: p.lectureId ?? null };
   let status: "done" | "error" | "stopped" = "stopped";
   let errorUsageRecorded = false;
@@ -299,13 +302,17 @@ async function runTurn(p: AskPrepared, sse: StudySse, cls: ClassRef | null, guid
 }
 
 /** Fold the messages that slid out of the verbatim window into the rolling summary. */
-export async function maybeSummarise(c: IStudyConversation, spend: Spend = newSpend()): Promise<boolean> {
+export async function maybeSummarise(c: IStudyConversation, spend?: Spend): Promise<boolean> {
   const upTo = c.messages.length - HISTORY_TURNS;
   const from = c.summarizedUpTo ?? 0;
   if (upTo - from < SUMMARISE_AFTER) return false;
   const startedAt = Date.now();
+  if (!spend) {
+    spend = newSpend(await aiTierFor(c.userId), c.userId);
+    spend.counted = true; // housekeeping, not a request of the student
+  }
   const older = c.messages.slice(from, upTo).map((m) => `${m.role === "user" ? "Student" : "Tutor"}: ${m.text.slice(0, 1500)}`);
-  const raw = await textJson(SUMMARY_SYSTEM_PROMPT, [c.summary ? `SUMMARY SO FAR:\n${c.summary}` : "", `NEW TURNS:\n${older.join("\n\n")}`].filter(Boolean).join("\n\n"), spend, { maxTokens: 800 });
+  const raw = await textJson(SUMMARY_SYSTEM_PROMPT, [c.summary ? `SUMMARY SO FAR:\n${c.summary}` : "", `NEW TURNS:\n${older.join("\n\n")}`].filter(Boolean).join("\n\n"), spend, { maxTokens: 800, claude: "haiku" });
   const summary = typeof raw?.summary === "string" ? raw.summary.trim().slice(0, 3000) : "";
   await recordStudyUsage(c.userId, "ask", spend, startedAt, summary ? "done" : "error", summary ? {} : { error: "summary: no JSON" });
   if (!summary) return false;

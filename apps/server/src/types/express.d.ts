@@ -13,6 +13,8 @@ declare global {
       emailVerified?: boolean;
       /** Whether this account may use the AI features (owner, or premium). Set by adminVerification. */
       aiEnabled?: boolean;
+      /** Whose models the account's AI runs on (auth/ai-access.ts). Set by adminVerification. */
+      aiRoute?: "premium" | "claude";
     }
   }
 }

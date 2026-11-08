@@ -93,7 +93,7 @@ import libraryRouter from "./library.routes";
 import conceptMapsRouter from "./concept-maps.routes";
 import aPlanRouter from "./a-plan.routes";
 import tutorRouter from "./tutor.routes";
-import { requireVerifiedEmail, requireVerifiedEmailForWrites } from "@/auth/verified";
+import { requirePremiumAi, requireVerifiedEmail, requireVerifiedEmailForWrites } from "@/auth/verified";
 
 /**
  * /study/* — personal study app backend (P1: Canvas, classes & items, today; P2: notebook
@@ -107,6 +107,8 @@ const router = express.Router();
 // from terms, board actions, ink classify, dictation), question extraction / similar questions,
 // code review, exam grading, A-plan refresh and the concept-map AI actions.
 router.use("/ai", requireVerifiedEmailForWrites);
+// Voice dictation (speech to text) is premium only, even while Claude AI is open to everyone.
+router.post("/ai/transcribe", requirePremiumAi);
 router.post("/questions/extract", requireVerifiedEmail);
 router.post("/questions/:id/similar", requireVerifiedEmail);
 router.post("/code/review", requireVerifiedEmail);

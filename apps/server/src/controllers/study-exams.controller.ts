@@ -5,7 +5,7 @@ import { StudyExam, IStudyExam } from "@/models/study/exam";
 import { StudyQuestion, IStudyQuestion, AttemptResult } from "@/models/study/question";
 import { StudyAiUsage } from "@/models/study/ai-usage";
 import { openStudySse } from "@/services/study/sse";
-import { newSpend, Spend } from "@/services/study/ai-models";
+import { newSpend, Spend, spendFor } from "@/services/study/ai-models";
 import { AttemptInputError, AttemptPlan, planAttempt, runPlan } from "@/services/study/attempt-grading";
 import { recordAttempt } from "@/services/study/questions";
 import { runWithGuide, withClassGuide } from "@/services/study/ai";
@@ -74,7 +74,7 @@ export const createExam = wrap(async (req, res) => {
 
   const topicList: string[] = [...new Set<string>((topics ?? []).map((t: string) => t.trim()))];
   const itemIds = [...new Set<string>(scopeItemIds ?? [])].map((i) => new Types.ObjectId(i));
-  const spend = newSpend();
+  const spend = await spendFor(req);
   const t0 = Date.now();
   let picked: IStudyQuestion[];
   try {
@@ -113,7 +113,7 @@ async function createBlueprintExam(req: Request, res: Response) {
   const userId = uid(req);
   const cls = await StudyClass.findOne({ _id: classId, userId }, { canvasCourseId: 1 }).lean<{ _id: Types.ObjectId; canvasCourseId: number }>();
   if (!cls) return fail(res, 404, "NOT_FOUND", "Class not found");
-  const spend = newSpend();
+  const spend = await spendFor(req);
   const t0 = Date.now();
   let out: Awaited<ReturnType<typeof composeBlueprintExam>>;
   try {
@@ -240,7 +240,7 @@ export const submitExam = wrap(async (req: Request, res: Response) => {
   const guide = await loadClassGuide(userId, exam.classId).catch(() => null); // P-CM: class guide as system context
   const t0 = Date.now();
   const sse = openStudySse(res);
-  const spend = newSpend();
+  const spend = await spendFor(req);
   const release = () => StudyExam.updateOne({ _id: exam._id, userId, submittedAt: null }, { $set: { gradingStartedAt: null } }).catch(() => undefined);
   try {
     type Row = IStudyExam["results"][number];

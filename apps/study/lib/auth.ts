@@ -14,6 +14,8 @@ export interface StudyAdminUser {
   isVerified?: boolean;
   /** AI features on for this account (the owner always). Older servers don't send it. */
   premium?: boolean;
+  /** Voice AI (dictation, speech to text). Older servers don't send it. */
+  voiceAi?: boolean;
   providers?: ('password' | 'google' | 'magic')[];
   createdAt?: string;
 }

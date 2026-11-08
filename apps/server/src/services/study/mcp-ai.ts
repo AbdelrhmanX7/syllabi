@@ -2,7 +2,7 @@ import { classifyAiError } from "./ai-errors";
 import { Types } from "mongoose";
 import type { IStudyQuestion } from "@/models/study/question";
 import { StudyAiUsage } from "@/models/study/ai-usage";
-import { newSpend, Spend, textJson } from "./ai-models";
+import { newSpend, Spend, textJson, spendForUser } from "./ai-models";
 import { logger } from "@/services/logger.service";
 
 /**
@@ -56,7 +56,7 @@ async function recordUsage(userId: Types.ObjectId, endpoint: "mcp_explain" | "mc
 }
 
 async function tracked<T>(userId: Types.ObjectId, endpoint: "mcp_explain" | "mcp_plan", fn: (spend: Spend) => Promise<T>, questionId?: Types.ObjectId): Promise<T> {
-  const spend = newSpend();
+  const spend = await spendForUser(userId);
   const startedAt = Date.now();
   try {
     const out = await fn(spend);

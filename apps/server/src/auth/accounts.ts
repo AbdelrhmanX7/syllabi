@@ -13,6 +13,7 @@ import { studyModels } from "@/services/study/index-maintenance";
 import { deleteUserObjects } from "@/services/study/storage";
 import { AuthTokenKind, generateRawToken, hashToken, RAW_TOKEN_RE, tokenExpiry } from "@/auth/tokens";
 import { OWNER_ROLE_FILTER, isAiAccount, isOwnerRole, publicRole } from "@/auth/roles";
+import { claudeOpen } from "@/auth/ai-access";
 import { logger } from "@/services/logger.service";
 import { deleteSharesOf } from "@/services/share/access";
 
@@ -25,8 +26,10 @@ export function publicAccount(admin: IAdmin | Record<string, any>) {
     email: a.email ?? null,
     role: publicRole(a.role),
     isVerified: a.isVerified !== false,
-    /** AI features on (the owner always). */
-    premium: isAiAccount(a.role, a.premium),
+    /** AI features on: the owner always, premium accounts, and everyone while Claude AI is open (auth/ai-access.ts). */
+    premium: isAiAccount(a.role, a.premium) || claudeOpen(),
+    /** Voice (speech to text) and image AI: premium accounts only. */
+    voiceAi: isAiAccount(a.role, a.premium),
     providers: accountProviders(a),
     createdAt: a.createdAt ?? null,
   };

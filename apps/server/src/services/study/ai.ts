@@ -406,13 +406,13 @@ export function splitText(text: string, max: number): string[] {
 export async function summariseTranscript(text: string, spend: Spend, signal?: AbortSignal): Promise<{ summary: string | null; keyPoints: string[] }> {
   const parts = splitText(text, SUMMARY_CHUNK_CHARS).slice(0, SUMMARY_MAX_CHUNKS);
   if (!parts.length) return { summary: null, keyPoints: [] };
-  if (parts.length === 1) return cleanSummary(await textJson(SUMMARY_SYSTEM_PROMPT, `TRANSCRIPT:\n${parts[0]}`, spend, { signal }));
+  if (parts.length === 1) return cleanSummary(await textJson(SUMMARY_SYSTEM_PROMPT, `TRANSCRIPT:\n${parts[0]}`, spend, { signal, claude: "haiku" }));
   const partials = [];
   for (let i = 0; i < parts.length; i++) {
-    partials.push(cleanSummary(await textJson(SUMMARY_SYSTEM_PROMPT, `PART ${i + 1} OF ${parts.length}\n\nTRANSCRIPT:\n${parts[i]}`, spend, { signal })));
+    partials.push(cleanSummary(await textJson(SUMMARY_SYSTEM_PROMPT, `PART ${i + 1} OF ${parts.length}\n\nTRANSCRIPT:\n${parts[i]}`, spend, { signal, claude: "haiku" })));
   }
   const merged = partials.map((p, i) => `PART ${i + 1}\nSummary: ${p.summary ?? ""}\nKey points:\n${p.keyPoints.map((k) => `- ${k}`).join("\n")}`).join("\n\n");
-  return cleanSummary(await textJson(SUMMARY_REDUCE_PROMPT, merged, spend, { signal }));
+  return cleanSummary(await textJson(SUMMARY_REDUCE_PROMPT, merged, spend, { signal, claude: "haiku" }));
 }
 
 // ─── flashcards (P3) ────────────────────────────────────────────────────────────────────

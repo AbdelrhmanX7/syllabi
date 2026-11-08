@@ -23,6 +23,8 @@ export type AccountUser = StudyAdminUser & {
   role: string;
   isVerified?: boolean;
   premium?: boolean;
+  /** Voice AI (dictation, speech to text): premium accounts only. Older servers don't send it. */
+  voiceAi?: boolean;
   providers?: ('password' | 'google' | 'magic')[];
 };
 
