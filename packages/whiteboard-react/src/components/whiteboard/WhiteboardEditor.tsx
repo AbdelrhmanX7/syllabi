@@ -1675,6 +1675,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // True while the exit/close flush is writing the latest snapshot to disk — drives the "saving…"
   // overlay so the user knows their work is being persisted before the board closes.
   const [isExitSaving, setIsExitSaving] = useState(false);
+  const exitingRef = useRef(false);
   const [geometryOverlay, setGeometryOverlay] = useState<GeometryOverlayState | null>(null);
   const [pinImageAction, setPinImageAction] = useState<PinImageActionState | null>(null);
   const [lockedImageChips, setLockedImageChips] = useState<LockedImageChipState[]>([]);
@@ -3332,16 +3333,19 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const handleBackPress = useCallback(async () => {
     // Show the "saving…" overlay while the exit flush (snapshot + fresh thumbnail) reaches disk, so
     // the user sees their work is persisted before the board closes.
+    // It stays up through onBack too: the app may still be sending the page before it leaves.
+    if (exitingRef.current) return;
+    exitingRef.current = true;
     setIsExitSaving(true);
 
     try {
       await persistSnapshotNow({ includeThumbnail: true });
       await exitFullscreenIfActive();
+      await onBack?.();
     } finally {
+      exitingRef.current = false;
       setIsExitSaving(false);
     }
-
-    await onBack?.();
   }, [exitFullscreenIfActive, onBack, persistSnapshotNow]);
 
   const handleRefresh = useCallback(async () => {
@@ -7641,7 +7645,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           The desktop shell holds the window open until that flush resolves, so the user always sees it. */}
       {isExitSaving ? (
         <div
-          className='absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm'
+          className='bg-ink/30 absolute inset-0 z-[100] flex items-center justify-center'
           dir={dir}
         >
           <div className='border-sk border-ink bg-paper shadow-sk-xl flex items-center gap-3 rounded-2xl px-6 py-4'>
@@ -7723,7 +7727,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
             {onBack && (
               <Tooltip content={t('editor.backToLibrary')} portalContainer={overlayPortalContainer}>
                 <button
+                  aria-label={t('editor.backToLibrary')}
                   className={CHROME_CHIP}
+                  disabled={isExitSaving}
                   type='button'
                   onClick={() => void handleBackPress()}
                 >
