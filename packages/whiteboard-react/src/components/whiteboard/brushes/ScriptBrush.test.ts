@@ -237,6 +237,9 @@ describe('ScriptBrush outline', () => {
     // The jitter filter (decimate) thins the points at commit for every freehand brush; off here so the
     // committed outline can be compared vertex for vertex with the preview.
     brush.decimate = 0;
+    // Smoothing off too: with it on, the commit adds the pen's last real point the filter was still
+    // trailing (see strokeEnd.test.ts), which the preview could not know was the end.
+    brush.smoothing = false;
 
     const points = Array.from({ length: 50 }, (_, i) => new Point(100 + i * 3, 300 + 25 * Math.sin(i / 6)));
 

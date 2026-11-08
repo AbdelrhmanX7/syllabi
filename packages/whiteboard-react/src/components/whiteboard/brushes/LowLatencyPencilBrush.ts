@@ -182,9 +182,9 @@ export class LowLatencyPencilBrush extends PencilBrush {
    * Cut a lift-off hook (a few screen px turning sharply against the stroke) before the path
    * is built. Bounded and conservative — see `findLiftHookTrim` — so dots and deliberate flicks are kept.
    */
-  private trimLiftHooks(): void {
+  private trimLiftHooks(): boolean {
     if (!this.smoothing || this._hasStraightLine) {
-      return;
+      return false;
     }
 
     const points = this._points;
@@ -192,6 +192,35 @@ export class LowLatencyPencilBrush extends PencilBrush {
 
     if (start > 0 || end < points.length - 1) {
       this._points = points.slice(start, end + 1);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Let the finished stroke reach the last point the pen touched. The smoothing filter trails the pen a
+   * little, and when the pen stops (or flicks off) no further sample comes to pull the line the rest of
+   * the way — so the committed stroke ended short of where the ink was written, most visibly at the tail
+   * of a quick «2» or «z». Add that last raw point (unless the end was just cut as a lift hook).
+   */
+  private reachLastSample(): void {
+    if (!this.smoothing || this._hasStraightLine || this._points.length < 2) return;
+    if (!Number.isFinite(this.lastRawX) || !Number.isFinite(this.lastRawY)) return;
+
+    const last = this._points[this._points.length - 1];
+    const zoom = this.canvas.getZoom() || 1;
+
+    if (Math.hypot(last.x - this.lastRawX, last.y - this.lastRawY) * zoom < 0.25) return;
+
+    // Straight into the stroke, past the filter (the point is where the pen really was).
+    this.smoothing = false;
+
+    try {
+      this._addPoint(new Point(this.lastRawX, this.lastRawY));
+    } finally {
+      this.smoothing = true;
     }
   }
 
@@ -227,7 +256,7 @@ export class LowLatencyPencilBrush extends PencilBrush {
 
   override _finalizeAndAddPath(): void {
     try {
-      this.trimLiftHooks();
+      if (!this.trimLiftHooks()) this.reachLastSample();
 
       if (this.strokeInterceptor?.strokeFinalize(this)) {
         return;

@@ -551,3 +551,48 @@ export function darkBoardInkColor(color: string): string {
 
 /** OKLCH lightness at and above which an ink already reads on a dark board and is painted as stored. */
 const DARK_BOARD_KEEP_L = 0.62;
+
+/** OKLCH lightness of a shape's fill tint on the dark board: a deep tint, so light ink on it still reads. */
+const DARK_BOARD_FILL_L = 0.34;
+/** …with at most this much colour, so a tint stays a tint and never a loud block. */
+const DARK_BOARD_FILL_MAX_C = 0.07;
+
+/**
+ * A shape / area fill on the dark board. A light tint (the palette's pastel backgrounds) is painted as a
+ * deep tint of the same hue instead — on a dark page a pastel block would glare and swallow the light
+ * ink drawn over it. A fill that is already dark is kept. Like {@link darkBoardInkColor} this is a paint
+ * time view only: the stored colour never changes.
+ */
+export function darkBoardFillColor(color: string): string {
+  const rgba = parseInkColor(color);
+
+  if (!rgba) return color;
+
+  const lch = linearRgbToOklch(srgbToLinear(rgba.r), srgbToLinear(rgba.g), srgbToLinear(rgba.b));
+
+  if (lch.l <= DARK_BOARD_FILL_L + 0.1) return color;
+
+  const rgb = oklchToGamutRgb({ l: DARK_BOARD_FILL_L, c: Math.min(lch.c * 1.6, DARK_BOARD_FILL_MAX_C), h: lch.h });
+
+  return formatInkColor({ r: linearToSrgb(rgb.r), g: linearToSrgb(rgb.g), b: linearToSrgb(rgb.b), a: rgba.a, format: rgba.format });
+}
+
+/**
+ * The colour a hatch's lines are drawn in for a fill colour. A pale tint drawn as thin lines would all
+ * but vanish on white paper, so a light fill is deepened to a mid tone of its hue (a stronger tint);
+ * on the dark board the lines take a mid-dark tone instead. A fill that is already mid or dark is kept.
+ */
+export function hatchLineColor(color: string, dark: boolean): string {
+  const rgba = parseInkColor(color);
+
+  if (!rgba) return color;
+
+  const lch = linearRgbToOklch(srgbToLinear(rgba.r), srgbToLinear(rgba.g), srgbToLinear(rgba.b));
+  const target = dark ? 0.5 : 0.74;
+
+  if (dark ? lch.l <= 0.62 : lch.l <= 0.8) return dark ? darkBoardInkColor(color) : color;
+
+  const rgb = oklchToGamutRgb({ l: target, c: Math.min(Math.max(lch.c * 3, lch.c > 0.012 ? 0.07 : 0), 0.16), h: lch.h });
+
+  return formatInkColor({ r: linearToSrgb(rgb.r), g: linearToSrgb(rgb.g), b: linearToSrgb(rgb.b), a: rgba.a, format: rgba.format });
+}

@@ -17,6 +17,7 @@ import { BaseFabricObject, Path, Point, util } from 'fabric';
 
 import type { Canvas, FabricObject } from 'fabric';
 
+import { DEFAULT_INK_COLOR } from '../palette';
 import { invalidateInkBake } from '../utils/inkBake';
 import { isPointerDown } from '../utils/inputActivity';
 import { inkDetailText, inkTelemetry } from '../utils/inkTelemetry';
@@ -54,6 +55,17 @@ export function registerInkAutoPersistence(): void {
   const own = Object.prototype.hasOwnProperty.call(Path, 'customProperties') ? Path.customProperties : undefined;
 
   if (own && !own.includes(INK_AUTO_PROP)) Path.customProperties = [...own, INK_AUTO_PROP];
+}
+
+/**
+ * The board's default ink: the configured one, or else the palette's graphite — and pure black, which
+ * the pen used before graphite, so strokes written then still count as default ink.
+ */
+function isDefaultInkColor(color: string | null | undefined, configured: string | undefined): boolean {
+  if (!color) return false;
+  if (configured) return sameColor(color, configured);
+
+  return sameColor(color, DEFAULT_INK_COLOR) || sameColor(color, '#000000');
 }
 
 export interface InkAutoColorHost {
@@ -401,14 +413,13 @@ export class InkAutoColorController {
     // The board may have discarded it (a stray dot, an erase-hold tail).
     if (!this.host.canvas.getObjects().includes(path)) return;
     if (this.ids.has(path)) return;
-    const defaultInk = config.defaultInk ?? '#000000';
     const trace = this.takeTrace();
     const endedAt = trace?.endedAt ?? now();
     const startedAt = trace?.startedAt ?? endedAt - 200;
 
     // The PEN setting decides: the committed colour may be a contrast shade of it (smart ink contrast on
     // dark paper), and that shade is still the default ink.
-    const added = this.track(path, sameColor(penColor, defaultInk), startedAt, endedAt, trace);
+    const added = this.track(path, isDefaultInkColor(penColor, config.defaultInk), startedAt, endedAt, trace);
 
     if (this.manual()) return;
     // Moving to a new line closes the last one right away; everything else waits for the pause.
@@ -448,19 +459,19 @@ export class InkAutoColorController {
    * was off): default-ink and auto-coloured strokes, in the order they were drawn. No pen trace survives
    * a save, so each is read from its outline.
    */
-  private adoptUntracked(defaultInk: string): number {
+  private adoptUntracked(defaultInk: string | undefined): number {
     const base = now() - 3_600_000;
     let adopted = 0;
 
     for (const object of this.host.canvas.getObjects()) {
-      if (this.ids.has(object) || !object.isType('Path') || isEraserMark(object)) continue;
+      if (this.ids.has(object) || !object.isType('Path') || isEraserMark(object) || (object as { wbInkFill?: boolean }).wbInkFill) continue;
       const marker = markerOf(object);
-      const plainInk = sameColor(inkColorOf(object), defaultInk);
+      const plainInk = isDefaultInkColor(inkColorOf(object), defaultInk);
 
       if (!marker && !plainInk) continue;
       const startedAt = base + adopted * 300;
 
-      this.track(object, plainInk || sameColor(marker?.o ?? '', defaultInk), startedAt, startedAt + 200, null);
+      this.track(object, plainInk || isDefaultInkColor(marker?.o ?? '', defaultInk), startedAt, startedAt + 200, null);
       adopted += 1;
     }
 
@@ -481,7 +492,7 @@ export class InkAutoColorController {
       this.pauseTimer = null;
     }
 
-    this.adoptUntracked(config.defaultInk ?? '#000000');
+    this.adoptUntracked(config.defaultInk);
 
     for (let tries = 0; this.busy && tries < 600 && !this.disposed; tries += 1) {
       await new Promise((resolve) => setTimeout(resolve, 50));

@@ -74,6 +74,12 @@ import { usePageIntroPlayback } from './hooks/usePageIntroPlayback';
 import { usePdfPageImage } from './hooks/usePdfPageImage';
 import { usePendingPdfImport } from './hooks/usePendingPdfImport';
 import { useSelectionActions } from './hooks/useSelectionActions';
+import { resolveQuickPenTool, takesPenColour } from './utils/quickPenTool';
+import { DEFAULT_INK_COLOR } from './palette';
+import { ShapeStylePanel } from './ShapeStylePanel';
+import { readShapeStyle, writeShapeStyle } from './utils/shapeStyle';
+import type { ShapeStyleSettings } from './utils/shapeStyle';
+import type { ShapeStylePatch } from './utils/shapeStylePaint';
 import { DOCUMENT_HISTORY_SCOPE, useWhiteboardHistory } from './hooks/useWhiteboardHistory';
 import { useWhiteboardStorage } from './hooks/useWhiteboardStorage';
 import { startAutoSaveScheduler } from './utils/autoSaveScheduler';
@@ -201,6 +207,9 @@ import type { RemakeGeneratingInfo } from './ai/generatingState';
 import type { BoardAiCommand } from './ai/commands';
 import type { BoardAiService, ConceptMap } from './ai/types';
 import type { AutoColorConfig } from './autoColor/model';
+
+/** The tools the shape panel floats beside. */
+const SHAPE_PANEL_TOOLS: ReadonlySet<WhiteboardTool> = new Set<WhiteboardTool>(['rect', 'circle', 'triangle', 'line', 'arrow']);
 
 // ---------------------------------------------------------------------------
 // Props
@@ -758,11 +767,6 @@ const THUMBNAIL_IDLE_DELAY_MS = 700;
  * The nib a quick colour/width pick lands on. Mid-eraser (or pan), it returns to the nib the teacher
  * last drew with — brush, marker or highlighter — not the plain default pen.
  */
-function resolveQuickPenTool(currentTool: WhiteboardTool, lastPrimaryTool: WhiteboardTool): WhiteboardTool {
-  if (isPenFamilyTool(currentTool)) return currentTool;
-
-  return isPenFamilyTool(lastPrimaryTool) ? lastPrimaryTool : 'pen';
-}
 
 /** Page-manager thumbnails kept per editor; oldest evicted first. */
 const PAGE_MANAGER_THUMBNAIL_CACHE_LIMIT = 120;
@@ -947,6 +951,8 @@ function applyPenCaptureLock(settings: TabletInputSettings, locked: boolean): Ta
 // default to false does not help an already-affected device. Force the persisted value to false ONCE
 // (guarded by a flag so the user can still re-enable it afterward). Touches only the setting, never data.
 const PEN_BUTTONS_RESET_FLAG = 'whiteboard-pen-buttons-reset-v1';
+// Pen tilt compensation now starts at 0; reset it once for tablets that saved the old default of 2.
+const PEN_TILT_ZERO_RESET_FLAG = 'whiteboard-pen-tilt-zero-reset-v1';
 // The dual-tip classifier switched from MAX-axis to MINOR-axis contact size (tilt-robust). Old stored
 // thresholds were tuned for the max metric, so reset them ONCE to the new minor-axis defaults; the user
 // can still re-tune afterward. Touches only the setting, never data. Guarded by a flag — the teacher's
@@ -973,6 +979,12 @@ function readTabletInputSettings(): TabletInputSettings {
       ? normalizeTabletInputSettings(JSON.parse(rawValue) as Partial<TabletInputSettings>)
       : { ...DEFAULT_TABLET_INPUT_SETTINGS };
     let mutated = false;
+
+    if (!window.localStorage.getItem(PEN_TILT_ZERO_RESET_FLAG)) {
+      settings.penTiltOffset = 0;
+      window.localStorage.setItem(PEN_TILT_ZERO_RESET_FLAG, '1');
+      mutated = true;
+    }
 
     if (!window.localStorage.getItem(PEN_BUTTONS_RESET_FLAG)) {
       settings.penButtonsEnabled = false;
@@ -1015,7 +1027,7 @@ function readTabletInputSettings(): TabletInputSettings {
 }
 
 const DEFAULT_STROKE_SETTINGS: StrokeSettings = {
-  color: '#000000',
+  color: DEFAULT_INK_COLOR,
   secondaryColor: '#2563EB',
   width: 4,
   opacity: 1,
@@ -1605,6 +1617,17 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   );
   const [strokeSettings, setStrokeSettings] = useState<StrokeSettings>(initialBoardPen.strokeSettings);
   const [fillColor, setFillColor] = useState('transparent');
+  // The shape panel's settings: what the next rectangle / ellipse / triangle / line is drawn with. Remembered.
+  const [shapeStyle, setShapeStyle] = useState<ShapeStyleSettings>(readShapeStyle);
+  const handleShapeStyleChange = useCallback((patch: ShapeStylePatch) => {
+    setShapeStyle((current) => {
+      const next = { ...current, ...patch };
+
+      writeShapeStyle(next);
+
+      return next;
+    });
+  }, []);
   const [backgroundType, setBackgroundType] = useState<BackgroundType>('blank');
   const [toolbarDock, setToolbarDock] = useState<ToolbarDock>(defaultToolbarDock);
   // The page list's open state, lifted so the full-scroll toolbar's page group can open it.
@@ -1719,6 +1742,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // snapshots must not attribute that transient content to the current page index.
   const isBatchRenderingRef = useRef(false);
   const lastPrimaryToolRef = useRef<WhiteboardTool>(initialBoardPen.tool);
+  /** The last tool that draws in colour — where a pen-shortcut colour pick returns to from the eraser/select. */
+  const lastDrawingToolRef = useRef<WhiteboardTool>(initialBoardPen.tool);
   const pagesRef = useRef(pages);
   const currentPageIndexRef = useRef(currentPageIndex);
   const idleThumbnailTimerRef = useRef<IdleSnapshotHandle | null>(null);
@@ -4298,6 +4323,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         lastPrimaryToolRef.current = nextTool;
       }
 
+      if (takesPenColour(nextTool)) lastDrawingToolRef.current = nextTool;
+
       return nextTool;
     });
   }, []);
@@ -4364,9 +4391,10 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     // to the plain pen the moment they changed colour or width — and wiped lastPrimaryToolRef with it, so
     // the barrel-button erase/restore could not bring the brush back either.
     setActiveTool((currentTool) => {
-      const nextTool = resolveQuickPenTool(currentTool, lastPrimaryToolRef.current);
+      const nextTool = resolveQuickPenTool(currentTool, lastDrawingToolRef.current);
 
       lastPrimaryToolRef.current = nextTool;
+      lastDrawingToolRef.current = nextTool;
 
       return nextTool;
     });
@@ -4381,9 +4409,10 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     // to the plain pen the moment they changed colour or width — and wiped lastPrimaryToolRef with it, so
     // the barrel-button erase/restore could not bring the brush back either.
     setActiveTool((currentTool) => {
-      const nextTool = resolveQuickPenTool(currentTool, lastPrimaryToolRef.current);
+      const nextTool = resolveQuickPenTool(currentTool, lastDrawingToolRef.current);
 
       lastPrimaryToolRef.current = nextTool;
+      lastDrawingToolRef.current = nextTool;
 
       return nextTool;
     });
@@ -4395,9 +4424,10 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
   const handleQuickStrokeColorCycle = useCallback(() => {
     setActiveTool((currentTool) => {
-      const nextTool = resolveQuickPenTool(currentTool, lastPrimaryToolRef.current);
+      const nextTool = resolveQuickPenTool(currentTool, lastDrawingToolRef.current);
 
       lastPrimaryToolRef.current = nextTool;
+      lastDrawingToolRef.current = nextTool;
 
       return nextTool;
     });
@@ -7562,6 +7592,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 eraserMode={eraserMode}
                 eraserSize={eraserSize}
                 fillColor={fillColor}
+                shapeStyle={shapeStyle}
+                onShapeStyleChange={handleShapeStyleChange}
                 hasPdfPageBackground={hasPdfPageBackground}
                 hasSharedBackgroundImage={Boolean(sharedBackgroundImageUrl)}
                 isFullscreen={isFullscreen}
@@ -7948,6 +7980,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               eraserSize={eraserSize}
               tabletInputSettings={tabletInputSettings}
               fillColor={fillColor}
+              shapeStyle={shapeStyle}
               zoomLocked={isZoomLocked}
               onObjectModified={handleCanvasMutation}
               onShortcutColorCycle={handleQuickStrokeColorCycle}
@@ -8077,7 +8110,28 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               onDelete={selectionActions.remove}
               onDuplicate={() => void selectionActions.duplicate()}
               onWidth={selectionActions.restroke}
+              readStyle={selectionActions.readStyle}
+              onStyle={selectionActions.restyle}
             />
+          ) : null}
+          {fabricCanvas && !readOnly && SHAPE_PANEL_TOOLS.has(activeTool) && !selectionActions.selectionBox ? (
+            // A shape tool is in hand: its panel floats at the side, so the next shape's look is one tap away.
+            <div
+              className='bg-paper text-ink border-ink/10 absolute start-2 z-[25] rounded-2xl border shadow-[0_12px_32px_-10px_rgba(15,23,42,0.35),0_2px_6px_rgba(15,23,42,0.08)]'
+              data-testid='wb-shape-panel-float'
+              style={{ top: isFullScrollToolbar && toolbarDock === 'top' ? 124 : 64, touchAction: 'none' }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+            >
+              <ShapeStylePanel
+                className='rounded-2xl'
+                maxHeight={Math.max(160, fabricCanvas.getHeight() - (isFullScrollToolbar && toolbarDock === 'top' ? 124 : 64) - 16)}
+                rows={{ fill: activeTool !== 'line' && activeTool !== 'arrow', shape: true, stroke: true }}
+                value={shapeStyle}
+                onChange={handleShapeStyleChange}
+              />
+            </div>
           ) : null}
           {fabricCanvas && !readOnly ? <HandMapControls canvas={fabricCanvas} /> : null}
           {cropTarget && fabricCanvas ? (
@@ -8092,6 +8146,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           {selectionActions.pasteChip ? (
             <PasteChip
               at={selectionActions.pasteChip}
+              container={fabricCanvas ? { width: fabricCanvas.getWidth(), height: fabricCanvas.getHeight() } : undefined}
+              topInset={isFullScrollToolbar && toolbarDock === 'top' ? 124 : 64}
+              variant={selectionChrome === 'modern' ? 'labeled' : 'compact'}
               onPaste={() => void selectionActions.pasteAtScene(selectionActions.pasteChip!.scene)}
             />
           ) : null}

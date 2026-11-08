@@ -4,6 +4,7 @@ import { Check, Loader2, Palette } from 'lucide-react';
 import type { Canvas, FabricObject } from 'fabric';
 
 import { InkAutoColorController } from './controller';
+import { DEFAULT_INK_COLOR } from '../palette';
 import { useWbStrings } from '../../../i18n/context';
 
 import { inkClassKey } from './labels';
@@ -124,7 +125,7 @@ export function InkAutoColorLayer({ canvas, config, penColor, inkTool, readOnly,
               <span
                 aria-hidden
                 className='h-3 w-3 shrink-0 rounded-full border border-black/20'
-                style={{ background: palette[cls] ?? config.defaultInk ?? '#000000' }}
+                style={{ background: palette[cls] ?? config.defaultInk ?? DEFAULT_INK_COLOR }}
               />
               {t(inkClassKey(cls))}
             </button>

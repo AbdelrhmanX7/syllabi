@@ -161,21 +161,19 @@ const StrokeSettingsComponent: React.FC<StrokeSettingsProps> = ({
         </div>
       </div>
 
-      {/* Opacity Slider */}
-      <div className='flex flex-col gap-2'>
-        <p className='text-foreground text-xs font-medium'>{t('stroke.opacity')}</p>
-        <Slider
-          aria-label={t('stroke.opacity')}
-          color='primary'
-          maxValue={1}
-          minValue={0.1}
-          size='sm'
-          step={0.1}
-          value={settings.opacity}
-          onChange={handleOpacityChange}
-        />
-        <p className='text-default-400 text-center text-xs'>{Math.round(settings.opacity * 100)}%</p>
-      </div>
+      {/* Opacity, 10–100 % (the highlighter keeps its own see-through look) */}
+      <Slider
+        aria-label={t('stroke.opacity')}
+        color='primary'
+        getValue={(value) => `${Math.round((Array.isArray(value) ? value[0]! : value) * 100)}%`}
+        label={t('stroke.opacity')}
+        maxValue={1}
+        minValue={0.1}
+        size='sm'
+        step={0.05}
+        value={settings.opacity}
+        onChange={handleOpacityChange}
+      />
 
       {/* Line mode: freehand / straight on hold / always straight, plus dashed */}
       <Divider />

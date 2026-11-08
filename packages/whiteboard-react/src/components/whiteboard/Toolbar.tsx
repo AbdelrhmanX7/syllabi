@@ -66,6 +66,10 @@ import { isPenFamilyTool, PEN_FAMILY_TOOLS } from './types';
 
 import BackgroundSelector from './BackgroundSelector';
 import ColorPicker from './ColorPicker';
+import { HIGHLIGHTER_INKS } from './palette';
+import { ShapeStylePanel } from './ShapeStylePanel';
+import type { ShapeStyleSettings } from './utils/shapeStyle';
+import type { ShapeStylePatch } from './utils/shapeStylePaint';
 import EraserSettings from './EraserSettings';
 import StrokeSettingsComponent from './StrokeSettings';
 import TabletInputSettingsComponent from './TabletInputSettings';
@@ -98,6 +102,9 @@ interface ToolbarProps {
   onSmoothingChange: (enabled: boolean) => void;
   fillColor: string;
   onFillColorChange: (color: string) => void;
+  /** With these, the fill button opens the shape panel (outline, background, pattern, line style…) instead. */
+  shapeStyle?: ShapeStyleSettings;
+  onShapeStyleChange?: (patch: ShapeStylePatch) => void;
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -400,7 +407,7 @@ const SettingsToolButton: React.FC<{
 const MemoizedSettingsToolButton = React.memo(SettingsToolButton);
 
 /** Highlighter inks (drawn at the highlighter's own translucency, so these are full-strength hexes). */
-const HIGHLIGHTER_PALETTE = ['#ffd60a', '#ff9f1c', '#ff5d8f', '#7bd389', '#4cc9f0', '#a78bfa', '#f15bb5', '#2f5bea', '#9ef01a', '#ffffff'];
+const HIGHLIGHTER_PALETTE: string[] = [...HIGHLIGHTER_INKS];
 
 const ActionButton: React.FC<ActionButtonProps> = ({
   overlayPortalContainer,
@@ -454,6 +461,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSmoothingChange,
   fillColor,
   onFillColorChange,
+  shapeStyle,
+  onShapeStyleChange,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -500,6 +509,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   ai,
 }) => {
   const { t, dir } = useWbStrings();
+  // The fill button shows the background new shapes get (the shape panel's, when there is one).
+  const shownFill = shapeStyle && onShapeStyleChange ? shapeStyle.fill : fillColor;
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAiMenuOpen, setIsAiMenuOpen] = useState(false);
   // Which nib the pen button re-selects when tapped. Without this, a teacher writing with the brush who
@@ -1066,9 +1077,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       >
                         <div
                           className='h-4 w-4 rounded border-2 border-slate-300 dark:border-white/25'
-                          style={{ backgroundColor: fillColor === 'transparent' ? 'transparent' : fillColor }}
+                          style={{ backgroundColor: shownFill === 'transparent' ? 'transparent' : shownFill }}
                         >
-                          {fillColor === 'transparent' ? (
+                          {shownFill === 'transparent' ? (
                             <svg className='h-full w-full text-slate-400 dark:text-ink/50' viewBox='0 0 16 16'>
                               <line stroke='currentColor' strokeWidth='1.5' x1='2' x2='14' y1='14' y2='2' />
                             </svg>
@@ -1077,7 +1088,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className={popoverPanelClassName(popoverPlacement)}>
-                      <ColorPicker color={fillColor} label={t('toolbar.fillColor')} onChange={onFillColorChange} />
+                      {shapeStyle && onShapeStyleChange ? (
+                        <ShapeStylePanel rows={{ fill: true, shape: true, stroke: true }} value={shapeStyle} onChange={onShapeStyleChange} />
+                      ) : (
+                        <ColorPicker color={fillColor} label={t('toolbar.fillColor')} onChange={onFillColorChange} />
+                      )}
                     </PopoverContent>
                   </Popover>
                 </MemoizedToolbarSection>

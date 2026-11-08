@@ -108,6 +108,9 @@ import { installGeometryTargetFind } from '../utils/selectionHitTest';
 import { installStrokeScaleBake } from '../utils/strokeScaleBake';
 import { serializeCanvasJson } from '../utils/canvasJson';
 import { installItemIds } from '../utils/itemIds';
+import { applyShapeStyle, installShapeStylePaint, isClosedShape, newShapeOptions } from '../utils/shapeStylePaint';
+import { roundCornerRadius } from '../utils/shapeStyle';
+import type { ShapeStyleSettings } from '../utils/shapeStyle';
 import {
   clampPanDelta,
   clampViewportTransform,
@@ -186,6 +189,8 @@ export interface UseWhiteboardCanvasProps {
   eraserSize: number;
   tabletInputSettings?: TabletInputSettings;
   fillColor: string;
+  /** The shape panel's settings for new shapes (outline, background, pattern, …). Absent = the pen's colour and width with `fillColor`. */
+  shapeStyle?: ShapeStyleSettings;
   /** When true, two-finger gestures pan only — zoom in/out is blocked. Also enables two-finger pan
    *  in pen mode (where two fingers are otherwise reserved for zoom). */
   zoomLocked?: boolean;
@@ -726,6 +731,7 @@ export function useWhiteboardCanvas({
   eraserSize,
   tabletInputSettings = DEFAULT_TABLET_INPUT_SETTINGS,
   fillColor,
+  shapeStyle,
   zoomLocked = false,
   hasPdfPageBackground = false,
   pdfFitSizeRef,
@@ -766,6 +772,7 @@ export function useWhiteboardCanvas({
   const eraserSizeRef = useRef(eraserSize);
   const tabletInputSettingsRef = useRef(tabletInputSettings);
   const fillColorRef = useRef(fillColor);
+  const shapeStyleRef = useRef(shapeStyle);
   const zoomLockedRef = useRef(zoomLocked);
   const onObjectModifiedRef = useRef(onObjectModified);
   const onShortcutColorCycleRef = useRef(onShortcutColorCycle);
@@ -837,7 +844,8 @@ export function useWhiteboardCanvas({
   if (!shapeSnapRef.current) {
     shapeSnapRef.current = new ShapeSnapController({
       isEnabled: () =>
-        (tabletInputSettingsRef.current.shapeSnapOnHold !== false || lineShapeActive()) &&
+        // The highlighter always straightens on a hold (a straight highlight is what it is mostly for).
+        (tabletInputSettingsRef.current.shapeSnapOnHold !== false || lineShapeActive() || effectiveToolRef.current === 'highlighter') &&
         // Never while a pen button is held: the hold is the button gesture, not a shape hold.
         penButtonOverrideToolRef.current === null &&
         nativeStylusButtonStateRef.current === 0 &&
@@ -845,8 +853,32 @@ export function useWhiteboardCanvas({
       // Same rule as the path:created handler: the pen family honours the opacity slider, the
       // highlighter's translucency is already in its colour.
       getOpacity: () => (isPenFamilyTool(effectiveToolRef.current) ? strokeSettingsRef.current.opacity : 1),
-      getLineShape: () => (isPenFamilyTool(effectiveToolRef.current) ? (strokeSettingsRef.current.lineShape ?? 'free') : 'free'),
+      getLineShape: () => {
+        const lineShape = strokeSettingsRef.current.lineShape ?? 'free';
+
+        if (isPenFamilyTool(effectiveToolRef.current)) return lineShape;
+
+        // The highlighter: with hold-to-snap shapes on and the pen freehand, a hold recognises the shape
+        // like the pen's (a wobbly line becomes straight, a ring an ellipse). Otherwise — shapes off, or
+        // the pen set to straight lines — a hold turns the highlight into a straight line that follows the
+        // pen, like the pen's «straight on hold». Never «always»: a highlight stays freehand until a hold.
+        if (effectiveToolRef.current === 'highlighter') {
+          return tabletInputSettingsRef.current.shapeSnapOnHold !== false && lineShape === 'free' ? 'free' : 'hold';
+        }
+
+        return 'free';
+      },
       isDashed: () => isPenFamilyTool(effectiveToolRef.current) && strokeSettingsRef.current.dashed === true,
+      // A closed shape drawn with the pen takes the remembered background (the brush's swept outline is
+      // already a filled mark, and the highlighter never fills).
+      decorate: (object) => {
+        const style = shapeStyleRef.current;
+
+        if (!style || !isPenFamilyTool(effectiveToolRef.current) || !isClosedShape(object)) return;
+        if (!style.fill || style.fill === 'transparent') return;
+
+        applyShapeStyle(object, { fill: style.fill, fillStyle: style.fillStyle });
+      },
     });
   }
   // Ruler straight-edge in front of hold-to-snap: the interceptor the pen, highlighter, brush and marker share.
@@ -1316,6 +1348,7 @@ export function useWhiteboardCanvas({
   eraserSizeRef.current = eraserSize;
   tabletInputSettingsRef.current = tabletInputSettings;
   fillColorRef.current = fillColor;
+  shapeStyleRef.current = shapeStyle;
   zoomLockedRef.current = zoomLocked;
   onObjectModifiedRef.current = onObjectModified;
   onShortcutColorCycleRef.current = onShortcutColorCycle;
@@ -6181,6 +6214,8 @@ export function useWhiteboardCanvas({
   useEffect(() => {
     if (!canvas) return;
 
+    installShapeStylePaint();
+
     const uninstall = installSnappedShapeSupport(canvas);
 
     return () => {
@@ -6356,6 +6391,9 @@ export function useWhiteboardCanvas({
 
       const stroke = strokeSettingsRef.current;
       const fill = fillColorRef.current;
+      const styled = shapeStyleRef.current;
+      // With the shape panel: its outline, background, pattern, line style, sloppiness and edges.
+      const styleFor = (closed: boolean) => (styled ? newShapeOptions(styled, closed) : null);
 
       let shape: FabricObject | null = null;
 
@@ -6365,6 +6403,7 @@ export function useWhiteboardCanvas({
             stroke: stroke.color,
             strokeWidth: stroke.width,
             opacity: stroke.opacity,
+            ...styleFor(false),
             selectable: false,
             evented: false,
           });
@@ -6375,6 +6414,7 @@ export function useWhiteboardCanvas({
             stroke: stroke.color,
             strokeWidth: stroke.width,
             opacity: stroke.opacity,
+            ...styleFor(false),
             selectable: false,
             evented: false,
           });
@@ -6390,6 +6430,7 @@ export function useWhiteboardCanvas({
             stroke: stroke.color,
             strokeWidth: stroke.width,
             opacity: stroke.opacity,
+            ...styleFor(true),
             selectable: false,
             evented: false,
           });
@@ -6405,6 +6446,7 @@ export function useWhiteboardCanvas({
             stroke: stroke.color,
             strokeWidth: stroke.width,
             opacity: stroke.opacity,
+            ...styleFor(true),
             selectable: false,
             evented: false,
           });
@@ -6420,6 +6462,7 @@ export function useWhiteboardCanvas({
             stroke: stroke.color,
             strokeWidth: stroke.width,
             opacity: stroke.opacity,
+            ...styleFor(true),
             selectable: false,
             evented: false,
           });
@@ -6458,6 +6501,12 @@ export function useWhiteboardCanvas({
           const height = Math.abs(pointer.y - start.y);
 
           (shape as Rect).set({ left, top, width, height });
+
+          if ((shape as FabricObject & { wbEdges?: string }).wbEdges === 'round') {
+            const r = roundCornerRadius(width, height);
+
+            (shape as Rect).set({ rx: r, ry: r });
+          }
           break;
         }
 
@@ -6503,7 +6552,12 @@ export function useWhiteboardCanvas({
 
         c.remove(shape);
 
-        const arrowGroup = createArrowGroup(start, pointer, strokeSettingsRef.current);
+        const styled = shapeStyleRef.current;
+        const arrowGroup = createArrowGroup(
+          start,
+          pointer,
+          styled ? { ...strokeSettingsRef.current, color: styled.stroke, width: styled.width, opacity: styled.opacity } : strokeSettingsRef.current,
+        );
 
         c.add(arrowGroup);
       } else {

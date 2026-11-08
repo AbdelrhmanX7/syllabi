@@ -1,6 +1,13 @@
-import { ActiveSelection, util } from 'fabric';
+import { ActiveSelection, Point, util } from 'fabric';
 
-import type { Canvas, FabricObject } from 'fabric';
+import type { Canvas, FabricObject, Path } from 'fabric';
+
+import { resizeOutlinePath } from './inkOutlineResize';
+import { isInkStroke, setInkAreaFill } from './inkAreaFill';
+import { applyShapeStyle, isInkAreaFill, styleOfObject } from './shapeStylePaint';
+
+import type { ShapeStylePatch } from './shapeStylePaint';
+import { inkPenOf } from '../brushes/inkPenMark';
 
 import { invalidateInkBake } from './inkBake';
 import { isLockedImage } from './lockedImages';
@@ -138,8 +145,134 @@ export function recolorSelection(canvas: Canvas, color: string): number {
   return restyleSelection(canvas, (object) => recolorObject(object, color));
 }
 
+/**
+ * Resizes one FILLED ink stroke (the brush / script pens' outline, see `inkOutlineResize`) in place: same
+ * object (so it keeps its id), same place on the page. Returns 1 when it changed.
+ */
+export function resizeFilledInk(object: FabricObject, width: number): number {
+  if (!object.isType('Path') || (object as FabricObject & { wbInkFill?: boolean }).wbInkFill) return 0;
+
+  const path = object as Path;
+  const stroked = typeof path.stroke === 'string' && path.stroke !== '' && (path.strokeWidth ?? 0) > 0;
+
+  if (stroked || typeof path.fill !== 'string' || path.fill === '') return 0;
+
+  const next = resizeOutlinePath(path.path as never, width, inkPenOf(path));
+
+  if (!next) return 0;
+
+  // The new points are in the same path space as the old; after the bounding box is recomputed the
+  // object's centre moves to wherever the old transform puts the new box centre, so nothing shifts.
+  const before = { x: path.pathOffset.x, y: path.pathOffset.y };
+  const own = path.calcOwnMatrix();
+
+  path._setPath(next as never, false);
+
+  const centre = util.transformPoint(new Point(path.pathOffset.x - before.x, path.pathOffset.y - before.y), own);
+
+  path.setPositionByOrigin(centre, 'center', 'center');
+  path.setCoords();
+
+  return 1;
+}
+
 export function restrokeSelection(canvas: Canvas, width: number): number {
-  return restyleSelection(canvas, (object) => restrokeObject(object, width));
+  const changed = restyleSelection(
+    canvas,
+    (object) => restrokeObject(object, width) || resizeFilledInk(object as unknown as FabricObject, width),
+  );
+  const active = canvas.getActiveObject();
+
+  // A multi-selection's frame was fitted to the old widths.
+  if (changed > 0 && active instanceof ActiveSelection) {
+    active.triggerLayout();
+    active.setCoords();
+    canvas.requestRenderAll();
+  }
+
+  return changed;
+}
+
+/**
+ * Applies the shape panel's choices to the selection: opacity to anything; background, fill pattern,
+ * outline style, sloppiness and edges to the shapes they fit; and a background for hand-drawn ink as a
+ * fill laid under it (see `inkAreaFill`). One burst of events → one undo step.
+ */
+export function styleSelection(canvas: Canvas, patch: ShapeStylePatch): number {
+  const objects = selectedObjects(canvas);
+  const touchesFill = patch.fill !== undefined || patch.fillStyle !== undefined;
+  const strokes = touchesFill ? objects.filter(isInkStroke) : [];
+  const inkFills = objects.filter(isInkAreaFill);
+  let changed = 0;
+
+  for (const object of objects) {
+    // The fill under ink takes its background through `setInkAreaFill` below, its opacity here.
+    const own = isInkAreaFill(object) ? { opacity: patch.opacity } : patch;
+
+    if (own.opacity === undefined && isInkAreaFill(object)) continue;
+    if (applyShapeStyle(object, own) === 0) continue;
+
+    changed += 1;
+    canvas.fire('object:modified', { target: object } as never);
+  }
+
+  let added: FabricObject | null = null;
+
+  if (touchesFill && (strokes.length > 0 || inkFills.length > 0)) {
+    const result = setInkAreaFill(canvas, strokes, inkFills, { color: patch.fill, style: patch.fillStyle });
+
+    if (result.changed) changed += 1;
+    if (result.object && inkFills.length === 0) added = result.object;
+  }
+
+  if (changed > 0) {
+    // A new fill joins the selection, so moving the ink right away takes its background along.
+    if (added) {
+      const members = [...selectedObjects(canvas), added];
+
+      canvas.discardActiveObject();
+      canvas.setActiveObject(members.length === 1 ? members[0]! : new ActiveSelection(members, { canvas }));
+    } else if (patch.fill !== undefined && (!patch.fill || patch.fill === 'transparent') && inkFills.length > 0) {
+      const members = selectedObjects(canvas).filter((object) => canvas.getObjects().includes(object));
+
+      canvas.discardActiveObject();
+      if (members.length > 0) canvas.setActiveObject(members.length === 1 ? members[0]! : new ActiveSelection(members, { canvas }));
+    }
+
+    invalidateInkBake(canvas);
+    canvas.requestRenderAll();
+  }
+
+  return changed;
+}
+
+/** What the shape panel shows for the selection: the first object's style, plus which rows apply. */
+export function selectionStyle(canvas: Canvas): { style: ShapeStylePatch; hasShape: boolean; canFill: boolean } {
+  const objects = selectedObjects(canvas);
+  const styles = objects.map(styleOfObject);
+  const style: ShapeStylePatch = {};
+
+  for (const one of styles) {
+    for (const [key, value] of Object.entries(one) as Array<[keyof ShapeStylePatch, never]>) {
+      if (style[key] === undefined) style[key] = value;
+    }
+  }
+
+  // The ink's background shows on the panel too.
+  const inkFill = objects.find(isInkAreaFill);
+
+  if (inkFill) {
+    const fill = styleOfObject(inkFill);
+
+    style.fill = fill.fill;
+    style.fillStyle = fill.fillStyle;
+  }
+
+  return {
+    style,
+    hasShape: styles.some((one) => one.rough !== undefined),
+    canFill: styles.some((one) => one.fill !== undefined) || objects.some(isInkStroke),
+  };
 }
 
 /** The selection's scene bounds (the union of its members' boxes). */

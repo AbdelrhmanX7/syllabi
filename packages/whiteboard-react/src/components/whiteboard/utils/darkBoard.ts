@@ -81,6 +81,9 @@ type PatchedObject = FabricObject & { __wbCacheDark?: boolean };
 /** Theme of the render in progress (set by the outermost object render, inherited by nested ones). */
 let renderDark = false;
 let renderDepth = 0;
+
+/** Whether the object render in progress paints for the dark board (for other paint-time remaps). */
+export const isRenderingDarkBoard = (): boolean => renderDark;
 let installed = false;
 
 function installDarkBoardPaint(): void {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@repo/ui';
-import { ArrowDownToLine, FilePlus2, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, BetweenHorizontalEnd, FilePlus2, Trash2 } from 'lucide-react';
 
 import { useWbStrings } from '../../i18n/context';
 
@@ -108,7 +108,7 @@ const BlankPageMenu: React.FC<BlankPageMenuProps> = ({
                 onInsertAfter();
               }}
             >
-              <FilePlus2 className='h-5 w-5 shrink-0' />
+              <BetweenHorizontalEnd aria-hidden className='h-5 w-5 shrink-0' />
               {t('editor.sheet.insertAfter', { page: currentLabel })}
             </Button>
             <Button

@@ -15,6 +15,8 @@ import {
   recolorSelection,
   restrokeSelection,
   selectedObjects,
+  selectionStyle,
+  styleSelection,
   selectionSceneBounds,
   writeSelectionPng,
 } from '../utils/selectionActions';
@@ -26,6 +28,9 @@ import {
   writeClipboard,
 } from '../utils/selectionClipboard';
 import { objectsInsidePolygon } from '../utils/selectionHitTest';
+import { createLongPress } from '../utils/longPress';
+import { isPenFamilyTool } from '../types';
+import type { ShapeStylePatch } from '../utils/shapeStylePaint';
 
 import type { SceneTransform } from '../utils/pdfScrollLayout';
 import type { ClipboardRect } from '../utils/selectionClipboard';
@@ -64,8 +69,8 @@ export interface PasteChipState {
   scene: { x: number; y: number };
 }
 
-const LONG_PRESS_MS = 520;
-const LONG_PRESS_SLOP_PX = 10;
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP_PX = 8;
 const TAP_SLOP_PX = 6;
 const PASTE_CHIP_TIMEOUT_MS = 4000;
 /** Screen pixels a duplicate lands down-and-right of its original. */
@@ -154,7 +159,11 @@ export function useSelectionActions({
   /** Last pointer position over the canvas (canvas CSS px) — where Ctrl+V pastes. */
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const busyRef = useRef(false);
+  const activeToolRef = useRef(activeTool);
+  /** A hold just raised the chip; the select tool's tap-on-release must not raise it a second time. */
+  const holdShownRef = useRef(false);
 
+  activeToolRef.current = activeTool;
   transformAtRef.current = sceneTransformAt;
   const marqueeRef = useRef(marquee);
 
@@ -325,6 +334,16 @@ export function useSelectionActions({
     [canvas],
   );
 
+  const restyle = useCallback(
+    (patch: ShapeStylePatch) => {
+      if (canvas) styleSelection(canvas, patch);
+    },
+    [canvas],
+  );
+
+  /** What the style panel shows for the current selection. */
+  const readStyle = useCallback(() => (canvas ? selectionStyle(canvas) : null), [canvas]);
+
   // --- Paste chip: finger long-press anywhere, or a tap on empty canvas with the select tool -----
   const pasteChipFromView = useCallback(
     (view: { x: number; y: number }) => {
@@ -347,63 +366,119 @@ export function useSelectionActions({
     if (!canvas || !enabled) return;
 
     const element = (canvas as unknown as { upperCanvasEl?: HTMLCanvasElement }).upperCanvasEl ?? canvas.getElement();
-    const touches = new Map<number, { x: number; y: number }>();
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * A pen-family tool inks while the pen (or finger) holds still, so a hold that raised the chip leaves
+     * a dot behind. While this is set, the stroke that hold commits is removed. Cleared when the pointer
+     * moves on (it is a real stroke then) or the next press starts.
+     */
+    let dropHoldDot = false;
+    let dropTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const cancel = () => {
-      if (timer !== null) clearTimeout(timer);
-      timer = null;
+    const press = createLongPress<{ view: { x: number; y: number }; inking: boolean }>({
+      delayMs: LONG_PRESS_MS,
+      slopPx: LONG_PRESS_SLOP_PX,
+      onFire: ({ data }) => {
+        if (!readClipboard()) return;
+
+        // Holding on the selection is the start of a drag, not a paste.
+        const box = screenBoxOf(canvas, selectedObjects(canvas));
+        const { view } = data;
+        const onSelection = box && view.x >= box.left && view.x <= box.left + box.width && view.y >= box.top && view.y <= box.top + box.height;
+
+        if (onSelection) return;
+
+        holdShownRef.current = true;
+        dropHoldDot = data.inking;
+        pasteChipFromView(view);
+      },
+      onMovedAfterFire: () => {
+        dropHoldDot = false;
+        holdShownRef.current = false;
+        setPasteChip(null);
+      },
+    });
+
+    /** Is a selectable object under the press? Then a hold is about that object, not empty canvas. */
+    const onObject = (event: PointerEvent) => {
+      if (activeToolRef.current !== 'select') return false;
+
+      try {
+        const hit = (canvas as unknown as { findTarget: (e: Event) => { target?: FabricObject } | FabricObject | undefined }).findTarget(event);
+        const target = hit && 'target' in hit ? hit.target : (hit as FabricObject | undefined);
+
+        return Boolean(target && target.selectable && !isLockedImage(target));
+      } catch {
+        return false;
+      }
     };
 
     const onDown = (event: PointerEvent) => {
       setPasteChip(null);
+      holdShownRef.current = false;
+      dropHoldDot = false;
       lastPointerRef.current = clientToView(canvas, event.clientX, event.clientY);
 
-      if (event.pointerType !== 'touch') return;
+      const tool = activeToolRef.current;
+      const inking = isPenFamilyTool(tool) || tool === 'highlighter';
+      // A finger holds with any tool (as before); the pen with the select tool or while writing.
+      const kind = event.pointerType === 'touch' || (event.pointerType === 'pen' && (tool === 'select' || inking));
 
-      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      cancel();
-
-      // One finger only: a second one is a pinch.
-      if (touches.size !== 1 || !readClipboard()) return;
-
-      const view = clientToView(canvas, event.clientX, event.clientY);
-
-      timer = setTimeout(() => {
-        timer = null;
-
-        // Holding on the selection is the start of a drag, not a paste.
-        const box = screenBoxOf(canvas, selectedObjects(canvas));
-        const onSelection = box && view.x >= box.left && view.x <= box.left + box.width && view.y >= box.top && view.y <= box.top + box.height;
-
-        if (!onSelection) pasteChipFromView(view);
-      }, LONG_PRESS_MS);
+      press.down(
+        event.pointerId,
+        event.clientX,
+        event.clientY,
+        { view: clientToView(canvas, event.clientX, event.clientY), inking },
+        kind && !onObject(event),
+      );
     };
 
     const onMove = (event: PointerEvent) => {
       lastPointerRef.current = clientToView(canvas, event.clientX, event.clientY);
-
-      const start = touches.get(event.pointerId);
-
-      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > LONG_PRESS_SLOP_PX) cancel();
+      press.move(event.pointerId, event.clientX, event.clientY);
     };
 
     const onUp = (event: PointerEvent) => {
-      touches.delete(event.pointerId);
-      cancel();
+      const end = press.up(event.pointerId);
+
+      // Fabric commits the stroke on this same release; give it a moment, then stop watching for it.
+      if (end.fired && dropHoldDot) {
+        if (dropTimer !== null) clearTimeout(dropTimer);
+        dropTimer = setTimeout(() => {
+          dropHoldDot = false;
+          dropTimer = null;
+        }, 400);
+      }
+    };
+
+    const onPathCreated = (options: { path?: FabricObject }) => {
+      const path = options.path;
+
+      if (!dropHoldDot || !path) return;
+
+      dropHoldDot = false;
+      // After the board's own path:created work (it reads the newest object), not before it.
+      setTimeout(() => {
+        if (!canvas.getObjects().includes(path)) return;
+
+        canvas.remove(path);
+        canvas.requestRenderAll();
+      }, 0);
     };
 
     element.addEventListener('pointerdown', onDown, { passive: true });
     element.addEventListener('pointermove', onMove, { passive: true });
     element.addEventListener('pointerup', onUp, { passive: true });
     element.addEventListener('pointercancel', onUp, { passive: true });
+    canvas.on('path:created', onPathCreated as never);
 
     return () => {
-      cancel();
+      press.cancel();
+      if (dropTimer !== null) clearTimeout(dropTimer);
       element.removeEventListener('pointerdown', onDown);
       element.removeEventListener('pointermove', onMove);
       element.removeEventListener('pointerup', onUp);
       element.removeEventListener('pointercancel', onUp);
+      canvas.off('path:created', onPathCreated as never);
     };
   }, [canvas, enabled, pasteChipFromView]);
 
@@ -520,7 +595,7 @@ export function useSelectionActions({
       if (canvas.contextTop) canvas.clearContext(canvas.contextTop);
 
       if (tapped) {
-        if (!hadSelection) pasteChipFromView(upView);
+        if (!hadSelection && !holdShownRef.current) pasteChipFromView(upView);
         canvas.requestRenderAll();
 
         return;
@@ -627,6 +702,8 @@ export function useSelectionActions({
     remove,
     recolor,
     restroke,
+    restyle,
+    readStyle,
     pasteAtScene,
     pasteAtViewportCentre,
     dismissPasteChip: () => setPasteChip(null),

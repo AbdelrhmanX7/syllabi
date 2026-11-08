@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { ShapeStyleSettings } from './utils/shapeStyle';
 import type { RefObject } from 'react';
 
 import type { Canvas } from 'fabric';
@@ -187,6 +188,8 @@ export interface WhiteboardCanvasProps {
   eraserSize: number;
   tabletInputSettings?: TabletInputSettings;
   fillColor: string;
+  /** The shape panel's settings for new shapes. */
+  shapeStyle?: ShapeStyleSettings;
   zoomLocked?: boolean;
   backgroundType: BackgroundType;
   /** Pattern spacing in board px (utils/paperSpacing). Absent = the original 30 px. */
@@ -326,6 +329,7 @@ export function WhiteboardCanvas({
   eraserSize,
   tabletInputSettings,
   fillColor,
+  shapeStyle,
   zoomLocked = false,
   backgroundType,
   backgroundSpacingPx,
@@ -618,6 +622,7 @@ export function WhiteboardCanvas({
     eraserSize,
     tabletInputSettings,
     fillColor,
+    shapeStyle,
     zoomLocked,
     hasPdfPageBackground,
     pdfFitSizeRef,

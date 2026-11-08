@@ -79,6 +79,18 @@ describe('recolorObject', () => {
     assert.equal(hollow.fill, 'transparent');
   });
 
+  it('leaves a background in another colour, and the fill under ink, alone', () => {
+    const boxed = fake({ type: 'Rect', stroke: '#1F2937', strokeWidth: 2, fill: '#DBEAFE' });
+    const under = fake({ type: 'Path', stroke: '', strokeWidth: 0, fill: '#FEE2E2', wbInkFill: true });
+
+    recolorObject(boxed, '#991B1B');
+
+    assert.equal(boxed.stroke, '#991B1B');
+    assert.equal(boxed.fill, '#DBEAFE');
+    assert.equal(recolorObject(under, '#991B1B'), 0);
+    assert.equal(under.fill, '#FEE2E2');
+  });
+
   it('recolours text by fill and walks into groups, skipping images', () => {
     const text = fake({ type: 'Textbox', fill: '#000000' });
     const arrowLine = fake({ type: 'Line', stroke: '#000000', strokeWidth: 3 });

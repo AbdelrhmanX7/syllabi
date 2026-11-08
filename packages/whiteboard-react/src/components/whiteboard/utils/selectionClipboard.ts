@@ -212,6 +212,27 @@ export function withAlpha(color: string, alpha: number): string {
 
 const isPaint = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '' && colorAlpha(value) !== 0;
 
+/** Same colour ignoring alpha (hex or rgb[a]); false when either cannot be read. */
+function sameRgb(a: string, b: string): boolean {
+  const rgb = (value: string): string | null => {
+    const v = value.trim().toLowerCase();
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(v);
+
+    if (hex) {
+      const d = hex[1]!.length <= 4 ? hex[1]!.slice(0, 3).replace(/./g, (c) => c + c) : hex[1]!.slice(0, 6);
+
+      return [0, 2, 4].map((i) => Number.parseInt(d.slice(i, i + 2), 16)).join(',');
+    }
+
+    const m = /^rgba?\(([^)]+)\)$/.exec(v);
+
+    return m ? m[1]!.split(/[\s,/]+/).filter(Boolean).slice(0, 3).map((n) => String(Math.round(Number(n)))).join(',') : null;
+  };
+  const x = rgb(a);
+
+  return x !== null && x === rgb(b);
+}
+
 /** Re-tints `next` with the alpha `previous` carried, so a translucent fill stays translucent. */
 function keepAlpha(previous: string, next: string): string {
   const alpha = colorAlpha(previous);
@@ -224,12 +245,15 @@ function keepAlpha(previous: string, next: string): string {
  *
  *  - Ink and shape outlines: the stroke takes the colour.
  *  - Filled ink (the calligraphy and marker brushes paint a filled outline with no stroke): the fill.
- *  - A shape's interior fill: re-tinted, keeping its alpha (a 20 % wash stays a 20 % wash).
+ *  - A shape's interior fill in the outline's own colour: re-tinted, keeping its alpha (a 20 % wash
+ *    stays a 20 % wash). A background in another colour (the Background row's) is left alone, and so is
+ *    the fill laid under hand-drawn ink.
  *  - Text: its fill (Fabric text paints with fill).
  *  - Groups (AI objects, arrows): every member. Images are left alone.
  */
 export function recolorObject(object: RecolorableObject, color: string): number {
   const type = (object.type ?? '').toLowerCase();
+  const previousStroke = typeof object.stroke === 'string' ? object.stroke : '';
 
   if (SKIPPED_TYPES.has(type)) return 0;
 
@@ -245,6 +269,9 @@ export function recolorObject(object: RecolorableObject, color: string): number 
     return 1;
   }
 
+  // The fill laid under hand-drawn ink is a background: the Background row sets it, not Colour.
+  if ((object as { wbInkFill?: boolean }).wbInkFill) return 0;
+
   const hasStroke = isPaint(object.stroke) && (object.strokeWidth ?? 1) > 0;
   const hasFill = isPaint(object.fill);
   let changed = false;
@@ -254,7 +281,9 @@ export function recolorObject(object: RecolorableObject, color: string): number 
     changed = true;
   }
 
-  if (hasFill) {
+  // A shape's own background (picked on the Background row) keeps its colour; a fill in the outline's
+  // own colour (an arrowhead, a wash of the outline colour) follows the outline.
+  if (hasFill && (!hasStroke || sameRgb(object.fill as string, previousStroke))) {
     object.set('fill', keepAlpha(object.fill as string, color));
     changed = true;
   }
@@ -280,6 +309,37 @@ export function restrokeObject(object: RecolorableObject, width: number): number
 
   return 1;
 }
+
+/** Gap between the press point and the chip, and the chip's minimum distance from the layer's edges. */
+const CHIP_GAP = 14;
+const CHIP_MARGIN = 8;
+
+/**
+ * Where the chip goes: centred above the press point (clear of the finger or pen), below it when there
+ * is no room above, and always fully inside the layer.
+ */
+export function placePasteChip(
+  at: { left: number; top: number },
+  chip: { width: number; height: number },
+  container?: { width: number; height: number },
+  /** Room the top chrome takes (the board's top buttons); the chip goes below the point rather than under it. */
+  topInset = 0,
+): { left: number; top: number } {
+  let left = at.left - chip.width / 2;
+  let top = at.top - CHIP_GAP - chip.height;
+
+  if (!container) return { left, top };
+
+  const minTop = Math.max(CHIP_MARGIN, topInset);
+
+  if (top < minTop) top = at.top + CHIP_GAP;
+
+  left = Math.min(Math.max(left, CHIP_MARGIN), Math.max(CHIP_MARGIN, container.width - chip.width - CHIP_MARGIN));
+  top = Math.min(Math.max(top, minTop), Math.max(minTop, container.height - chip.height - CHIP_MARGIN));
+
+  return { left, top };
+}
+
 
 // --- Store ----------------------------------------------------------------------------------------
 

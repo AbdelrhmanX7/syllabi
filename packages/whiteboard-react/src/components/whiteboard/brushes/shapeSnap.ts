@@ -98,6 +98,8 @@ export interface ShapeSnapHost {
   getLineShape?(): LineShape;
   /** The active pen draws dashed. */
   isDashed?(): boolean;
+  /** Last touches on the committed shape before it is added (e.g. the remembered background). */
+  decorate?(object: FabricObject): void;
 }
 
 interface ShapeStyle {
@@ -240,6 +242,8 @@ export class ShapeSnapController implements StrokeInterceptor {
 
     const canvas = brush.canvas;
     const object = createSnappedShapeObject(shape, style);
+
+    this.host.decorate?.(object);
 
     if (canvas.contextTop) canvas.clearContext(canvas.contextTop);
 

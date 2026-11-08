@@ -3,12 +3,14 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Baseline, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Scissors, Sparkles, Trash2 } from 'lucide-react';
 import { ColorSwatch } from '@repo/ui';
 
+import { ShapeStylePanel } from './ShapeStylePanel';
 import { STROKE_WIDTHS } from './types';
 import { MODERN_CHROME_REACH } from './utils/selectionChrome';
-import { placeSelectionBar } from './utils/selectionClipboard';
+import { placePasteChip, placeSelectionBar } from './utils/selectionClipboard';
 import { useWbStrings } from '../../i18n/context';
 
 import type { SelectionRaster } from './utils/selectionActions';
+import type { ShapeStylePatch } from './utils/shapeStylePaint';
 import type { ClipboardRect } from './utils/selectionClipboard';
 import type { ReactNode } from 'react';
 
@@ -70,6 +72,10 @@ interface SelectionActionBarProps {
    * lands on the frame's rotate handle, and clear of the frame's round handles on either side.
    */
   variant?: 'compact' | 'labeled';
+  /** The «Style» panel (background, fill pattern, outline, opacity): what the selection has now… */
+  readStyle?: () => { style: ShapeStylePatch; hasShape: boolean; canFill: boolean } | null;
+  /** …and applying a choice to it. Both absent = no «Style» button. */
+  onStyle?: (patch: ShapeStylePatch) => void;
 }
 
 const BUTTON_CLASS =
@@ -82,6 +88,29 @@ const LABELED_SWATCH_CLASS = 'hover:bg-ink/5 active:bg-ink/10 flex h-11 w-11 ite
 const LABELED_DIVIDER_CLASS = 'bg-ink/10 mx-1 my-2 w-px self-stretch';
 
 const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+
+/** Three lines getting thicker — the «Size» button's icon (drawn like the lucide icons around it). */
+function SizeIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} fill='none' stroke='currentColor' strokeLinecap='round' viewBox='0 0 24 24'>
+      <path d='M4 6h16' strokeWidth={1.25} />
+      <path d='M4 12h16' strokeWidth={2.5} />
+      <path d='M4 18.5h16' strokeWidth={4} />
+    </svg>
+  );
+}
+
+/** Two overlapping squares, one filled — the «Style» button's icon. */
+function StyleIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} fill='none' stroke='currentColor' strokeLinejoin='round' strokeWidth={1.75} viewBox='0 0 24 24'>
+      <rect height='11' rx='2' width='11' x='3.5' y='3.5' />
+      <rect fill='currentColor' fillOpacity={0.25} height='11' rx='2' width='11' x='9.5' y='9.5' />
+    </svg>
+  );
+}
+
+type SelectionPanel = 'color' | 'size' | 'style' | null;
 
 export function SelectionActionBar({
   selection,
@@ -101,11 +130,37 @@ export function SelectionActionBar({
   extraActions,
   onExtraAction,
   variant = 'compact',
+  readStyle,
+  onStyle,
 }: SelectionActionBarProps) {
   const { t, dir } = useWbStrings();
   const barRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 320, height: 52 });
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  // The colour and size choices open one at a time, above the button row.
+  const [panel, setPanel] = useState<SelectionPanel>(null);
+  const togglePanel = (next: Exclude<SelectionPanel, null>) => setPanel((current) => (current === next ? null : next));
+  // The style panel re-reads the selection when it opens, when the selection changes, and after each choice.
+  const [styleInfo, setStyleInfo] = useState<ReturnType<NonNullable<typeof readStyle>>>(null);
+  const styleOn = panel === 'style' && !!readStyle && !!onStyle;
+
+  useEffect(() => {
+    if (styleOn) setStyleInfo(readStyle!());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleOn, selection.left, selection.top, selection.width, selection.height]);
+
+  const applyStyle = (patch: ShapeStylePatch) => {
+    onStyle?.(patch);
+    if (readStyle) setStyleInfo(readStyle());
+  };
+  const stylePanel =
+    styleOn && styleInfo ? (
+      <ShapeStylePanel
+        maxHeightClassName='max-h-[min(42vh,340px)]'
+        rows={{ fill: styleInfo.canFill, shape: styleInfo.hasShape, stroke: false }}
+        value={styleInfo.style}
+        onChange={applyStyle}
+      />
+    ) : null;
   // The copy button answers for ~1.5 s with a check and «Copied» — copying is otherwise invisible.
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
@@ -159,46 +214,70 @@ export function SelectionActionBar({
         onPointerMove={stop}
         onPointerUp={stop}
       >
-        {paletteOpen ? (
-          <div className='border-ink/10 mb-1.5 flex flex-col gap-1 border-b px-0.5 pb-1.5'>
-            <div className='flex flex-wrap gap-0.5'>
-              {colors.map((color) => (
-                <ColorSwatch
-                  key={color}
-                  className='h-11 w-11'
-                  color={color}
-                  data-color={color}
-                  label={t('selection.colorN', { color })}
-                  onClick={() => onColor(color)}
-                />
-              ))}
-            </div>
-            <div aria-label={t('selection.width')} className='flex flex-wrap gap-0.5' role='group'>
-              {STROKE_WIDTHS.map((width) => (
-                <button
-                  key={width}
-                  aria-label={t('selection.widthN', { n: width })}
-                  className={LABELED_SWATCH_CLASS}
-                  type='button'
-                  onClick={() => onWidth(width)}
-                >
-                  <span className='bg-ink block rounded-full' style={{ height: Math.min(width, 22), width: Math.min(width, 22) }} />
-                </button>
-              ))}
-            </div>
+        {panel === 'color' ? (
+          <div className='border-ink/10 mb-1.5 flex flex-wrap gap-1 border-b px-0.5 pb-1.5'>
+            {colors.map((color) => (
+              <ColorSwatch
+                key={color}
+                className='h-11 w-11'
+                color={color}
+                data-color={color}
+                label={t('selection.colorN', { color })}
+                onClick={() => onColor(color)}
+              />
+            ))}
           </div>
         ) : null}
-        <div className='flex flex-wrap items-stretch gap-0.5'>
+        {stylePanel ? <div className='border-ink/10 mb-1.5 border-b pb-1.5'>{stylePanel}</div> : null}
+        {panel === 'size' ? (
+          <div aria-label={t('selection.width')} className='border-ink/10 mb-1.5 flex flex-wrap gap-1 border-b px-0.5 pb-1.5' role='group'>
+            {STROKE_WIDTHS.map((width) => (
+              <button
+                key={width}
+                aria-label={t('selection.widthN', { n: width })}
+                className={LABELED_SWATCH_CLASS}
+                data-width={width}
+                type='button'
+                onClick={() => onWidth(width)}
+              >
+                <span className='bg-ink block rounded-full' style={{ height: Math.min(width + 2, 22), width: Math.min(width + 2, 22) }} />
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className='flex flex-wrap items-stretch gap-1'>
           <button
-            aria-expanded={paletteOpen}
-            className={`${LABELED_BUTTON_CLASS} ${paletteOpen ? 'bg-ink/10' : ''}`}
+            aria-expanded={panel === 'color'}
+            className={`${LABELED_BUTTON_CLASS} ${panel === 'color' ? 'bg-ink/10' : ''}`}
             data-action='color'
             type='button'
-            onClick={() => setPaletteOpen((open) => !open)}
+            onClick={() => togglePanel('color')}
           >
             <Palette aria-hidden className='h-5 w-5' />
             <span>{t('selection.color')}</span>
           </button>
+          <button
+            aria-expanded={panel === 'size'}
+            className={`${LABELED_BUTTON_CLASS} ${panel === 'size' ? 'bg-ink/10' : ''}`}
+            data-action='size'
+            type='button'
+            onClick={() => togglePanel('size')}
+          >
+            <SizeIcon className='h-5 w-5' />
+            <span>{t('selection.width')}</span>
+          </button>
+          {readStyle && onStyle ? (
+            <button
+              aria-expanded={panel === 'style'}
+              className={`${LABELED_BUTTON_CLASS} ${panel === 'style' ? 'bg-ink/10' : ''}`}
+              data-action='style'
+              type='button'
+              onClick={() => togglePanel('style')}
+            >
+              <StyleIcon className='h-5 w-5' />
+              <span>{t('selection.style')}</span>
+            </button>
+          ) : null}
           <span aria-hidden className={LABELED_DIVIDER_CLASS} />
           <button aria-live='polite' className={LABELED_BUTTON_CLASS} data-action='copy' type='button' onClick={handleCopy}>
             {copied ? <Check aria-hidden className='h-5 w-5 text-emerald-600' /> : <Copy aria-hidden className='h-5 w-5' />}
@@ -283,49 +362,73 @@ export function SelectionActionBar({
       onPointerMove={stop}
       onPointerUp={stop}
     >
-      {paletteOpen ? (
-        <div className='flex flex-col gap-1 px-1 pt-1'>
-          <div className='flex flex-wrap gap-1'>
-            {colors.map((color) => (
-              <ColorSwatch
-                key={color}
-                className='h-11 w-11'
-                color={color}
-                data-color={color}
-                label={t('selection.colorN', { color })}
-                onClick={() => onColor(color)}
-              />
-            ))}
-          </div>
-          <div aria-label={t('selection.width')} className='border-ink/10 flex flex-wrap gap-1 border-t pt-1' role='group'>
-            {STROKE_WIDTHS.map((width) => (
-              <button
-                key={width}
-                aria-label={t('selection.widthN', { n: width })}
-                className='hover:bg-ink/5 flex h-11 w-11 items-center justify-center rounded-xl'
-                type='button'
-                onClick={() => onWidth(width)}
-              >
-                <span className='bg-ink block rounded-full' style={{ height: Math.min(width, 22), width: Math.min(width, 22) }} />
-              </button>
-            ))}
-          </div>
+      {panel === 'color' ? (
+        <div className='flex flex-wrap gap-1 px-1 pt-1'>
+          {colors.map((color) => (
+            <ColorSwatch
+              key={color}
+              className='h-11 w-11'
+              color={color}
+              data-color={color}
+              label={t('selection.colorN', { color })}
+              onClick={() => onColor(color)}
+            />
+          ))}
+        </div>
+      ) : null}
+      {stylePanel}
+      {panel === 'size' ? (
+        <div aria-label={t('selection.width')} className='flex flex-wrap gap-1 px-1 pt-1' role='group'>
+          {STROKE_WIDTHS.map((width) => (
+            <button
+              key={width}
+              aria-label={t('selection.widthN', { n: width })}
+              className='hover:bg-ink/5 flex h-11 w-11 items-center justify-center rounded-xl'
+              data-width={width}
+              type='button'
+              onClick={() => onWidth(width)}
+            >
+              <span className='bg-ink block rounded-full' style={{ height: Math.min(width + 2, 22), width: Math.min(width + 2, 22) }} />
+            </button>
+          ))}
         </div>
       ) : null}
       <div className='flex flex-wrap items-center gap-0.5'>
         <button
-          aria-expanded={paletteOpen}
+          aria-expanded={panel === 'color'}
           aria-label={t('selection.color')}
-          className={`${BUTTON_CLASS} ${paletteOpen ? 'bg-ink/10' : ''}`}
+          className={`${BUTTON_CLASS} ${panel === 'color' ? 'bg-ink/10' : ''}`}
           data-action='color'
           type='button'
-          onClick={() => setPaletteOpen((open) => !open)}
+          onClick={() => togglePanel('color')}
         >
           <span
             className='border-ink/30 block h-6 w-6 rounded-full border'
             style={{ background: `conic-gradient(${colors.slice(0, 6).join(', ')}, ${colors[0] ?? 'currentColor'})` }}
           />
         </button>
+        <button
+          aria-expanded={panel === 'size'}
+          aria-label={t('selection.width')}
+          className={`${BUTTON_CLASS} ${panel === 'size' ? 'bg-ink/10' : ''}`}
+          data-action='size'
+          type='button'
+          onClick={() => togglePanel('size')}
+        >
+          <SizeIcon className='h-5 w-5' />
+        </button>
+        {readStyle && onStyle ? (
+          <button
+            aria-expanded={panel === 'style'}
+            aria-label={t('selection.style')}
+            className={`${BUTTON_CLASS} ${panel === 'style' ? 'bg-ink/10' : ''}`}
+            data-action='style'
+            type='button'
+            onClick={() => togglePanel('style')}
+          >
+            <StyleIcon className='h-5 w-5' />
+          </button>
+        ) : null}
         <span className='bg-ink/15 mx-0.5 h-6 w-px' />
         <button
           aria-label={t(copied ? 'selection.copied' : 'selection.copy')}
@@ -398,30 +501,52 @@ export function SelectionActionBar({
 interface PasteChipProps {
   /** Where the press landed, in layer CSS pixels. */
   at: { left: number; top: number };
+  /** The layer's size, to keep the chip on screen. */
+  container?: { width: number; height: number };
+  /** Room the top chrome takes, as for the selection bar. */
+  topInset?: number;
+  /** `labeled` matches the modern selection bar's flat sheet; `compact` the classic clay chip. */
+  variant?: 'compact' | 'labeled';
   onPaste: () => void;
 }
 
 /** The one-button «Paste» chip a long-press (or a tap with the select tool) on empty canvas raises. */
-export function PasteChip({ at, onPaste }: PasteChipProps) {
+export function PasteChip({ at, container, topInset, variant = 'compact', onPaste }: PasteChipProps) {
   const { t } = useWbStrings();
+  const chipRef = useRef<HTMLButtonElement | null>(null);
+  const [size, setSize] = useState({ width: 112, height: variant === 'labeled' ? 56 : 44 });
+
+  useLayoutEffect(() => {
+    const element = chipRef.current;
+
+    if (!element) return;
+
+    const next = { width: element.offsetWidth, height: element.offsetHeight };
+
+    setSize((current) => (current.width === next.width && current.height === next.height ? current : next));
+  });
+
+  const spot = placePasteChip(at, size, container, topInset);
+  const look =
+    variant === 'labeled'
+      ? 'bg-paper text-ink border-ink/10 rounded-2xl border shadow-[0_12px_32px_-10px_rgba(15,23,42,0.35),0_2px_6px_rgba(15,23,42,0.08)]'
+      : 'border-sk border-ink bg-paper text-ink shadow-sk rounded-md';
 
   return (
-    <div
-      className='pointer-events-none absolute z-[30] -translate-x-1/2 -translate-y-[calc(100%+12px)]'
-      style={{ left: at.left, top: at.top }}
+    <button
+      ref={chipRef}
+      className={`${look} absolute z-[30] flex items-center gap-2 whitespace-nowrap text-sm font-semibold ${variant === 'labeled' ? 'h-14 px-4' : 'h-11 px-4'}`}
+      data-testid='wb-paste-chip'
+      style={{ left: spot.left, top: spot.top, touchAction: 'none' }}
+      type='button'
+      onClick={onPaste}
+      onContextMenu={(event) => event.preventDefault()}
       onPointerDown={stop}
+      onPointerMove={stop}
       onPointerUp={stop}
     >
-      <button
-        className='border-sk border-ink bg-paper text-ink shadow-sk pointer-events-auto flex h-11 items-center gap-2 rounded-md px-4 text-sm font-semibold'
-        data-testid='wb-paste-chip'
-        type='button'
-        onClick={onPaste}
-        onContextMenu={(event) => event.preventDefault()}
-      >
-        <ClipboardPaste aria-hidden className='h-5 w-5' />
-        {t('selection.paste')}
-      </button>
-    </div>
+      <ClipboardPaste aria-hidden className='h-5 w-5' />
+      {t('selection.paste')}
+    </button>
   );
 }

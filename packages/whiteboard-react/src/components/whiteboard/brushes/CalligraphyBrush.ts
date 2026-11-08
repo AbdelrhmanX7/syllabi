@@ -3,6 +3,7 @@ import { Path } from 'fabric';
 import type { PencilBrush, Point } from 'fabric';
 
 import { LowLatencyPencilBrush } from './LowLatencyPencilBrush';
+import { markInkPen } from './inkPenMark';
 
 /**
  * A broad-edge calligraphy nib: a flat, slanted tip dragged along the stroke. Pull across the edge and
@@ -777,11 +778,14 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
     // Falls back to Fabric's own (constant-width) data if the stroke was too short to outline.
     const outlineData = this.outlinePathData() ?? pathData;
 
-    return new Path(outlineData, {
+    const path = new Path(outlineData, {
       fill: this.color,
       stroke: '',
       strokeWidth: 0,
       fillRule: 'nonzero',
     });
+
+    // Only a real outline is marked: Fabric's fallback line data is not laid out like one.
+    return outlineData === pathData ? path : markInkPen(path, 'brush');
   }
 }

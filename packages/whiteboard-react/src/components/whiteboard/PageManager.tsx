@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button, Tooltip } from '@repo/ui';
-import { Copy, FileText, Plus, Trash2 } from 'lucide-react';
+import { BetweenHorizontalEnd, BetweenHorizontalStart, Copy, FileText, Plus, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { RemakeOrb } from './ai/RemakeOrb';
@@ -185,24 +185,26 @@ const PageThumbnail: React.FC<{
         <div className='absolute -top-1 end-0 flex gap-0.5'>
           <Tooltip content={t('pages.insertBefore')} size='sm'>
             <Button
+              aria-label={t('pages.insertBefore')}
               className='bg-primary-100/90 text-primary h-6 min-w-6 backdrop-blur-sm'
               isIconOnly
               size='sm'
               variant='flat'
               onPress={() => onInsertBefore(page.id)}
             >
-              <Plus className='h-3 w-3' />
+              <BetweenHorizontalStart aria-hidden className='h-3.5 w-3.5' />
             </Button>
           </Tooltip>
           <Tooltip content={t('pages.insertAfter')} size='sm'>
             <Button
+              aria-label={t('pages.insertAfter')}
               className='bg-primary-100/90 text-primary h-6 min-w-6 backdrop-blur-sm'
               isIconOnly
               size='sm'
               variant='flat'
               onPress={() => onInsertAfter(page.id)}
             >
-              <Plus className='h-3 w-3' />
+              <BetweenHorizontalEnd aria-hidden className='h-3.5 w-3.5' />
             </Button>
           </Tooltip>
           <Tooltip content={t('pages.duplicate')} size='sm'>

@@ -20,7 +20,8 @@ const isEraserMark = (object: FabricObject) =>
   (object as FabricObject & { globalCompositeOperation?: string }).globalCompositeOperation === 'destination-out';
 
 /** A pen stroke: a Path that is not a pixel-eraser mark. Shapes, text and images are not handwriting. */
-export const isInkStroke = (object: FabricObject): boolean => object.isType('Path') && !isEraserMark(object);
+export const isInkStroke = (object: FabricObject): boolean =>
+  object.isType('Path') && !isEraserMark(object) && !(object as FabricObject & { wbInkFill?: boolean }).wbInkFill;
 
 export function selectedInkStrokes(canvas: Canvas): FabricObject[] {
   return selectedObjects(canvas).filter(isInkStroke);

@@ -246,7 +246,7 @@ export interface TabletInputSettings {
 
 export const DEFAULT_TABLET_INPUT_SETTINGS: TabletInputSettings = {
   penJitterFilter: 0.4,
-  penTiltOffset: 2,
+  penTiltOffset: 0,
   touchPanZoomTolerance: 100,
   wholeHandEraser: {
     enabled: false,
@@ -535,18 +535,13 @@ export interface WhiteboardStorage {
 
 export const WHITEBOARD_SCHEMA_VERSION = 2;
 
-export const DEFAULT_COLORS = [
-  '#000000',
-  '#FFFFFF',
-  '#EF4444',
-  '#F97316',
-  '#EAB308',
-  '#22C55E',
-  '#3B82F6',
-  '#8B5CF6',
-  '#EC4899',
-  '#6B7280',
-] as const;
+/**
+ * The pen's inks: graphite (never pure black), blue, red, green, orange, purple, magenta, teal. Chosen as a
+ * set — ≥ 4.5 : 1 on white paper and (lightened at paint time) on the dark board, and still apart for the
+ * common colour blindnesses. Measured in whiteboard-react `palette.test.ts`, which keeps its own copy in
+ * step with this one. Stored colours are never rewritten, so older pages keep their colours.
+ */
+export const DEFAULT_COLORS = ['#1F2937', '#2563EB', '#991B1B', '#15803D', '#C2410C', '#581C87', '#A21CAF', '#115E59'] as const;
 
 export const STROKE_WIDTHS = [2, 4, 6, 8, 12, 16] as const;
 export const MIN_STROKE_WIDTH = 1;

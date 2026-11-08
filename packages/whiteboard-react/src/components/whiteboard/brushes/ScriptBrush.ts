@@ -5,6 +5,7 @@ import type { PencilBrush, Point, TEvent } from 'fabric';
 import type { StrokeSmootherOptions } from './strokeSmoothing';
 
 import { LowLatencyPencilBrush } from './LowLatencyPencilBrush';
+import { markInkPen } from './inkPenMark';
 
 /**
  * Script: neat handwritten gel / fountain ink. A smooth monoline whose width breathes gently with pen
@@ -657,11 +658,14 @@ export class ScriptBrush extends LowLatencyPencilBrush {
   override createPath(pathData: Parameters<PencilBrush['createPath']>[0]): Path {
     const outlineData = this.outlinePathData() ?? pathData;
 
-    return new Path(outlineData, {
+    const path = new Path(outlineData, {
       fill: this.color,
       stroke: '',
       strokeWidth: 0,
       fillRule: 'nonzero',
     });
+
+    // Only a real outline is marked: Fabric's fallback line data is not laid out like one.
+    return outlineData === pathData ? path : markInkPen(path, 'script');
   }
 }

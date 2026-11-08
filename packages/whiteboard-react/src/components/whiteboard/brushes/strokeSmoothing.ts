@@ -110,9 +110,11 @@ export interface LiftHookTrimOptions {
 }
 
 export const DEFAULT_LIFT_HOOK_TRIM_OPTIONS: LiftHookTrimOptions = {
-  maxHookPx: 5,
+  // Only a short near-reversal is a lift hook. A turn of 80–110° within 5 px used to be cut too, and
+  // that is the flick at the end of a «2» or a «z» — real ink, which then vanished on lift.
+  maxHookPx: 4,
   referencePx: 8,
-  minTurnDeg: 80,
+  minTurnDeg: 110,
 };
 
 /**
