@@ -46,6 +46,8 @@ them yet. If you try it on another device, tell us how it went.
 
 - **In your browser:** [app.syllabi.studio](https://app.syllabi.studio). Look around with sample data, or create a free account.
 - **On an Android tablet:** download the app from [Releases](https://github.com/AbdelrhmanX7/syllabi/releases).
+  Every release is scanned on VirusTotal ([0 of 68 found anything in 0.1.0](https://www.virustotal.com/gui/file/db51185fe8fde5405c004aa1e359e4c94f28653a67a40cc60521d964be399e9b)),
+  and its release page lists the file's fingerprint so you can check your download.
 - **iPad and iPhone:** coming later.
 
 <details>
