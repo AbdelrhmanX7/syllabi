@@ -33,19 +33,18 @@ test('shortcut steps: the backend recipe with the real URL, header and form fiel
   const steps = shortcutSteps(API, TOKEN);
   const values = Object.fromEntries(steps.flatMap((step) => step.values ?? []).map((v) => [v.label, v]));
 
-  assert.equal(steps.length, 3);
+  assert.equal(steps.length, 5);
   assert.match(steps[0].title, /Show in Share Sheet/);
   assert.match(steps[0].detail!, /Images and PDFs/);
-  assert.match(steps[1].title, /Get Contents of URL.*POST.*Form/);
+  assert.match(steps[1].title, /Repeat with Each.*Shortcut Input/);
+  assert.match(steps[2].title, /Convert Image.*JPEG/);
+  assert.match(steps[3].title, /Get Contents of URL.*POST.*File/);
   assert.equal(values.URL.value, `${API}/study/inbox`);
   assert.equal(values.Header.value, 'Authorization');
   assert.equal(values['Header value'].value, `Bearer ${TOKEN}`);
   assert.equal(values['Header value'].secret, true);
-  assert.equal(values['File field'].value, 'file');
-  assert.equal(values['Its value'].value, 'Shortcut Input');
-  assert.match(steps[1].detail!, /note.*500/);
-  assert.match(steps[2].title, /Repeat with Each/);
-  assert.match(steps[2].detail!, /Repeated Item/);
+  assert.equal(values['File'].value, 'Converted Image');
+  assert.match(steps[3].detail!, /Repeat Item/);
 });
 
 test('without a fresh token the secret is the <TOKEN> placeholder', () => {

@@ -47,19 +47,26 @@ export function shortcutSteps(backendUrl: string, token: string | null): Shortcu
       detail: 'Set Receive to Images and PDFs.',
     },
     {
-      title: 'Add Get Contents of URL. Method POST, Request Body Form.',
+      title: 'Add Repeat with Each, set to Shortcut Input.',
+      detail: 'This sends every photo you picked, one after another, so you can share many at once.',
+    },
+    {
+      title: 'Inside the repeat, add Convert Image: Repeat Item to JPEG.',
+      detail: 'Turns iPhone (HEIF) photos into normal JPG photos. Skip this step if you also send PDFs.',
+    },
+    {
+      title: 'Still inside the repeat, add Get Contents of URL. Method POST, Request Body File.',
       values: [
         { label: 'URL', value: inboxUploadUrl(backendUrl) },
         { label: 'Header', value: 'Authorization' },
         { label: 'Header value', value: bearerHeader(secret), secret: true },
-        { label: 'File field', value: 'file' },
-        { label: 'Its value', value: 'Shortcut Input' },
+        { label: 'File', value: 'Converted Image' },
       ],
-      detail: 'Optional: a Text field named “note” (up to 500 characters), and a Show Notification “Sent to Study”.',
+      detail: 'If you skipped step 3, set File to Repeat Item instead.',
     },
     {
-      title: 'Several photos at once: wrap step 2 in Repeat with Each (item = Shortcut Input).',
-      detail: 'Then set the “file” field to Repeated Item. The server takes one file per request.',
+      title: 'Send: open photos or a PDF, tap Share, then tap your shortcut.',
+      detail: 'Pressing play inside Shortcuts sends nothing. Optional: add Show Notification “Sent to Study” after the repeat.',
     },
   ];
 }
