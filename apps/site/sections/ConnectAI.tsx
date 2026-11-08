@@ -53,24 +53,24 @@ function DrawnPage() {
           <g className='text-st-fg' fill='none' stroke='currentColor' strokeLinecap='round' strokeWidth='3'>
             <path d='M60 196 L340 196' />
             <path d='M200 30 L200 214' />
-            <path d='M96 196 C 130 40, 270 40, 304 196' />
+            <path d='M96 196 Q 200 -56, 304 196' />
           </g>
           <g className='text-st-accent' fill='none' stroke='currentColor' strokeLinecap='round' strokeWidth='3'>
-            <path d='M200 64 m -18 0 a 18 18 0 1 0 36 0 a 18 18 0 1 0 -36 0' data-draw pathLength={1} />
-            <path d='M290 40 C 260 44, 236 52, 222 60' data-draw pathLength={1} />
-            <path d='M222 60 l 12 -2 M222 60 l 6 10' data-draw pathLength={1} />
+            <path d='M200 70 m -18 0 a 18 18 0 1 0 36 0 a 18 18 0 1 0 -36 0' data-draw pathLength={1} />
+            <path d='M288 42 C 262 44, 238 52, 222 61' data-draw pathLength={1} />
+            <path d='M222 61 l 11 0 M222 61 l 6 -9' data-draw pathLength={1} />
             <path d='M96 186 l 0 20 M304 186 l 0 20' data-draw pathLength={1} />
           </g>
           <g className='text-st-accent' data-draw-label fill='currentColor' fontFamily='Inter, sans-serif' fontSize='15' fontWeight='600'>
-            <text x='296' y='44'>vertex</text>
-            <text x='70' y='226'>x = −2</text>
-            <text x='282' y='226'>x = 2</text>
+            <text x='294' y='47'>vertex</text>
+            <text textAnchor='middle' x='96' y='227'>x = −2</text>
+            <text textAnchor='middle' x='304' y='227'>x = 2</text>
           </g>
         </svg>
       </div>
       <p className='text-st-fg text-sm leading-snug' data-draw-label>
         <span className='text-st-accent font-semibold'>Your AI:</span> The vertex is right. I marked both roots on your
-        page, at x = −2 and x = 2.
+        page, at <span className='whitespace-nowrap'>x = −2</span> and <span className='whitespace-nowrap'>x = 2</span>.
       </p>
     </Surface>
   );
