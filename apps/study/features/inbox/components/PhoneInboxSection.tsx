@@ -149,16 +149,23 @@ export function PhoneInboxSection() {
         {url ? (
           <QrCode label={`Upload page for ${fresh?.label ?? 'this token'}`} size={184} value={url} />
         ) : (
-          <div className='rounded-st border-st-line flex h-[184px] w-[184px] shrink-0 items-center justify-center border border-dashed'>
+          <div className='rounded-st border-st-line flex h-[184px] w-[184px] shrink-0 flex-col items-center justify-center gap-3 border border-dashed p-3'>
             <QrIcon className='text-st-muted h-10 w-10' strokeWidth={1.5} />
+            <ActionButton
+              loading={create.isPending}
+              variant='primary'
+              type='button'
+              onClick={() => create.mutate(label, { onSuccess: (token) => setFresh(token) })}
+            >
+              Make a code
+            </ActionButton>
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
           <p className='text-st-fg text-sm font-semibold'>One-off send: scan with the iPhone camera</p>
           <p className='text-st-muted text-sm'>
-            Opens an upload page in Safari for a quick send without the Shortcut. The page removes the token from the
-            address bar as soon as it loads, so a bookmark or Home Screen icon made from it will not work. For everyday
-            use, set up the Shortcut above.
+            Point your iPhone camera at the code to open a page where you can send a photo. It works for one quick
+            send only, so don't save it as a bookmark. For everyday use, set up the Shortcut above.
           </p>
           {url ? (
             <div className='flex items-center gap-2'>
@@ -166,7 +173,7 @@ export function PhoneInboxSection() {
               <CopyButton label='Copy link' text={url} />
             </div>
           ) : (
-            <p className='text-st-muted text-xs'>Create a token to show the code.</p>
+            <p className='text-st-muted text-xs'>The code goes away when you leave this page. Make a new one any time.</p>
           )}
         </div>
       </div>

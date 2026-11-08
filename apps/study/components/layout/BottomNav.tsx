@@ -9,7 +9,7 @@ import { useRouter } from 'next/router';
 import { ALL_LINKS, RailItem, SignUpCta, isLinkActive, visibleLinks } from './Rail';
 import { SignOutButton } from './SignOutButton';
 
-import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
+import { useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { useInbox } from '@/features/inbox/store';
@@ -48,7 +48,6 @@ export function BottomNav() {
   const { unread } = useInbox();
   const mode = useResolvedMode();
   const session = useSession();
-  const { backendUrl } = useBackendSettings();
 
   const primaryHrefs = new Set(PRIMARY.map((p) => p.href));
   const primary = PRIMARY.flatMap((p) => {
@@ -109,7 +108,7 @@ export function BottomNav() {
           footer={
             session.state === 'signed-in' ? (
               <SignOutButton className='w-full' />
-            ) : backendUrl ? undefined : (
+            ) : (
               <SignUpCta />
             )
           }

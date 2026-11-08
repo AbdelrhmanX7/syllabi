@@ -190,6 +190,7 @@ export function RailItem({
  * sits `mt-2` past the 4px lip.
  */
 export function SignUpCta({ className, compact = false }: { className?: string; compact?: boolean }) {
+  const hasServer = Boolean(useBackendSettings().backendUrl);
   if (compact) {
     return (
       <Tooltip content='Create account' placement='right'>
@@ -212,7 +213,16 @@ export function SignUpCta({ className, compact = false }: { className?: string; 
         <UserPlus className='h-4 w-4 shrink-0' />
         <span className='truncate'>Create account</span>
       </LinkButton>
-      <p className='text-st-muted mt-2 truncate text-center text-xs'>Keep your data on every device</p>
+      {hasServer ? (
+        <p className='text-st-muted mt-2 truncate text-center text-xs'>
+          Have an account?{' '}
+          <Link className='text-st-fg font-semibold underline underline-offset-2' href='/login/'>
+            Sign in
+          </Link>
+        </p>
+      ) : (
+        <p className='text-st-muted mt-2 truncate text-center text-xs'>Keep your data on every device</p>
+      )}
     </div>
   );
 }
@@ -223,7 +233,6 @@ export function Rail() {
   const { data: classes } = useClasses();
   const mode = useResolvedMode();
   const session = useSession();
-  const { backendUrl } = useBackendSettings();
   const { unread } = useInbox();
   const collapsed = useRailCollapsed();
   const activeClassId = pathname === '/class' ? String(router.query.id ?? '') : '';
@@ -353,8 +362,8 @@ export function Rail() {
               <SignOutButton className='w-full' />
             </div>
           )
-        ) : !backendUrl ? (
-          // Demo mode: nothing leaves this device until there is an account on a server.
+        ) : (
+          // Signed out (or demo mode): create an account, or sign in to an existing one.
           collapsed ? (
             <div className='mt-2 flex justify-center pb-1'>
               <SignUpCta compact />
@@ -362,7 +371,7 @@ export function Rail() {
           ) : (
             <SignUpCta className='mt-2' />
           )
-        ) : null}
+        )}
       </div>
     </nav>
   );
