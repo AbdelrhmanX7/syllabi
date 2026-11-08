@@ -834,7 +834,7 @@ function ExamRunner({
         />
       ) : null}
 
-      <div className='sticky bottom-0 -mx-1 flex items-center gap-2 bg-st-bg/95 p-1'>
+      <div className='bottom-0 z-10 -mx-1 flex items-center gap-2 bg-st-bg/95 p-1 [@media(min-height:760px)]:sticky'>
         <NavButton disabled={index === 0} onPress={() => go(index - 1)}>
           <ChevronLeft className='h-5 w-5' /> Prev
         </NavButton>

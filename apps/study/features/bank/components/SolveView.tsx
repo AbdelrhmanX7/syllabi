@@ -446,7 +446,10 @@ export function SolveView({
         />
       )}
 
-      <div className='sticky bottom-0 -mx-1 flex flex-wrap items-center gap-2 bg-st-bg/95 p-1'>
+      {/* On short screens a pinned bar would sit on top of the pen tools, so it only pins on tall screens when drawing. */}
+      <div
+        className={`${usesInk ? '[@media(min-height:760px)]:sticky' : 'sticky'} bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-2 bg-st-bg/95 p-1`}
+      >
         {!run.verdict && !online ? (
           // Checking an answer runs on the server: offline, say so instead of failing after the tap.
           <NeedsInternet label='Check' />
