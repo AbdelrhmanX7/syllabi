@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
@@ -34,6 +35,25 @@ class MainActivity : TauriActivity() {
 
   // Board exports (PDF / PNG / document) into Downloads — `window.StudyFiles` in the page.
   private val fileExporter = FileExporter(this)
+
+  // A reminder tapped while the app was closed: the notification plugin fires its tap event before the
+  // page listens (and carries no payload), so the page asks which reminder it was once it loads and
+  // looks up its page — `window.StudyNotifyLaunch.take()` → the notification id, or "".
+  @Volatile private var notificationTap: Int? = null
+
+  private fun rememberNotificationTap(intent: Intent?) {
+    val id = intent?.getIntExtra("NotificationId", Int.MIN_VALUE) ?: Int.MIN_VALUE
+    if (id != Int.MIN_VALUE) notificationTap = id
+  }
+
+  private inner class NotifyLaunchBridge {
+    @JavascriptInterface
+    fun take(): String {
+      val id = notificationTap ?: return ""
+      notificationTap = null
+      return id.toString()
+    }
+  }
 
   // Pen-button fallback (the board engine's learned S Pen buttons). Samsung's S Pen /
   // Huawei's M-Pen button may never reach the page as a PointerEvent `buttons` bit — the vendor
@@ -77,6 +97,7 @@ class MainActivity : TauriActivity() {
     installInsetsGuard()
     // Cold start by a share: the streams are copied now, the page picks them up when it loads.
     shareReceiver.handle(intent)
+    rememberNotificationTap(intent)
   }
 
   // Warm start (singleTask): a share while Study is open arrives here; the page hears `study-share`.
@@ -84,6 +105,7 @@ class MainActivity : TauriActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     shareReceiver.handle(intent)
+    rememberNotificationTap(intent)
   }
 
   // The system restores the bars after any dialog, share sheet, MediaProjection consent prompt or
@@ -290,6 +312,7 @@ class MainActivity : TauriActivity() {
     shareReceiver.attach(webView)
     inkRecognizer.attach(webView)
     fileExporter.attach(webView)
+    webView.addJavascriptInterface(NotifyLaunchBridge(), "StudyNotifyLaunch")
     webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
     if (isFirstLaunchOfThisBuild()) {
       webView.clearCache(true)

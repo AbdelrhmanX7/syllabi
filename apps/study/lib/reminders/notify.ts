@@ -247,6 +247,22 @@ export async function showNow(note: { key: string; title: string; body: string; 
   }
 }
 
+/** The page of the reminder that opened the app (MainActivity keeps its id; the schedule knows its page), once. */
+function takeLaunchPath(): string | null {
+  try {
+    const bridge = (window as unknown as { StudyNotifyLaunch?: { take?: () => string } }).StudyNotifyLaunch;
+    const raw = bridge?.take?.() ?? '';
+
+    if (!raw) return null;
+    const id = Number(raw);
+    const url = readScheduled().find((s) => s.id === id)?.url;
+
+    return url && url.startsWith('/') ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Route taps on our notifications to `open(path)`. Returns the unsubscribe. */
 export function listenForTaps(open: (path: string) => void): () => void {
   openPath = open;
@@ -255,11 +271,18 @@ export function listenForTaps(open: (path: string) => void): () => void {
   if (!invoke) return () => {};
   let stopped = false;
   let unlisten: (() => void) | null = null;
+  // Cold start from a tap: the plugin's tap event fired before this listener existed.
+  const launched = takeLaunchPath();
+
+  if (launched) setTimeout(() => open(launched), 300);
 
   void import('@tauri-apps/plugin-notification')
     .then(({ onAction }) =>
       onAction(async (payload: unknown) => {
         const extra = (payload as { notification?: { extra?: { url?: unknown } } } | null)?.notification?.extra;
+        const kept = takeLaunchPath();
+
+        if (kept) return open(kept);
 
         if (typeof extra?.url === 'string' && extra.url.startsWith('/')) return open(extra.url);
         // The plugin doesn't say which one was tapped: the newest of ours that went off and left the tray.
