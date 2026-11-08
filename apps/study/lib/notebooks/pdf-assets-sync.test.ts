@@ -117,6 +117,29 @@ test('a failed upload is retried on the next save; demo mode and a server withou
   setPdfAssetSyncEnv(null);
 });
 
+test('a file the server refuses for good (too big, not a PDF) is never resent', async () => {
+  const store = memoryStore();
+  const tries: string[] = [];
+
+  setPdfAssetSyncEnv({
+    store,
+    scope: () => 's|u',
+    isDemo: () => false,
+    listPresent: async () => [],
+    put: async (_page, id) => {
+      tries.push(id);
+      if (id === 'huge') throw new StudyApiError(413, 'request entity too large');
+    },
+  });
+  const storage = fakeStorage(['huge', 'ok']);
+
+  await queuePdfAssetUpload('p', ['huge', 'ok'], storage);
+  await queuePdfAssetUpload('p', ['huge', 'ok'], storage);
+  assert.deepEqual(tries, ['huge', 'ok']);
+  assert.equal(store.map.get('study_pdf_up|s|u|huge'), 'skip');
+  setPdfAssetSyncEnv(null);
+});
+
 test('restore from the server: stores from the signed url; false when missing, failing or demo', async () => {
   const restored: string[] = [];
   const restore = async (url: string) => void restored.push(url);

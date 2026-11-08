@@ -92,22 +92,31 @@ export function setPdfAssetSyncEnv(next: Partial<PdfAssetSyncEnv> | null): void 
 const store = () => env.store ?? browserStore();
 const cacheKey = (scope: string, assetId: string) => `${CACHE_PREFIX}|${scope}|${assetId}`;
 
-function knownOnServer(scope: string, assetId: string): boolean {
+/** '1' = the server has it; 'skip' = the server refused it for good (too big, not a PDF): never resend. */
+function settled(scope: string, assetId: string): boolean {
   try {
-    return store()?.getItem(cacheKey(scope, assetId)) === '1';
+    const v = store()?.getItem(cacheKey(scope, assetId));
+
+    return v === '1' || v === 'skip';
   } catch {
     return false;
   }
 }
 
-function rememberOnServer(scope: string | null, assetId: string): void {
+function remember(scope: string | null, assetId: string, value: '1' | 'skip' = '1'): void {
   if (!scope) return;
   try {
-    store()?.setItem(cacheKey(scope, assetId), '1');
+    store()?.setItem(cacheKey(scope, assetId), value);
   } catch {
     // storage full / blocked: it is checked with the server again next time
   }
 }
+
+const rememberOnServer = (scope: string | null, assetId: string) => remember(scope, assetId);
+
+/** The server will never take this file (too big, not a PDF, bad id): retrying would resend tens of MB per save. */
+const refusedForGood = (error: unknown) =>
+  isStudyApiError(error) && (error.status === 413 || error.status === 415 || error.status === 400);
 
 /** A 404 with no error code is Express's own: this server has no PDF routes yet. */
 const routeMissing = (error: unknown) => isStudyApiError(error, 404) && !error.code;
@@ -123,7 +132,7 @@ async function uploadPage(pageId: string, ids: string[], storage: WhiteboardStor
   const scope = env.scope();
 
   if (!scope || disabled || env.isDemo(pageId)) return;
-  const unknown = ids.filter((id) => !knownOnServer(scope, id));
+  const unknown = ids.filter((id) => !settled(scope, id));
 
   if (!unknown.length) return;
   const present = new Set<string>();
@@ -141,8 +150,13 @@ async function uploadPage(pageId: string, ids: string[], storage: WhiteboardStor
 
     // Not on this device either (imported elsewhere and never uploaded): nothing to send from here.
     if (!asset?.blob) continue;
-    await env.put(pageId, id, asset.blob);
-    rememberOnServer(scope, id);
+    try {
+      await env.put(pageId, id, asset.blob);
+      rememberOnServer(scope, id);
+    } catch (error) {
+      if (!refusedForGood(error)) throw error;
+      remember(scope, id, 'skip');
+    }
   }
 }
 
