@@ -12,7 +12,7 @@ import "@/models/study/page-read";
 import { studyModels } from "@/services/study/index-maintenance";
 import { deleteUserObjects } from "@/services/study/storage";
 import { AuthTokenKind, generateRawToken, hashToken, RAW_TOKEN_RE, tokenExpiry } from "@/auth/tokens";
-import { OWNER_ROLE_FILTER, isOwnerRole, publicRole } from "@/auth/roles";
+import { OWNER_ROLE_FILTER, isAiAccount, isOwnerRole, publicRole } from "@/auth/roles";
 import { logger } from "@/services/logger.service";
 import { deleteSharesOf } from "@/services/share/access";
 
@@ -25,6 +25,8 @@ export function publicAccount(admin: IAdmin | Record<string, any>) {
     email: a.email ?? null,
     role: publicRole(a.role),
     isVerified: a.isVerified !== false,
+    /** AI features on (the owner always). */
+    premium: isAiAccount(a.role, a.premium),
     providers: accountProviders(a),
     createdAt: a.createdAt ?? null,
   };

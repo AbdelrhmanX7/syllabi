@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  AI_NOT_ENABLED_MESSAGE,
   AI_QUOTA_MESSAGE,
+  isAiNotEnabled,
   describeError,
   EMAIL_NOT_VERIFIED_MESSAGE,
   isEmailNotVerified,
@@ -99,4 +101,15 @@ test('EMAIL_NOT_VERIFIED: describeError points at Settings → Account', () => {
   assert.equal(isEmailNotVerified(error), true);
   assert.equal(describeError(error), EMAIL_NOT_VERIFIED_MESSAGE);
   assert.equal(isEmailNotVerified(new StudyApiError(403, 'Forbidden')), false);
+});
+
+test('AI_NOT_ENABLED: one plain line, no retry', () => {
+  const error = new StudyApiError(403, 'AI features are only on for some accounts right now.', 'AI_NOT_ENABLED');
+
+  assert.equal(error.message, AI_NOT_ENABLED_MESSAGE);
+  assert.equal(isAiNotEnabled(error), true);
+  assert.equal(isAiNotEnabled(AI_NOT_ENABLED_MESSAGE), true);
+  assert.equal(describeError(error), AI_NOT_ENABLED_MESSAGE);
+  assert.equal(retryUnlessAiQuota(0, error), false);
+  assert.equal(isAiNotEnabled(new StudyApiError(403, 'Forbidden')), false);
 });

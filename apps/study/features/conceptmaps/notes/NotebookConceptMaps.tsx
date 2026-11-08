@@ -21,6 +21,7 @@ import { MapFromPhotoButton } from './MapFromPhoto';
 import { SelectionMapSheet } from './SelectionMapSheet';
 import { withLocalTerms } from './terms-store';
 import { normTerm, readTicks, toggleTick, writeTicks } from './workspace-state';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 /**
  * Concept maps inside a notebook page: the «Concept map» button on the board's selection bar (the
@@ -28,6 +29,8 @@ import { normTerm, readTicks, toggleTick, writeTicks } from './workspace-state';
  * strip of that map's concept list along the top edge. Hosts pass `selectionActions` to the board and
  * render `overlay` inside the board's positioned container.
  */
+const noop = () => {};
+
 export function useNotebookConceptMaps({
   classId,
   pageId,
@@ -48,6 +51,7 @@ export function useNotebookConceptMaps({
   /** Make the map right away (an inbox photo opened with «Concept map»): no offer chip for this picture. */
   makeFromFile: (file: File) => void;
 } {
+  const aiOn = useAiEnabled();
   const [sheet, setSheet] = useState<{ imagePngB64: string } | null>(null);
   // Bumped when the sheet closes: a grade may have linked the page or ticked terms.
   const [revision, setRevision] = useState(0);
@@ -135,6 +139,14 @@ export function useNotebookConceptMaps({
       <DrawReferenceButton classId={classId} noteMapId={lecture?.mapId ?? null} pageId={pageId} revision={revision} />
     </div>
   ) : null;
+
+  // Every action here reads or grades with AI: none of it for an account without AI.
+  if (!aiOn) {
+    // The concept list strip is plain (no AI): it stays.
+    const strip = classId ? <PageConceptStrip classId={classId} noteMapId={lecture?.mapId ?? null} pageId={pageId} revision={revision} /> : null;
+
+    return { selectionActions: undefined, overlay: strip, topRight: null, onImagePlaced: noop, makeFromFile: noop };
+  }
 
   return { selectionActions, overlay, topRight, onImagePlaced, makeFromFile };
 }

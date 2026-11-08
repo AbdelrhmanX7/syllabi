@@ -26,8 +26,10 @@ import { EMPTY_FILTERS, mergeQuestions } from "./lib/filters";
 import { isDue } from "./lib/verdict";
 
 import { DividerTabs } from "@/components/ui/primitives";
+import { AiOffNote } from "@/components/ui/AiOff";
 import { ConfirmSheet } from "@/components/ui/ConfirmSheet";
 import { ForkedFromNote, ShareButton } from "@/features/share/components/ShareButton";
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 export { ExtractButton, AddQuestionsModal } from "./components/AddQuestions";
 export { QuestionCard } from "./components/QuestionCard";
@@ -83,6 +85,7 @@ export default function BankHome({
   initialReview,
   className = "",
 }: BankHomeProps) {
+  const aiOn = useAiEnabled();
   const classesLoad = useLoad(listClasses, []);
   const classes = useMemo(() => classesLoad.data ?? [], [classesLoad.data]);
   const [filters, setFilters] = useState<BankFilters>({
@@ -243,6 +246,9 @@ export default function BankHome({
   if (view.kind === "exam") {
     return (
       <div className={`px-4 py-4 ${className}`}>
+        {!aiOn ? (
+          <AiOffNote />
+        ) : (
         <MockExam
           classId={filters.classId}
           classes={classes}
@@ -251,6 +257,7 @@ export default function BankHome({
           onExit={exit}
           onPractice={() => setView({ kind: "review" })}
         />
+        )}
       </div>
     );
   }
@@ -308,13 +315,15 @@ export default function BankHome({
         >
           <Plus className="h-4 w-4" /> Add
         </button>
-        <button
-          className="flex h-12 items-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-4 text-sm font-medium text-st-fg hover:bg-st-accent-soft shadow-clay transition-transform active:translate-y-[3px] active:shadow-none"
-          type="button"
-          onClick={() => setView({ kind: "exam" })}
-        >
-          <ListChecks className="h-4 w-4" /> Mock exam
-        </button>
+        {aiOn && (
+          <button
+            className="flex h-12 items-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-4 text-sm font-medium text-st-fg hover:bg-st-accent-soft shadow-clay transition-transform active:translate-y-[3px] active:shadow-none"
+            type="button"
+            onClick={() => setView({ kind: "exam" })}
+          >
+            <ListChecks className="h-4 w-4" /> Mock exam
+          </button>
+        )}
         <button
           className="flex h-12 items-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-4 text-sm font-medium text-st-fg hover:bg-st-accent-soft disabled:opacity-50 shadow-clay transition-transform active:translate-y-[3px] active:shadow-none"
           disabled={!items.length && !savedBoard}

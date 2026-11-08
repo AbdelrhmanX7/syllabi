@@ -44,6 +44,7 @@ import { isMockRoute } from '@/lib/api/client';
 import { studyPost, studySse } from '@/lib/api/http';
 import { isValidAdminToken, readSessionToken } from '@/lib/auth';
 import { getBackendSettingsSnapshot, getStudyBackendBaseUrl } from '@/lib/backend-settings';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 export interface StudyBoardAiOptions {
   /** The notebook page the board shows — `boardId` for the whiteboard routes, retrieval context for the tutor. */
@@ -253,22 +254,26 @@ export function createStudyBoardAi({ pageId, classId, context }: StudyBoardAiOpt
 /**
  * The service for one notebook page. Pass it to `WhiteboardEditor`'s `boardAi` prop (via
  * `NotebookBoard` / lectures `NotebookPage`); a new page or class builds a new service.
+ * Undefined for an account without AI: the board then shows none of its AI buttons.
  */
 export function useStudyBoardAi(
   pageId?: string | null,
   classId?: string | null,
   context?: StudyBoardAiOptions['context'],
-): BoardAiService {
+): BoardAiService | undefined {
+  const aiOn = useAiEnabled();
   // Read at ask time through a ref, so a fresh closure each render (a video's moving second) does not
   // rebuild the service.
   const contextRef = useRef(context);
 
   contextRef.current = context;
 
-  return useMemo(
+  const service = useMemo(
     () => createStudyBoardAi({ pageId, classId, context: () => contextRef.current?.() ?? {} }),
     [pageId, classId],
   );
+
+  return aiOn ? service : undefined;
 }
 
 export { FALLBACK as BOARD_AI_FALLBACK };

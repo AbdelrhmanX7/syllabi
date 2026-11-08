@@ -18,9 +18,10 @@ import { formatDate } from '@/lib/format';
  */
 export interface MapCardProps {
   map: ConceptMapRecord;
-  onPractice: (map: ConceptMapRecord) => void;
-  onCompare: (map: ConceptMapRecord) => void;
-  onQuestions: (map: ConceptMapRecord) => void;
+  /** Left out (with the footer) for an account without AI. */
+  onPractice?: (map: ConceptMapRecord) => void;
+  onCompare?: (map: ConceptMapRecord) => void;
+  onQuestions?: (map: ConceptMapRecord) => void;
   questionsBusy?: boolean;
 }
 
@@ -67,8 +68,9 @@ export function MapCard({ map, onPractice, onCompare, onQuestions, questionsBusy
         <button
           aria-label='Compare this map'
           className='rounded-st overflow-hidden border border-st-clay-edge bg-st-shadow'
+          disabled={!onCompare}
           type='button'
-          onClick={() => onCompare(map)}
+          onClick={() => onCompare?.(map)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -129,6 +131,7 @@ export function MapCard({ map, onPractice, onCompare, onQuestions, questionsBusy
         </div>
       )}
 
+      {onPractice && onCompare && onQuestions && (
       <footer className='mt-auto flex flex-wrap gap-2'>
         <ActionButton className='min-h-10 flex-1 px-3' variant='primary' onClick={() => onPractice(map)}>
           <PenLine className='h-4 w-4' /> Practice
@@ -145,6 +148,7 @@ export function MapCard({ map, onPractice, onCompare, onQuestions, questionsBusy
           <ListChecks className='h-4 w-4' /> Questions
         </ActionButton>
       </footer>
+      )}
     </Surface>
   );
 }

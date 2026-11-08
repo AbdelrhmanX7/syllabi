@@ -21,6 +21,7 @@ import {
 import { useCanvasStatus, useToday } from '@/lib/api/hooks';
 import { describeError } from '@/lib/api/errors';
 import { isSampleData } from '@/lib/api/sample';
+import { IfAi } from '@/components/ui/AiOff';
 
 // Grade-goal nudges + high-priority announcements, from the same Today cache (features/aplan).
 const TodayAPlanStrip = dynamic(() => import('@/features/aplan').then((mod) => mod.TodayAPlanStrip), { ssr: false });
@@ -87,7 +88,11 @@ export default function TodayPage() {
 
       {data && isSampleData(data) && <SampleDataBanner className='mb-5' what='Today data' />}
       {data && <ExamCountdown className='mb-6' />}
-      {data && <TodayAPlanStrip />}
+      {data && (
+        <IfAi>
+          <TodayAPlanStrip />
+        </IfAi>
+      )}
       {data && <TodayLectures classes={data.classes} />}
 
       {data && (

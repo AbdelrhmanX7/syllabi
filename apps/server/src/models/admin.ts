@@ -22,6 +22,8 @@ export interface IAdmin extends Document {
   role: AdminRole;
   isVerified: boolean;
   isDisabled: boolean;
+  /** AI features are on for this account (set by the owner; the owner always has them). */
+  premium?: boolean;
   /** Sign-in methods this account has used. Older rows have none stored (then: password). */
   providers?: AuthProvider[];
   /** Google account id (`sub`), when linked. */
@@ -41,6 +43,7 @@ const AdminSchema = new Schema<IAdmin>(
     role: { type: String, default: "admin" },
     isVerified: { type: Boolean, default: true },
     isDisabled: { type: Boolean, default: false },
+    premium: { type: Boolean, default: false },
     providers: { type: [String], default: undefined },
     googleId: { type: String, index: { unique: true, sparse: true } },
   },

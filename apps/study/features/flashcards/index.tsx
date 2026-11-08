@@ -24,6 +24,7 @@ import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareBu
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { useClasses } from '@/lib/api/hooks';
 import { describeError } from '@/lib/api/errors';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 export { FLASHCARD_TAG, isFlashcard } from './lib/deck';
 
@@ -38,6 +39,7 @@ const classLabel = (cls: StudyClass | undefined, fallback = 'Class') =>
  * flip-and-grade study session on the bank's SRS, «New card» and «Make with AI».
  */
 export default function FlashcardsHome({ classId: initialClassId }: { classId?: string }) {
+  const aiOn = useAiEnabled();
   const classesQuery = useClasses('all');
   const classes = useMemo(() => classesQuery.data ?? [], [classesQuery.data]);
   const classById = useMemo(() => new Map(classes.map((cls) => [cls.id, cls])), [classes]);
@@ -80,7 +82,7 @@ export default function FlashcardsHome({ classId: initialClassId }: { classId?: 
           onClose={() => setEditing(null)}
         />
       )}
-      {aiOpen && (
+      {aiOpen && aiOn && (
         <Sheet subtitle='Cards stream into the class decks' title='Make cards with AI' onClose={() => setAiOpen(false)}>
           <AiMaker classes={classes} defaultClassId={pickClass} />
         </Sheet>
@@ -105,9 +107,11 @@ export default function FlashcardsHome({ classId: initialClassId }: { classId?: 
             {loading ? 'Loading…' : `${total} card${total === 1 ? '' : 's'} · ${dueCount} due`}
           </p>
         </div>
-        <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setAiOpen(true)}>
-          <Sparkles className='h-4 w-4' /> Make with AI
-        </ActionButton>
+        {aiOn && (
+          <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setAiOpen(true)}>
+            <Sparkles className='h-4 w-4' /> Make with AI
+          </ActionButton>
+        )}
         <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setEditing({ card: null })}>
           <Plus className='h-4 w-4' /> New card
         </ActionButton>
@@ -159,13 +163,15 @@ export default function FlashcardsHome({ classId: initialClassId }: { classId?: 
                 <ActionButton variant='primary' onClick={() => setEditing({ card: null })}>
                   <Plus className='h-4 w-4' /> New card
                 </ActionButton>
-                <ActionButton variant='secondary' onClick={() => setAiOpen(true)}>
-                  <Sparkles className='h-4 w-4' /> Make with AI
-                </ActionButton>
+                {aiOn && (
+                  <ActionButton variant='secondary' onClick={() => setAiOpen(true)}>
+                    <Sparkles className='h-4 w-4' /> Make with AI
+                  </ActionButton>
+                )}
               </div>
             ) : undefined
           }
-          hint='Write your own, or let the AI make a deck from a library file, notebook page or lecture.'
+          hint={aiOn ? 'Write your own, or let the AI make a deck from a library file, notebook page or lecture.' : 'Write your own cards.'}
           icon={GalleryVerticalEnd}
           title='No flashcards yet'
         />

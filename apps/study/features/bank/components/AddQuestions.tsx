@@ -13,6 +13,7 @@ import { BOARD_CHIP } from '@/components/ui/primitives';
 
 import { Chip } from './BankBrowser';
 import { QuestionCard } from './QuestionCard';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 /**
  * Three ways in: a photo (camera or file → PNG → `/questions/extract`), a Canvas item / notebook
@@ -35,7 +36,7 @@ export interface ExtractButtonProps extends ExtractSource {
 }
 
 /** «Pull questions» — mount it next to a Canvas item, a page or a lecture. */
-export function ExtractButton({
+function ExtractButtonInner({
   classId,
   itemId,
   pageId,
@@ -95,7 +96,10 @@ export function AddQuestionsModal({
   const loaded = useLoad(listClasses, [], !givenClasses);
   const classes = givenClasses ?? loaded.data ?? [];
   const [classId, setClassId] = useState<string | null>(initialClassId ?? null);
-  const [mode, setMode] = useState<AddMode>(initialMode);
+  const aiOn = useAiEnabled();
+  const [chosenMode, setMode] = useState<AddMode>(initialMode);
+  // Without AI only «Write one» is left (photo / extract read questions with AI).
+  const mode: AddMode = aiOn ? chosenMode : 'manual';
   const [results, setResults] = useState<Question[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,7 +208,7 @@ export function AddQuestionsModal({
             </div>
           ) : null}
 
-          {!hasSource ? (
+          {!hasSource && aiOn ? (
             <div className='flex gap-2'>
               <Chip active={mode === 'photo'} onPress={() => setMode('photo')}>
                 <Camera className='h-4 w-4' /> From a photo
@@ -213,7 +217,7 @@ export function AddQuestionsModal({
                 <FilePlus className='h-4 w-4' /> Write one
               </Chip>
             </div>
-          ) : (
+          ) : !hasSource ? null : (
             <p className='text-sm text-st-muted'>
               Reading {source?.itemId ? 'the Canvas item' : source?.pageId ? 'your notebook page' : 'the lecture'} for
               questions…
@@ -508,4 +512,9 @@ function ManualForm({
       </button>
     </form>
   );
+}
+
+/** Hidden for accounts without AI (`useAiEnabled`). */
+export function ExtractButton(props: Parameters<typeof ExtractButtonInner>[0]) {
+  return useAiEnabled() ? <ExtractButtonInner {...props} /> : null;
 }

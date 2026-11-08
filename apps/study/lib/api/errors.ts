@@ -11,6 +11,16 @@ export const EMAIL_NOT_VERIFIED_CODE = 'EMAIL_NOT_VERIFIED';
 export const EMAIL_NOT_VERIFIED_MESSAGE =
   'Confirm your email to use AI — open the link we sent, or resend it from Settings → Account.';
 
+/** 403 from every AI endpoint when the owner hasn't turned AI on for this account. */
+export const AI_NOT_ENABLED_CODE = 'AI_NOT_ENABLED';
+export const AI_NOT_ENABLED_MESSAGE = "AI features aren't on for your account.";
+
+export function isAiNotEnabled(error: unknown): boolean {
+  if (typeof error === 'string') return error === AI_NOT_ENABLED_MESSAGE;
+
+  return !!error && typeof error === 'object' && (error as { code?: unknown }).code === AI_NOT_ENABLED_CODE;
+}
+
 export function isEmailNotVerified(error: unknown): boolean {
   return !!error && typeof error === 'object' && (error as { code?: unknown }).code === EMAIL_NOT_VERIFIED_CODE;
 }
@@ -27,7 +37,9 @@ export class StudyApiError extends Error {
         ? AI_QUOTA_MESSAGE
         : code === EMAIL_NOT_VERIFIED_CODE
           ? EMAIL_NOT_VERIFIED_MESSAGE
-          : message,
+          : code === AI_NOT_ENABLED_CODE
+            ? AI_NOT_ENABLED_MESSAGE
+            : message,
     );
     this.name = 'StudyApiError';
     this.status = status;
@@ -67,7 +79,7 @@ export function isAiQuotaError(error: unknown): boolean {
 
 /** React Query `retry`: once for a flaky network, never for an empty AI account. */
 export const retryUnlessAiQuota = (failureCount: number, error: unknown): boolean =>
-  failureCount < 1 && !isAiQuotaError(error) && !isEmailNotVerified(error);
+  failureCount < 1 && !isAiQuotaError(error) && !isEmailNotVerified(error) && !isAiNotEnabled(error);
 
 export const NETWORK_MESSAGE = 'Lost connection to the server — check your internet and try again.';
 
@@ -113,6 +125,7 @@ export function describeError(error: unknown, fallback = 'Something went wrong',
   if (isServerRestarting(error)) return SERVER_RESTARTING_MESSAGE;
   if ((error as { code?: unknown } | null)?.code === NO_PROMPT_TERMS_CODE) return NO_PROMPT_TERMS_MESSAGE;
   if (isEmailNotVerified(error)) return EMAIL_NOT_VERIFIED_MESSAGE;
+  if (isAiNotEnabled(error)) return AI_NOT_ENABLED_MESSAGE;
   if (isNetworkError(error)) return network;
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'string' && error) return error;

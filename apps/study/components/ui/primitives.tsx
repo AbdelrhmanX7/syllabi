@@ -5,7 +5,7 @@ import { cn } from "@repo/ui";
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
-import { EMAIL_NOT_VERIFIED_MESSAGE, isAiQuotaError } from "@/lib/api/errors";
+import { EMAIL_NOT_VERIFIED_MESSAGE, isAiNotEnabled, isAiQuotaError } from "@/lib/api/errors";
 
 /* ------------------------------------------------------------------ surfaces */
 
@@ -102,7 +102,8 @@ export function ErrorNote({
   // An empty AI account is not fixed by retrying — the notice stays, without the button.
   // Unverified email: retrying can't help either; the way out is Settings → Account (resend the link).
   const unverified = message === EMAIL_NOT_VERIFIED_MESSAGE;
-  const retry = isAiQuotaError(message) || unverified ? undefined : onRetry;
+  // AI not on for this account: only the server owner can change that, so no retry either.
+  const retry = isAiQuotaError(message) || unverified || isAiNotEnabled(message) ? undefined : onRetry;
 
   return (
     <div className="rounded-st border-st-danger/40 bg-st-danger/10 text-st-danger flex items-center justify-between gap-3 border-2 px-4 py-3 text-sm font-medium">

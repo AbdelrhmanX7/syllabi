@@ -7,6 +7,9 @@ export type AccountRole = "owner" | "user";
 
 export const isOwnerRole = (role: string | null | undefined): boolean => (role ?? "admin") === "admin" || role === "owner";
 
+/** AI features: the owner always, anyone else only when the owner turned `premium` on. */
+export const isAiAccount = (role: string | null | undefined, premium: unknown): boolean => isOwnerRole(role) || premium === true;
+
 /** Roles allowed on the /study API (and the MCP / phone inbox that act on study data). */
 export const isStudyRole = (role: string | null | undefined): boolean => isOwnerRole(role) || role === "user";
 

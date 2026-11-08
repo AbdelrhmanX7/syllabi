@@ -39,6 +39,7 @@ import { itemTextSource, lectureTextSource, pageTextSource, TextSource, videoTex
 import { editedByOf, isCard, questionWritable, scopedQuestion } from "@/services/share/edit";
 import { loadCaller } from "@/services/share/access";
 import { sharedQuestionDto } from "@/services/share/resources";
+import { denyUnlessAi } from "@/auth/verified";
 import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
 
 /**
@@ -474,6 +475,9 @@ export const attemptQuestion = wrap(async (req, res) => {
     if (e instanceof AttemptInputError) return fail(res, e.status, e.code, e.message);
     throw e;
   }
+  // Typed / handwritten answers are graded (and read) by a model; choices, matching, blanks and
+  // flashcard self-grades are not, so they work on every account.
+  if (plan.kind !== "verdict" && (await denyUnlessAi(req, res))) return;
 
   await runSse(
     res,
@@ -548,6 +552,7 @@ export const FLASHCARDS_MAX = 30;
  * notebook page's OCR text.
  */
 export const flashcards = wrap(async (req, res) => {
+  if (await denyUnlessAi(req, res)) return; // also reached in-process by the MCP tool, past the router gate
   const body = req.body ?? {};
   const keys = (["itemId", "lectureId", "pageId", "libraryId"] as const).filter((k) => body[k] !== undefined && body[k] !== null && body[k] !== "");
   if (keys.length !== 1) return fail(res, 400, "VALIDATION_ERROR", "Send exactly one of itemId, lectureId, pageId, libraryId");

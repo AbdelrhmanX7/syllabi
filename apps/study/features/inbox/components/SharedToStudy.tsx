@@ -19,6 +19,7 @@ import { ActionButton, ErrorNote } from '@/components/ui/primitives';
 import { describeError } from '@/lib/api/errors';
 import { formatBytes } from '@/lib/format';
 import { notebookTitleForImages, notebookTitleFromFileName } from '@/lib/notebooks/import-pages';
+import { IfAi } from '@/components/ui/AiOff';
 
 type Next =
   | { kind: 'notes'; item: InboxItem }
@@ -244,14 +245,16 @@ function SharedSheet({
                 >
                   <NotebookPen className='h-3.5 w-3.5' /> Insert into notes
                 </ActionButton>
-                <ActionButton
-                  className='min-h-9 px-3 text-xs'
-                  disabled={!image || busy !== null}
-                  title={image ? undefined : 'Question extraction reads photos'}
-                  onClick={() => onBank(file)}
-                >
-                  <BookOpen className='h-3.5 w-3.5' /> Make questions
-                </ActionButton>
+                <IfAi>
+                  <ActionButton
+                    className='min-h-9 px-3 text-xs'
+                    disabled={!image || busy !== null}
+                    title={image ? undefined : 'Question extraction reads photos'}
+                    onClick={() => onBank(file)}
+                  >
+                    <BookOpen className='h-3.5 w-3.5' /> Make questions
+                  </ActionButton>
+                </IfAi>
                 <ActionButton
                   aria-label={`Discard ${file.name}`}
                   className='min-h-9 px-2 text-xs'

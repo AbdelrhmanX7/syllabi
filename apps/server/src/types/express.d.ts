@@ -11,6 +11,8 @@ declare global {
       adminRole?: string;
       /** Whether the account's email is verified (AI routes need it). Set by adminVerification. */
       emailVerified?: boolean;
+      /** Whether this account may use the AI features (owner, or premium). Set by adminVerification. */
+      aiEnabled?: boolean;
     }
   }
 }

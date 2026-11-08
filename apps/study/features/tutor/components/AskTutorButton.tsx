@@ -7,6 +7,7 @@ import { Sparkles } from 'lucide-react';
 import { AskSheet } from './AskSheet';
 
 import { ActionButton } from '@/components/ui/primitives';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 export interface AskTutorButtonProps {
   classId?: string | null;
@@ -26,7 +27,7 @@ export interface AskTutorButtonProps {
  * Drop-in entry point: a button that opens the Ask sheet with the given context. The class page,
  * item page, video study and notebook mount this; the sheet is self-contained.
  */
-export function AskTutorButton({
+function AskTutorButtonInner({
   classId,
   context,
   contextLabel,
@@ -61,4 +62,9 @@ export function AskTutorButton({
       />
     </>
   );
+}
+
+/** Hidden for accounts without AI (`useAiEnabled`). */
+export function AskTutorButton(props: Parameters<typeof AskTutorButtonInner>[0]) {
+  return useAiEnabled() ? <AskTutorButtonInner {...props} /> : null;
 }

@@ -29,6 +29,7 @@ import { classHref } from '@/components/classes/ClassCard';
 import { LinkButton } from '@/components/ui/primitives';
 import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 import { useInbox } from '@/features/inbox/store';
 import { useClasses } from '@/lib/api/hooks';
 
@@ -39,6 +40,8 @@ export interface RailLink {
   match?: (pathname: string) => boolean;
   /** Only with an account on a server (hidden in demo mode / signed out): `visibleLinks`. */
   serverOnly?: boolean;
+  /** An AI page: hidden for accounts the server has no AI for (`useAiEnabled`). */
+  ai?: boolean;
 }
 
 export const TOP_LINKS: RailLink[] = [
@@ -59,7 +62,7 @@ export const TOOL_LINKS: RailLink[] = [
   { href: '/concept-maps/', label: 'Concept Maps', icon: Network },
   { href: '/library/', label: 'Library', icon: Library },
   { href: '/lectures/', label: 'Lectures', icon: Mic },
-  { href: '/tutor/', label: 'Tutor', icon: Sparkles },
+  { href: '/tutor/', label: 'Tutor', icon: Sparkles, ai: true },
   { href: '/search/', label: 'Search', icon: Search },
   { href: '/shared/', label: 'Shared', icon: Users, serverOnly: true },
 ];
@@ -69,9 +72,12 @@ export const SETTINGS_LINK: RailLink = { href: '/settings/', label: 'Settings', 
 /** Every nav destination in Rail order: the phone bottom bar and its More sheet derive from this. */
 export const ALL_LINKS: RailLink[] = [...TOP_LINKS, ...TOOL_LINKS, SETTINGS_LINK];
 
-/** Links for this session: `serverOnly` ones need a signed-in account on a server (not demo mode). */
-export function visibleLinks(links: RailLink[], onServer: boolean): RailLink[] {
-  return onServer ? links : links.filter((link) => !link.serverOnly);
+/**
+ * Links for this session: `serverOnly` ones need a signed-in account on a server (not demo mode);
+ * `ai` ones need an account with AI.
+ */
+export function visibleLinks(links: RailLink[], onServer: boolean, aiOn = true): RailLink[] {
+  return links.filter((link) => (onServer || !link.serverOnly) && (aiOn || !link.ai));
 }
 
 /* ------------------------------------------------------------- collapse state (per device) */
@@ -238,6 +244,7 @@ export function Rail() {
   const activeClassId = pathname === '/class' ? String(router.query.id ?? '') : '';
   const isActive = (link: RailLink) => isLinkActive(link, pathname);
   const signedIn = session.state === 'signed-in';
+  const aiOn = useAiEnabled();
   const who = session.email || session.name || 'Signed in';
 
   return (
@@ -336,7 +343,7 @@ export function Rail() {
 
         <div className='border-st-line my-2 border-t' />
 
-        {visibleLinks(TOOL_LINKS, signedIn && mode !== 'mock').map((link) => (
+        {visibleLinks(TOOL_LINKS, signedIn && mode !== 'mock', aiOn).map((link) => (
           <RailItem
             key={link.href}
             active={isActive(link)}

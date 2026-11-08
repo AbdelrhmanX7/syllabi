@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 
 import { LoadingRows } from '@/components/ui/primitives';
+import { RequireAi } from '@/components/ui/AiOff';
 
 const TutorHome = dynamic(() => import('@/features/tutor'), { ssr: false, loading: () => <LoadingRows rows={6} /> });
 
@@ -17,7 +18,9 @@ export default function TutorPage() {
       <Head>
         <title>Tutor · Syllabi</title>
       </Head>
-      <TutorHome classId={classId} conversationId={conversationId} />
+      <RequireAi>
+        <TutorHome classId={classId} conversationId={conversationId} />
+      </RequireAi>
     </>
   );
 }

@@ -11,6 +11,7 @@ import { SignOutButton } from './SignOutButton';
 
 import { useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { useInbox } from '@/features/inbox/store';
 
@@ -55,7 +56,8 @@ export function BottomNav() {
 
     return link ? [{ link, label: p.short ?? link.label }] : [];
   });
-  const more = visibleLinks(ALL_LINKS, session.state === 'signed-in' && mode !== 'mock').filter((l) => !primaryHrefs.has(l.href));
+  const aiOn = useAiEnabled();
+  const more = visibleLinks(ALL_LINKS, session.state === 'signed-in' && mode !== 'mock', aiOn).filter((l) => !primaryHrefs.has(l.href));
   const moreActive = more.some((l) => isLinkActive(l, pathname));
   const inboxInMore = more.some((l) => l.href === '/inbox/');
 

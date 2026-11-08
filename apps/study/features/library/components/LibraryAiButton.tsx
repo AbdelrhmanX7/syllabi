@@ -11,6 +11,7 @@ import { tagAsFlashcard } from '@/features/flashcards/lib/tag';
 import { aiFlashcards, extractQuestions } from '@/lib/api/endpoints';
 import { describeError } from '@/lib/api/errors';
 import { isSampleData } from '@/lib/api/sample';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 /**
  * «Make questions» (`/questions/extract` from {libraryId}: a stored PDF/image is read page by page,
@@ -25,7 +26,7 @@ export interface LibraryAiButtonProps {
   pageRange?: string;
 }
 
-export function LibraryAiButton({ classId, libraryId, mode, pageRange }: LibraryAiButtonProps) {
+function LibraryAiButtonInner({ classId, libraryId, mode, pageRange }: LibraryAiButtonProps) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [count, setCount] = useState<number | null>(null);
@@ -109,4 +110,9 @@ export function LibraryAiButton({ classId, libraryId, mode, pageRange }: Library
       {error && <p className='text-st-danger text-xs'>{error}</p>}
     </div>
   );
+}
+
+/** Hidden for accounts without AI (`useAiEnabled`). */
+export function LibraryAiButton(props: Parameters<typeof LibraryAiButtonInner>[0]) {
+  return useAiEnabled() ? <LibraryAiButtonInner {...props} /> : null;
 }

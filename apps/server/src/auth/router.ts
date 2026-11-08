@@ -10,6 +10,11 @@
  *   GET  /admin/me           (Bearer) -> {user}
  *   POST /admin/me/password  (Bearer) {currentPassword, newPassword} -> {message}
  *   GET  /admin/setup        -> {needsSetup, setupTokenRequired}
+ *   GET    /admin/premium         (Bearer, owner) -> {accounts: [{_id, email, name, role, owner}]}
+ *   POST   /admin/premium         (Bearer, owner) {email} -> {account}; 404 when no account has it
+ *   DELETE /admin/premium/:email  (Bearer, owner) -> {account}; the owner always keeps AI (400)
+ *                            Premium = the AI features are on (auth/verified.ts). No payments:
+ *                            the owner picks the accounts by hand. CLI: auth/premium-cli.ts.
  *   POST /admin/setup        {name?, email, password, setupToken?} -> {message, token, user}
  *                            Only while no account exists. Needs SETUP_TOKEN when that is set,
  *                            otherwise only answers requests from this machine (loopback socket).
@@ -20,7 +25,7 @@
  */
 import { Router, Request, Response } from "express";
 import { timingSafeEqual } from "crypto";
-import { adminVerification, passwordMatches, signSessionToken, verifyAdminCredentials } from "@/compat/auth";
+import { adminVerification, fullAdminOnly, passwordMatches, signSessionToken, verifyAdminCredentials } from "@/compat/auth";
 import { Admin } from "@/models/admin";
 import {
   createFirstOwner,
@@ -31,6 +36,7 @@ import {
   publicUser,
 } from "@/auth/owner";
 import { memoryRateLimit } from "@/auth/rate-limit";
+import { listPremium, PremiumError, setPremium } from "@/auth/premium";
 
 const router = Router();
 
@@ -75,6 +81,24 @@ router.post("/me/password", credentialLimit, adminVerification, async (req: Requ
   await admin.save();
   res.json({ message: "Password changed" });
 });
+
+// ─── premium (AI on) — owner only ───────────────────────────────────────────────────────
+
+router.get("/premium", adminVerification, fullAdminOnly, async (_req: Request, res: Response) => {
+  res.json({ accounts: await listPremium() });
+});
+
+const premiumAnswer = async (res: Response, email: unknown, on: boolean) => {
+  try {
+    res.json({ account: await setPremium(email, on) });
+  } catch (error: any) {
+    if (error instanceof PremiumError) return res.status(error.status).json({ message: error.message, code: error.code });
+    res.status(500).json({ message: error?.message ?? "Could not save" });
+  }
+};
+
+router.post("/premium", adminVerification, fullAdminOnly, (req: Request, res: Response) => premiumAnswer(res, req.body?.email, true));
+router.delete("/premium/:email", adminVerification, fullAdminOnly, (req: Request, res: Response) => premiumAnswer(res, req.params.email, false));
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 

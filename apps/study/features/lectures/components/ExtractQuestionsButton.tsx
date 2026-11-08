@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { extractLectureQuestions, generateFlashcards } from '../lib/api';
 
 import { isStudyApiError } from '@/lib/api/errors';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 type State =
   | { kind: 'idle' }
@@ -77,7 +78,7 @@ function StreamToBankButton({ idleLabel, noun, run, disabledReason }: StreamToBa
 }
 
 /** Streams the lecture's questions into the bank (`POST /questions/extract`, SSE). */
-export function ExtractQuestionsButton({
+function ExtractQuestionsButtonInner({
   classId,
   lectureId,
   disabledReason,
@@ -97,7 +98,7 @@ export function ExtractQuestionsButton({
 }
 
 /** Streams flashcards (saved server-side as bank questions) from a lecture, video item or page. */
-export function FlashcardsButton({
+function FlashcardsButtonInner({
   source,
   classId,
   disabledReason,
@@ -114,4 +115,14 @@ export function FlashcardsButton({
       run={(onItem, signal) => generateFlashcards(source, { classId, onCard: onItem, signal })}
     />
   );
+}
+
+/** Hidden for accounts without AI (`useAiEnabled`). */
+export function ExtractQuestionsButton(props: Parameters<typeof ExtractQuestionsButtonInner>[0]) {
+  return useAiEnabled() ? <ExtractQuestionsButtonInner {...props} /> : null;
+}
+
+/** Hidden for accounts without AI (`useAiEnabled`). */
+export function FlashcardsButton(props: Parameters<typeof FlashcardsButtonInner>[0]) {
+  return useAiEnabled() ? <FlashcardsButtonInner {...props} /> : null;
 }

@@ -18,7 +18,7 @@ import { randomBytes } from "crypto";
 import { Types } from "mongoose";
 import { Admin } from "@/models/admin";
 import { logger } from "@/services/logger.service";
-import { isOwnerRole, isStudyRole } from "@/auth/roles";
+import { isAiAccount, isOwnerRole, isStudyRole } from "@/auth/roles";
 
 /** Secret for session JWTs and for everything derived from it (token encryption, dev upload HMAC). */
 export function getJwtSecret(): string | undefined {
@@ -59,7 +59,7 @@ export const adminVerification = async (req: Request, res: Response, next: NextF
   try {
     const adminId = readSessionUserId(req);
     if (!adminId) throw new Error("Invalid session");
-    const admin = await Admin.findById(adminId).select("role isDisabled isVerified").lean();
+    const admin = await Admin.findById(adminId).select("role isDisabled isVerified premium").lean();
     if (!admin) throw new Error("Account not found");
     if (admin.isDisabled) throw new Error("Account disabled");
     req.adminId = adminId;
@@ -68,6 +68,7 @@ export const adminVerification = async (req: Request, res: Response, next: NextF
     req.adminRole = admin.role ?? "admin";
     // Rows from before accounts have no flag stored: verified.
     req.emailVerified = admin.isVerified !== false;
+    req.aiEnabled = isAiAccount(admin.role, admin.premium);
     logger.setUserContext({ userId: adminId, userRole: "Admin" });
     next();
   } catch (error: any) {

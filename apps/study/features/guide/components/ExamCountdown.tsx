@@ -22,6 +22,7 @@ import { formatDay } from './ScheduleEditor';
 
 import { Badge, LinkButton, LoadingRows, SectionTitle, Surface } from '@/components/ui/primitives';
 import { useClasses } from '@/lib/api/hooks';
+import { IfAi } from '@/components/ui/AiOff';
 
 /**
  * Next exam per class from `/classes/:id/exams-schedule`. With `classId`: that class's next exam,
@@ -112,9 +113,11 @@ function NextExamBlock({ classId, exam, today }: { classId: string; exam: Resolv
         </div>
       ) : null}
       <div className='flex flex-wrap gap-2'>
-        <LinkButton href={mockExamHref(classId, topics)} variant='primary'>
-          <ListChecks className='h-4 w-4' /> {topics.length ? 'Start mock exam on these topics' : 'Start mock exam'}
-        </LinkButton>
+        <IfAi>
+          <LinkButton href={mockExamHref(classId, topics)} variant='primary'>
+            <ListChecks className='h-4 w-4' /> {topics.length ? 'Start mock exam on these topics' : 'Start mock exam'}
+          </LinkButton>
+        </IfAi>
         <LinkButton href={drillHref(classId)}>
           <Target className='h-4 w-4' /> Drill weak topics
         </LinkButton>
@@ -166,12 +169,14 @@ function AllClassesCountdown({ className }: { className?: string }) {
                   </p>
                 </div>
                 <Badge tone={days <= 7 ? 'warn' : 'accent'}>{daysLabel(days, exam.approx)}</Badge>
-                <Link
-                  className='text-st-accent text-sm font-medium underline-offset-2 hover:underline'
-                  href={mockExamHref(cls.id, topics)}
-                >
-                  Mock exam
-                </Link>
+                <IfAi>
+                  <Link
+                    className='text-st-accent text-sm font-medium underline-offset-2 hover:underline'
+                    href={mockExamHref(cls.id, topics)}
+                  >
+                    Mock exam
+                  </Link>
+                </IfAi>
               </Surface>
             </li>
           );

@@ -19,14 +19,15 @@ export interface OverviewProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onPractice: (map: ConceptMapRecord) => void;
-  onCompare: (map: ConceptMapRecord) => void;
-  onQuestions: (map: ConceptMapRecord) => void;
+  /** The three map actions and the drill card all use AI: left out for an account without AI. */
+  onPractice?: (map: ConceptMapRecord) => void;
+  onCompare?: (map: ConceptMapRecord) => void;
+  onQuestions?: (map: ConceptMapRecord) => void;
   questionsBusyId: string | null;
   /** Practise the exam picks one after another. */
-  onDrill: () => void;
+  onDrill?: () => void;
   /** Short-answer questions for every exam pick, into the bank. */
-  onExamQuestions: () => void;
+  onExamQuestions?: () => void;
   examQuestionsBusy: boolean;
 }
 
@@ -71,6 +72,7 @@ export function Overview({
 
   return (
     <div className='flex flex-col gap-5'>
+      {onDrill && onExamQuestions && (
       <Surface className='flex flex-wrap items-center gap-3 p-4'>
         <div className='bg-st-accent/10 text-st-accent flex h-11 w-11 shrink-0 items-center justify-center rounded-full'>
           <GraduationCap className='h-5 w-5' />
@@ -98,6 +100,7 @@ export function Overview({
           </ActionButton>
         </div>
       </Surface>
+      )}
 
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
         <p className='text-st-muted text-sm tabular-nums'>

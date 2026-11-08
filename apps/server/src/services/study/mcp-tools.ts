@@ -25,6 +25,7 @@ import { classifyAiError, logAiFailure } from "./ai-errors";
 import { buildStudyPlan, explainMistake } from "./mcp-ai";
 import { IMAGE_SIZES, ImageShape, imageGen, newSpend } from "./ai-models";
 import { recordStudyUsage } from "./usage";
+import { AI_NOT_ENABLED, aiEnabledFor } from "@/auth/verified";
 import { logger } from "@/services/logger.service";
 import { IStudyClass } from "@/models/study/class";
 import { getLectureMaterial } from "./lecture-material";
@@ -156,6 +157,9 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
   const userId = new Types.ObjectId(ownerId);
   const run = (handler: any, input: { params?: Record<string, string>; query?: Record<string, unknown>; body?: unknown }, label: string) =>
     invokeController(handler, { userId: ownerId, ...input, label });
+  // Tools that call a paid model on the server check this (the controllers they run in-process
+  // check it themselves: flashcards, answer_quiz with typed work, the A plan).
+  const noAi = () => toolError(AI_NOT_ENABLED.message, AI_NOT_ENABLED.code);
 
   const server = new McpServer(
     { name: "study", version: "1.0.0" },
@@ -561,6 +565,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     "explain_mistake",
     { description: "Explain a question-bank question step by step — why the reference answer is right and, if studentAnswer is given, where that answer goes wrong.", inputSchema: { questionId: oid, studentAnswer: z.string().max(20_000).optional() }, annotations: READ },
     async ({ questionId, studentAnswer }) => {
+      if (!(await aiEnabledFor(userId))) return noAi();
       const q = await StudyQuestion.findOne({ _id: questionId, userId }, { shingles: 0 }).lean<IStudyQuestion>();
       if (!q) return toolError("Question not found", "NOT_FOUND");
       try {
@@ -581,6 +586,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       annotations: READ,
     },
     async ({ until, classIds }) => {
+      if (!(await aiEnabledFor(userId))) return noAi();
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
       const untilEnd = new Date(`${until}T23:59:59.999Z`);
@@ -754,6 +760,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       annotations: WRITE,
     },
     async ({ prompt, shape, note, classId }) => {
+      if (!(await aiEnabledFor(userId))) return noAi();
       if (classId && !(await StudyClass.exists({ _id: classId, userId }))) return toolError("Class not found", "NOT_FOUND");
       const spend = newSpend();
       const startedAt = Date.now();

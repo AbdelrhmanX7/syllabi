@@ -11,6 +11,7 @@ import { downloadInkModels, useInkModels } from '@/lib/ink/models';
 import { nativeInkRecognizer } from '@/lib/ink/nativeRecognizer';
 import { devicePhraseMemory } from '@/lib/ink/phrase-memory';
 import { saveInkClassColor, saveInkSettings, useInkSettings } from '@/lib/ink/settings';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 const CLASS_NAME: Record<InkClass, string> = {
   heading: 'Heading',
@@ -57,6 +58,7 @@ function ClassColorRow({ cls, value }: { cls: InkClass; value: string | null | u
  * Off by default; only black ink is changed — a colour you pick yourself always wins.
  */
 export function InkAutoColorSection() {
+  const aiOn = useAiEnabled();
   const settings = useInkSettings();
   const models = useInkModels();
   const remembered = useSyncExternalStore(
@@ -131,6 +133,7 @@ export function InkAutoColorSection() {
               </div>
               <p className='text-st-muted text-xs'>The “Colour the page” button on the board colours the whole page either way.</p>
             </div>
+            {aiOn && (
             <div className='flex flex-col gap-2 py-3'>
               <p className='text-st-fg text-sm font-medium'>Engine</p>
               <div className='flex flex-wrap gap-2' role='group'>
@@ -148,6 +151,7 @@ export function InkAutoColorSection() {
                 Cloud sends only the recognised text of a line the tablet is unsure about — never the ink.
               </p>
             </div>
+            )}
             <div className='flex flex-col py-3'>
               <div className='flex items-center justify-between gap-3'>
                 <p className='text-st-fg text-sm font-medium'>Colours</p>

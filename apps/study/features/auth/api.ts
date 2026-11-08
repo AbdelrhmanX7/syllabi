@@ -22,6 +22,7 @@ export type AccountUser = StudyAdminUser & {
   email?: string;
   role: string;
   isVerified?: boolean;
+  premium?: boolean;
   providers?: ('password' | 'google' | 'magic')[];
 };
 
@@ -169,6 +170,8 @@ export function useAccount(enabled: boolean) {
       }
     },
     enabled: enabled && Boolean(backendUrl),
+    // Read by every AI button (useAiEnabled); Settings refetches it after its own changes.
+    staleTime: 5 * 60_000,
     retry: false,
   });
 }

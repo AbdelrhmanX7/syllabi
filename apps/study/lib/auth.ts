@@ -12,6 +12,8 @@ export interface StudyAdminUser {
   username?: string;
   email?: string;
   isVerified?: boolean;
+  /** AI features on for this account (the owner always). Older servers don't send it. */
+  premium?: boolean;
   providers?: ('password' | 'google' | 'magic')[];
   createdAt?: string;
 }

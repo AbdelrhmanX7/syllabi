@@ -53,6 +53,8 @@ import {
 } from "@/lib/api/hooks";
 import { formatRelative } from "@/lib/format";
 import { rememberPages } from "@/lib/notebooks/pages-cache";
+import { useAiEnabled } from "@/hooks/useAiEnabled";
+import { AiOffNote } from "@/components/ui/AiOff";
 
 // The bank's per-topic mastery card (client-only: it ships with the pen canvas).
 // «Get an A»: the grade-goal plan for this class (features/aplan).
@@ -213,6 +215,7 @@ export default function ClassPage() {
   const tab: ClassTab =
     CLASS_TABS.find((name) => name === router.query.tab) ?? "content";
   const aplanIsSample = useSampleRoute(`/classes/${classId}/a-plan`);
+  const aiOn = useAiEnabled();
   const contentIsSample = useSampleRoute(`/classes/${classId}/modules`);
   const selectTab = (next: ClassTab) => {
     const rest: Record<string, string | string[] | undefined> = {
@@ -409,7 +412,7 @@ export default function ClassPage() {
             label: "Content",
             icon: <FileText className="h-4 w-4" />,
           },
-          ...(manual
+          ...(manual || !aiOn
             ? []
             : [
                 {
@@ -444,7 +447,7 @@ export default function ClassPage() {
           {aplanIsSample && (
             <SampleDataBanner className="mb-5" what="grade-goal data" />
           )}
-          <APlanView classId={classId} />
+          {aiOn ? <APlanView classId={classId} /> : <AiOffNote />}
         </>
       )}
 

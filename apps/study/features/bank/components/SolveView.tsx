@@ -27,6 +27,7 @@ import { InlineMd } from './Markdown';
 import { MatchingAnswer } from './MatchingAnswer';
 import { QuestionCard } from './QuestionCard';
 import { VerdictPanel } from './VerdictPanel';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 /**
  * The core screen: the question on top, the pen area below, «Check» sends the ink (or the typed /
@@ -81,6 +82,7 @@ export function SolveView({
   showTimer = true,
   className = '',
 }: SolveViewProps) {
+  const aiOn = useAiEnabled();
   const katex = useKatex();
   const inkRef = useRef<InkCanvasHandle>(null);
   const startedAt = useRef(performance.now());
@@ -465,7 +467,7 @@ export function SolveView({
             <RefreshCw className='h-5 w-5' /> Try again
           </button>
         )}
-        {allowSimilar ? (
+        {allowSimilar && aiOn ? (
           <button
             className='flex h-14 items-center justify-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-5 text-base font-medium text-st-fg hover:bg-st-accent-soft disabled:opacity-40 shadow-clay transition-transform active:translate-y-[3px] active:shadow-none'
             disabled={similarBusy}

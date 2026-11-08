@@ -8,6 +8,7 @@ import { useInkModels } from './models';
 import { nativeInkRecognizer } from './nativeRecognizer';
 import { devicePhraseMemory } from './phrase-memory';
 import { inkEnabledForPage, useInkSettings } from './settings';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 let cloudGone = false;
 
@@ -32,6 +33,9 @@ export const sessionCloudClassifier: InkCloudClassifier = {
 export function useAutoColorConfig(pageId: string | null | undefined): AutoColorConfig | null {
   const settings = useInkSettings();
   const models = useInkModels();
+  // The cloud pass is an AI call: only for accounts with AI.
+  const aiOn = useAiEnabled();
+  const cloudOn = aiOn && settings.engine === 'device+cloud';
   // Recognition needs both models on the device; until then the board writes as usual.
   const on = inkEnabledForPage(settings, pageId) && nativeInkRecognizer !== null && models.state === 'ready';
 
@@ -40,11 +44,11 @@ export function useAutoColorConfig(pageId: string | null | undefined): AutoColor
 
     return {
       recognizer: nativeInkRecognizer,
-      cloud: settings.engine === 'device+cloud' ? sessionCloudClassifier : null,
+      cloud: cloudOn ? sessionCloudClassifier : null,
       palette: settings.palette,
       memory: devicePhraseMemory(),
       debug: settings.debug,
       mode: settings.when,
     };
-  }, [on, settings.engine, settings.palette, settings.debug, settings.when]);
+  }, [on, cloudOn, settings.palette, settings.debug, settings.when]);
 }

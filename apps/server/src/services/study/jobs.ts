@@ -16,6 +16,7 @@ import { ASR_MAX_SEC, transcribeAudioFile, transcriptText } from "./transcribe";
 import { extractFromTranscript } from "./extract";
 import { getStudyObject, lectureAudioKey, lectureChunkKey, putStudyObject } from "./storage";
 import { recordStudyUsage } from "./usage";
+import { AI_NOT_ENABLED, aiEnabledFor } from "@/auth/verified";
 import { AI_QUOTA_CODE, AI_QUOTA_MESSAGE, isAiQuotaError, logAiFailure } from "./ai-errors";
 
 /**
@@ -138,7 +139,7 @@ const withTmp = async <T>(prefix: string, fn: (dir: string) => Promise<T>): Prom
 // ─── video transcript ───────────────────────────────────────────────────────────────────
 
 /** Captions first (one English track), else bestaudio → ASR. */
-export async function transcribeYouTube(videoId: string, dir: string, spend: Spend): Promise<{ segments: TranscriptSegment[]; source: "captions" | "asr"; durationSec: number | null }> {
+export async function transcribeYouTube(videoId: string, dir: string, spend: Spend, ai = true): Promise<{ segments: TranscriptSegment[]; source: "captions" | "asr"; durationSec: number | null }> {
   const info = await ytDlpInfo(videoId);
   let durationSec = info.durationSec;
   const track = chooseCaptionTrack(info);
@@ -149,6 +150,8 @@ export async function transcribeYouTube(videoId: string, dir: string, spend: Spe
       if (segments.length) return { segments, source: "captions", durationSec };
     }
   }
+  // No captions: speech-to-text is a model call, an AI feature.
+  if (!ai) throw new JobError(AI_NOT_ENABLED.code, "This video has no captions, and turning its speech into text needs AI, which isn't on for your account");
   if (durationSec && durationSec > ASR_MAX_SEC) throw new JobError("AUDIO_TOO_LONG", `Video is longer than ${ASR_MAX_SEC / 3600} h`);
   const audio = await ytDlpAudio(videoId, dir);
   const r = await transcribeAudioFile(audio, dir, spend, { durationSec });
@@ -174,10 +177,11 @@ export async function processTranscriptJob(row: IStudyTranscript): Promise<void>
     if (row.attempts > JOB_MAX_ATTEMPTS) throw new JobError("JOB_GAVE_UP", `Gave up after ${JOB_MAX_ATTEMPTS} attempts`);
     const item = await StudyItem.findOne({ _id: row.itemId, userId: row.userId }, { type: 1, video: 1 }).lean<IStudyItem>();
     if (!item || item.type !== "video" || !item.video?.videoId) throw new JobError("NOT_A_VIDEO", "This item is not a video");
-    const out = await withTmp("study-tr-", (dir) => transcribeYouTube(item.video!.videoId, dir, spend));
+    const ai = await aiEnabledFor(row.userId);
+    const out = await withTmp("study-tr-", (dir) => transcribeYouTube(item.video!.videoId, dir, spend, ai));
     if (out.durationSec) await setItem({ "video.durationSec": out.durationSec });
     if (!out.segments.length) throw new JobError("NO_SPEECH", "No speech was found in this video");
-    const { summary, keyPoints } = await summaryOrNothing(out.segments, spend, { itemId: String(row.itemId) });
+    const { summary, keyPoints } = ai ? await summaryOrNothing(out.segments, spend, { itemId: String(row.itemId) }) : { summary: null, keyPoints: [] as string[] };
     const done = await StudyTranscript.updateOne(fence, {
       $set: { status: "ready", claimedAt: null, error: null, segments: out.segments, summary, keyPoints, source: out.source, lang: "en", durationSec: out.durationSec },
     });
@@ -238,6 +242,8 @@ export async function concatLectureAudio(files: string[], ext: string, out: stri
 }
 
 export const NO_SPEECH_WARNING = { code: "NO_SPEECH", message: "No speech was found in this recording — the ink and audio are still saved" };
+/** An account without AI: the recording (ink + audio) is kept, with no transcript, notes or questions. */
+export const NO_AI_WARNING = { code: AI_NOT_ENABLED.code, message: "Recording saved. Turning it into notes needs AI, which isn't on for your account." };
 
 export async function processLectureJob(lec: IStudyLecture): Promise<void> {
   const startedAt = Date.now();
@@ -251,6 +257,8 @@ export async function processLectureJob(lec: IStudyLecture): Promise<void> {
     const ext = lec.chunkExt ?? "webm";
     const reuse = lec.reuseAudio === true && !!lec.audio?.key;
     if (!reuse && n < 1) throw new JobError("CHUNKS_MISSING", "No audio chunks were uploaded");
+    // Transcription, summary and question extraction are model calls: AI accounts only.
+    const ai = await aiEnabledFor(lec.userId);
 
     const { segments, durationSec } = await withTmp("study-lec-", async (dir) => {
       if (reuse) {
@@ -258,6 +266,7 @@ export async function processLectureJob(lec: IStudyLecture): Promise<void> {
         const f = path.join(dir, `audio.${LECTURE_AUDIO_EXT}`);
         await fs.promises.writeFile(f, await getStudyObject(lec.audio!.key));
         const sec = (await probeDurationSec(f)) ?? 0;
+        if (!ai) return { segments: [] as TranscriptSegment[], durationSec: Math.round(sec || lec.durationSec) };
         const r = await transcribeAudioFile(f, dir, spend, { durationSec: sec || lec.durationSec });
         return { segments: r.segments, durationSec: Math.round(sec || r.durationSec) };
       }
@@ -273,6 +282,7 @@ export async function processLectureJob(lec: IStudyLecture): Promise<void> {
       const key = lectureAudioKey(userId, lectureId, LECTURE_AUDIO_EXT);
       await putStudyObject(key, await fs.promises.readFile(out), LECTURE_AUDIO_MIME);
       await StudyLecture.updateOne(fence, { $set: { audio: { key, mime: LECTURE_AUDIO_MIME } } });
+      if (!ai) return { segments: [] as TranscriptSegment[], durationSec: Math.round(sec || lec.durationSec) };
       const r = await transcribeAudioFile(out, dir, spend, { durationSec: sec || lec.durationSec });
       return { segments: r.segments, durationSec: Math.round(sec || r.durationSec) };
     });
@@ -285,7 +295,7 @@ export async function processLectureJob(lec: IStudyLecture): Promise<void> {
         { upsert: true }
       );
       await StudyLecture.updateOne(fence, {
-        $set: { status: "ready", claimedAt: null, error: null, reuseAudio: false, warning: NO_SPEECH_WARNING, questionCount: 0, durationSec: durationSec || lec.durationSec },
+        $set: { status: "ready", claimedAt: null, error: null, reuseAudio: false, warning: ai ? NO_SPEECH_WARNING : NO_AI_WARNING, questionCount: 0, durationSec: durationSec || lec.durationSec },
       });
       await recordStudyUsage(lec.userId, "lecture", spend, startedAt, "done", { lectureId: lec._id });
       return;
@@ -383,8 +393,9 @@ export async function summariseUploadedTranscript(opts: { itemId?: Types.ObjectI
   const spend = newSpend();
   let status: "done" | "error" = "done";
   let result: { summary: string | null; keyPoints: string[] } = { summary: null, keyPoints: [] };
+  const ai = await aiEnabledFor(row.userId);
   try {
-    result = await summariseTranscript(transcriptText(row.segments), spend);
+    if (ai) result = await summariseTranscript(transcriptText(row.segments), spend);
   } catch (e) {
     status = "error";
     await logger.error("study uploaded transcript summary failed", e as Error, { itemId: String(row.itemId) });
@@ -393,7 +404,7 @@ export async function summariseUploadedTranscript(opts: { itemId?: Types.ObjectI
     { _id: row._id, status: "ready", claimedAt: now },
     { $set: { summary: result.summary, keyPoints: result.keyPoints, claimedAt: null, attempts: 1 } }
   );
-  await recordStudyUsage(row.userId, "transcribe", spend, startedAt, status, { itemId: row.itemId });
+  if (ai) await recordStudyUsage(row.userId, "transcribe", spend, startedAt, status, { itemId: row.itemId });
   return true;
 }
 

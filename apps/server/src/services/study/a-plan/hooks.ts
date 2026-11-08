@@ -3,6 +3,7 @@ import { StudyAPlan } from "@/models/study/a-plan";
 import { StudyClass, IStudyClass } from "@/models/study/class";
 import { StudyClassPolicy } from "@/models/study/class-policy";
 import { logger } from "@/services/logger.service";
+import { aiEnabledFor } from "@/auth/verified";
 import { applyDeadlineChanges, processDigests, syncEmphasis } from "./announcements";
 
 /**
@@ -14,6 +15,8 @@ import { applyDeadlineChanges, processDigests, syncEmphasis } from "./announceme
  */
 export async function aPlanAfterSync(userId: string): Promise<void> {
   const uid = new Types.ObjectId(userId);
+  // The digests are model calls: AI accounts only.
+  if (!(await aiEnabledFor(uid))) return;
   const optedIn = await StudyAPlan.distinct("classId", { userId: uid });
   if (!optedIn.length) return;
   const classes = await StudyClass.find({ _id: { $in: optedIn }, userId: uid, current: true }, { name: 1 }).lean<IStudyClass[]>();

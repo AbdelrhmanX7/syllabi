@@ -17,6 +17,7 @@ import { useClasses } from '@/lib/api/hooks';
 import { isSampleData } from '@/lib/api/sample';
 import { describeError } from '@/lib/api/errors';
 import { EmptyState, FilterChip } from '@/components/ui/primitives';
+import { useAiEnabled } from '@/hooks/useAiEnabled';
 
 export { ConceptMapsPanel } from './components/ConceptMapsPanel';
 export { conceptMapMockRoutes } from './mock';
@@ -64,6 +65,7 @@ export default function ConceptMapsHome({ classId: initialClassId, className = '
   const maps = useConceptMaps(classId);
   // A map whose concept list was saved in class but not yet accepted by the server reads it from the device.
   const mapList = useMemo(() => (maps.data ?? []).map((map) => withLocalTerms(map, browserStore())), [maps.data]);
+  const aiOn = useAiEnabled();
   const [tab, setTab] = useState<Tab>('overview');
   const [selected, setSelected] = useState<ConceptMapRecord | null>(null);
   const [practiceMap, setPracticeMap] = useState<ConceptMapRecord | null>(null);
@@ -201,9 +203,13 @@ export default function ConceptMapsHome({ classId: initialClassId, className = '
           <div>
             <h1 className='text-st-fg text-xl font-semibold'>Concept maps</h1>
             <p className='text-st-muted text-sm'>
-              Any class, any topic — from notes, a lecture or a photo. The AI builds or checks them.
+              {aiOn
+                ? 'Any class, any topic — from notes, a lecture or a photo. The AI builds or checks them.'
+                : 'Your class concept maps, with the model answers.'}
             </p>
           </div>
+          {/* Practice and Compare both run on AI: an account without AI gets the overview only. */}
+          {aiOn && (
           <nav aria-label='Concept map views' className='flex gap-1.5'>
             {TABS.map((item) => (
               <FilterChip key={item.id} active={tab === item.id} onClick={() => setTab(item.id)}>
@@ -212,6 +218,7 @@ export default function ConceptMapsHome({ classId: initialClassId, className = '
               </FilterChip>
             ))}
           </nav>
+          )}
         </div>
         {!initialClassId && classList.length > 1 && (
           <div className='flex flex-wrap gap-2'>
@@ -239,18 +246,18 @@ export default function ConceptMapsHome({ classId: initialClassId, className = '
           hint='Connect Canvas in Settings, or pick a class above.'
           title={classes.isLoading ? 'Loading classes…' : 'No class selected'}
         />
-      ) : tab === 'overview' ? (
+      ) : tab === 'overview' || !aiOn ? (
         <Overview
           error={maps.error ? describeError(maps.error) : null}
           examQuestionsBusy={examQuestionsBusy}
           loading={maps.isLoading}
           maps={mapList}
           questionsBusyId={questionsBusyId}
-          onCompare={openCompare}
-          onDrill={startDrill}
-          onExamQuestions={() => void makeExamQuestions()}
-          onPractice={openPractice}
-          onQuestions={(map) => void makeQuestions(map)}
+          onCompare={aiOn ? openCompare : undefined}
+          onDrill={aiOn ? startDrill : undefined}
+          onExamQuestions={aiOn ? () => void makeExamQuestions() : undefined}
+          onPractice={aiOn ? openPractice : undefined}
+          onQuestions={aiOn ? (map) => void makeQuestions(map) : undefined}
           onRetry={() => void maps.refetch()}
         />
       ) : tab === 'practice' ? (

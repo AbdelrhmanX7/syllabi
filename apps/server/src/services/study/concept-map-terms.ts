@@ -5,6 +5,7 @@ import { IStudyItem, StudyItem } from "@/models/study/item";
 import { StudyAiUsage } from "@/models/study/ai-usage";
 import { logger } from "@/services/logger.service";
 import { newSpend, spendTotal, textJson } from "./ai-models";
+import { aiEnabledFor } from "@/auth/verified";
 import { htmlToText } from "./extract-sources";
 import { splitTerms } from "./concept-map-parse";
 import { itemTextSource } from "./text-sources";
@@ -161,6 +162,7 @@ export async function fillPromptTerms(userId: Types.ObjectId, m: IStudyConceptMa
       if (!source) return m;
       const hash = createHash("sha256").update(source).digest("hex");
       if (termsExtraction?.hash === hash) terms = termsExtraction.terms;
+      else if (!(await aiEnabledFor(userId))) return m; // the model read is an AI feature
       else {
         terms = await extractWithModel(userId, source, system);
         termsExtraction = { hash, terms, at: new Date() };

@@ -13,7 +13,7 @@
 import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
 import { Admin, IAdmin } from "@/models/admin";
-import { OWNER_ROLE_FILTER } from "@/auth/roles";
+import { isAiAccount, OWNER_ROLE_FILTER } from "@/auth/roles";
 
 /**
  * The first owner gets a fixed id, so two racing setup requests (or setup racing the env seed)
@@ -124,5 +124,7 @@ export function publicUser(admin: IAdmin | Record<string, any>) {
   delete plain.password;
   delete plain.googleId;
   delete plain.__v;
-  return { ...plain, _id: String(plain._id), role: plain.role ?? "admin" };
+  const role = plain.role ?? "admin";
+  // `premium` is the effective value: the owner always has the AI features.
+  return { ...plain, _id: String(plain._id), role, premium: isAiAccount(role, plain.premium) };
 }

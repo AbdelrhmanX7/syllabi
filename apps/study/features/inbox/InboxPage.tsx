@@ -18,6 +18,7 @@ import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { describeError } from '@/lib/api/errors';
 import { useSampleRoute } from '@/lib/api/hooks';
 import { formatBytes, formatDateTime, formatRelative } from '@/lib/format';
+import { IfAi } from '@/components/ui/AiOff';
 
 type Action = { kind: 'notes' | 'map' | 'bank' | 'view'; item: InboxItem } | null;
 
@@ -82,18 +83,20 @@ function InboxCard({
           <ActionButton className='min-h-9 px-3 text-xs' onClick={() => onAction({ kind: 'notes', item })}>
             <NotebookPen className='h-3.5 w-3.5' /> Add to notes
           </ActionButton>
-          {item.kind === 'image' && (
-            <ActionButton className='min-h-9 px-3 text-xs' onClick={() => onAction({ kind: 'map', item })}>
-              <Network className='h-3.5 w-3.5' /> Concept map
+          <IfAi>
+            {item.kind === 'image' && (
+              <ActionButton className='min-h-9 px-3 text-xs' onClick={() => onAction({ kind: 'map', item })}>
+                <Network className='h-3.5 w-3.5' /> Concept map
+              </ActionButton>
+            )}
+            <ActionButton
+              className='min-h-9 px-3 text-xs'
+              disabled={item.kind !== 'image'}
+              onClick={() => onAction({ kind: 'bank', item })}
+            >
+              <BookOpen className='h-3.5 w-3.5' /> Use in bank
             </ActionButton>
-          )}
-          <ActionButton
-            className='min-h-9 px-3 text-xs'
-            disabled={item.kind !== 'image'}
-            onClick={() => onAction({ kind: 'bank', item })}
-          >
-            <BookOpen className='h-3.5 w-3.5' /> Use in bank
-          </ActionButton>
+          </IfAi>
           <ActionButton
             aria-label='Delete'
             className='ml-auto min-h-9 px-3 text-xs'

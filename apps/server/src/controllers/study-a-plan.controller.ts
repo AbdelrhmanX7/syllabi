@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { StudyClass } from "@/models/study/class";
 import { getAPlan, startBuild } from "@/services/study/a-plan";
+import { denyUnlessAi } from "@/auth/verified";
 import { fail, isOid, uid, wrap } from "./study.controller";
 
 /**
@@ -10,6 +11,7 @@ import { fail, isOid, uid, wrap } from "./study.controller";
  *                                          (syllabus re-check, new digests, re-synthesis).
  */
 export const getClassAPlan = wrap(async (req, res) => {
+  if (await denyUnlessAi(req, res)) return;
   if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid class id");
   const r = await getAPlan(uid(req), req.params.id);
   if (r.status === "not_found") return fail(res, 404, "NOT_FOUND", "Class not found");
@@ -18,6 +20,7 @@ export const getClassAPlan = wrap(async (req, res) => {
 });
 
 export const refreshClassAPlan = wrap(async (req, res) => {
+  if (await denyUnlessAi(req, res)) return;
   if (!isOid(req.params.id)) return fail(res, 400, "INVALID_ID", "Invalid class id");
   const cls = await StudyClass.exists({ _id: req.params.id, userId: uid(req) });
   if (!cls) return fail(res, 404, "NOT_FOUND", "Class not found");
