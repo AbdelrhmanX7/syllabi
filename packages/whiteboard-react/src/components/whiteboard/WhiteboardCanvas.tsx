@@ -985,7 +985,10 @@ export function WhiteboardCanvas({
 
       // The paper pattern over the PDF page: a white PDF sheet hides the pattern drawn underneath, so it
       // is painted again on top with `multiply` — white stays the page, the lines show on it.
-      if (paperOverPdf && backgroundType !== 'blank' && (pdfImage || scrollPainter)) {
+      // The continuous layout rules each PDF page itself (per page, clipped to its sheet), so this
+      // full-screen pass is for the single fitted page only — running it too re-drew and re-blended
+      // the whole screen a second time on every scroll frame.
+      if (paperOverPdf && backgroundType !== 'blank' && pdfImage && !scrollPainter) {
         const patternCanvas = (paperOverlayCanvasRef.current ??= document.createElement('canvas'));
 
         drawBackgroundPattern(

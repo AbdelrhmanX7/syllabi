@@ -2,13 +2,14 @@ import type { BankFilters, ResultFilter } from '../lib/filters';
 import type { Question, QuestionSourceKind, StudyClass } from '@/lib/api/types';
 
 import React, { useMemo, useState } from 'react';
-import { Search, Trash2, X } from 'lucide-react';
+import { Checkbox } from '@repo/ui';
+import { ListChecks, NotebookPen, Play, Search, Trash2, X } from 'lucide-react';
 
 import { SOURCE_LABEL, applyFilters, sourcesOf, topicsOf } from '../lib/filters';
 
 import { QuestionCard } from './QuestionCard';
 
-import { FilterChip } from '@/components/ui/primitives';
+import { ActionButton, FilterChip } from '@/components/ui/primitives';
 
 /**
  * The bank browser: chip filters (class / topic / source / due / result), a search box, and the
@@ -27,6 +28,10 @@ export interface BankBrowserProps {
   error?: string | null;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  /** Practise exactly these questions (the picked ones, or everything the filters show). */
+  onPractice?: (questions: Question[]) => void;
+  /** A board exam from exactly these questions. */
+  onBoardExam?: (questions: Question[]) => void;
 }
 
 const RESULT_OPTIONS: { value: ResultFilter; label: string }[] = [
@@ -48,8 +53,26 @@ export function BankBrowser({
   error,
   hasMore,
   onLoadMore,
+  onPractice,
+  onBoardExam,
 }: BankBrowserProps) {
   const [showAllTopics, setShowAllTopics] = useState(false);
+  // Pick mode: tapping a card ticks it instead of opening it; the bar practises the ticked ones.
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const togglePick = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+
+      return next;
+    });
+  const stopPicking = () => {
+    setPicking(false);
+    setPicked(new Set());
+  };
   const classScoped = useMemo(
     () => (filters.classId ? questions.filter((q) => q.classId === filters.classId) : questions),
     [filters.classId, questions],
@@ -66,6 +89,9 @@ export function BankBrowser({
     ...(showAllTopics ? topics : topics.slice(0, 8)),
   ];
   const set = (patch: Partial<BankFilters>) => onFilters({ ...filters, ...patch });
+  // Picked questions in on-screen order (a pick hidden by a later filter still counts).
+  const pickedList = questions.filter((q) => picked.has(q.id));
+  const allShownPicked = visible.length > 0 && visible.every((q) => picked.has(q.id));
   const active =
     Boolean(filters.topic) ||
     Boolean(filters.source) ||
@@ -174,9 +200,52 @@ export function BankBrowser({
         ) : null}
       </ChipRow>
 
-      <p className='text-xs text-st-muted'>
-        {loading ? 'Loading…' : `${visible.length} question${visible.length === 1 ? '' : 's'}`}
-      </p>
+      <div className='flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2'>
+        <p className='text-xs text-st-muted'>
+          {loading ? 'Loading…' : `${visible.length} question${visible.length === 1 ? '' : 's'}`}
+          {picking ? ` · ${picked.size} picked` : ''}
+        </p>
+        <span className='flex-1' />
+        {picking ? (
+          <>
+            <ActionButton
+              className='min-h-9 px-3'
+              disabled={!visible.length}
+              variant='ghost'
+              onClick={() =>
+                setPicked((current) => {
+                  const next = new Set(current);
+
+                  for (const q of visible) {
+                    if (allShownPicked) next.delete(q.id);
+                    else next.add(q.id);
+                  }
+
+                  return next;
+                })
+              }
+            >
+              {allShownPicked ? 'Untick shown' : 'Tick all shown'}
+            </ActionButton>
+            <ActionButton className='min-h-9 px-3' variant='ghost' onClick={stopPicking}>
+              <X className='h-4 w-4' /> Cancel
+            </ActionButton>
+          </>
+        ) : (
+          <>
+            {onPractice && active && visible.length > 0 ? (
+              <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => onPractice(visible)}>
+                <Play className='h-4 w-4' /> Practice these {visible.length}
+              </ActionButton>
+            ) : null}
+            {onPractice && visible.length > 0 ? (
+              <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => setPicking(true)}>
+                <ListChecks className='h-4 w-4' /> Pick questions
+              </ActionButton>
+            ) : null}
+          </>
+        )}
+      </div>
       {error ? (
         <p className='rounded-2xl bg-st-danger/10 p-3 text-sm text-st-danger'>
           {error}
@@ -189,7 +258,15 @@ export function BankBrowser({
             key={question.id}
             elevated
             actions={
-              onDelete ? (
+              picking ? (
+                <span onClick={(event) => event.stopPropagation()}>
+                  <Checkbox
+                    aria-label='Pick this question'
+                    isSelected={picked.has(question.id)}
+                    onValueChange={() => togglePick(question.id)}
+                  />
+                </span>
+              ) : onDelete ? (
                 <button
                   aria-label='Delete question'
                   className='flex h-9 w-9 items-center justify-center rounded-full text-st-muted hover:text-st-danger'
@@ -205,7 +282,7 @@ export function BankBrowser({
             }
             question={question}
             studyClass={classById.get(question.classId) ?? null}
-            onOpen={onOpen}
+            onOpen={picking ? (q) => togglePick(q.id) : onOpen}
           />
         ))}
       </div>
@@ -216,6 +293,41 @@ export function BankBrowser({
           <p className='mt-1 text-sm text-st-muted'>
             Snap a photo of a problem set, or pull questions from a Canvas page.
           </p>
+        </div>
+      ) : null}
+
+      {picking && onPractice ? (
+        // Flat bar pinned to the bottom of the screen while picking; the clay buttons keep room for their lip.
+        <div className='sticky bottom-0 z-10 -mx-1 flex items-center gap-3 border-t border-st-line bg-st-bg px-1 pb-3 pt-3'>
+          <p className='min-w-0 text-sm font-medium text-st-fg'>
+            {picked.size ? `${picked.size} picked` : 'Tap questions to pick them'}
+          </p>
+          <span className='flex-1' />
+          {onBoardExam ? (
+            <ActionButton
+              aria-label='Board exam'
+              className='shrink-0'
+              disabled={!pickedList.length}
+              variant='secondary'
+              onClick={() => {
+                onBoardExam(pickedList);
+                stopPicking();
+              }}
+            >
+              <NotebookPen className='h-4 w-4' /> <span className='hidden sm:inline'>Board exam</span>
+            </ActionButton>
+          ) : null}
+          <ActionButton
+            className='shrink-0'
+            disabled={!pickedList.length}
+            variant='primary'
+            onClick={() => {
+              onPractice(pickedList);
+              stopPicking();
+            }}
+          >
+            <Play className='h-4 w-4' /> Practice {pickedList.length || ''}
+          </ActionButton>
         </div>
       ) : null}
 

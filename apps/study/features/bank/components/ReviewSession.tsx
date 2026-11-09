@@ -22,10 +22,13 @@ export interface ReviewSessionProps {
   classes: StudyClass[];
   onExit: () => void;
   limit?: number;
+  /** Practise exactly these (picked or filtered in the bank), in this order. */
+  picked?: Question[] | null;
 }
 
-export function ReviewSession({ classId, topic, classes, onExit, limit = 20 }: ReviewSessionProps) {
+export function ReviewSession({ classId, topic, classes, onExit, limit = 20, picked }: ReviewSessionProps) {
   const queue = useLoad<Question[]>(async () => {
+    if (picked?.length) return picked;
     if (topic) {
       const page = await listQuestions({ classId: classId ?? undefined, topic, limit });
       const now = Date.now();
@@ -39,12 +42,13 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20 }: R
     }
 
     return reviewNext(classId ?? undefined, limit);
-  }, [classId, topic, limit]);
+  }, [classId, topic, limit, picked]);
   const [index, setIndex] = useState(0);
   const [tally, setTally] = useState(emptyTally());
   const [answered, setAnswered] = useState(false);
   const [finished, setFinished] = useState(false);
   const questions = queue.data ?? [];
+  const sessionTitle = picked?.length ? 'Practice' : topic ? `Drill · ${topic}` : 'Review';
   const current = questions[index] ?? null;
   const classById = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
 
@@ -69,7 +73,7 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20 }: R
 
   if (queue.loading) {
     return (
-      <Shell title={topic ? `Drill · ${topic}` : 'Review'} onExit={onExit}>
+      <Shell title={sessionTitle} onExit={onExit}>
         <p className='p-6 text-center text-sm text-st-muted'>Loading your queue…</p>
       </Shell>
     );
@@ -83,7 +87,7 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20 }: R
   }
   if (!questions.length) {
     return (
-      <Shell title={topic ? `Drill · ${topic}` : 'Review'} onExit={onExit}>
+      <Shell title={sessionTitle} onExit={onExit}>
         <div className='flex flex-col items-center gap-3 p-10 text-center'>
           <Trophy className='h-10 w-10 text-st-ok' />
           <p className='text-lg font-semibold text-st-fg'>Nothing due</p>
@@ -136,7 +140,7 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20 }: R
           {index + 1} / {questions.length}
         </span>
       }
-      title={topic ? `Drill · ${topic}` : 'Review'}
+      title={sessionTitle}
       onExit={onExit}
     >
       <div className='mb-3 h-1.5 w-full overflow-hidden rounded-full bg-st-raised'>

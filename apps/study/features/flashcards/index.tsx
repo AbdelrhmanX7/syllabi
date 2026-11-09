@@ -2,8 +2,8 @@ import type { ClassDecks, TopicDeck } from './lib/deck';
 import type { Question, StudyClass } from '@/lib/api/types';
 
 import { useMemo, useState } from 'react';
-import { cn } from '@repo/ui';
-import { ChevronDown, GalleryVerticalEnd, Pencil, Play, Plus, Sparkles } from 'lucide-react';
+import { Checkbox, cn } from '@repo/ui';
+import { ChevronDown, GalleryVerticalEnd, ListChecks, Pencil, Play, Plus, Sparkles, X } from 'lucide-react';
 
 import { AiMaker } from './components/AiMaker';
 import { CardSheet } from './components/CardSheet';
@@ -32,6 +32,12 @@ export { FLASHCARD_TAG, isFlashcard } from './lib/deck';
 type View = { kind: 'decks' } | { kind: 'session'; cards: Question[]; title: string };
 type Editing = { card: Question | null; classId?: string; topic?: string } | null;
 
+/** Pick mode: ticked card ids, and a toggle for one card or a whole deck. */
+interface Picking {
+  picked: Set<string>;
+  toggle: (cards: Question[], on: boolean) => void;
+}
+
 const classLabel = (cls: StudyClass | undefined, fallback = 'Class') =>
   cls ? (cls.code ? `${cls.code} · ${cls.name}` : cls.name) : fallback;
 
@@ -56,6 +62,23 @@ export default function FlashcardsHome({
   const [editing, setEditing] = useState<Editing>(null);
   const [aiOpen, setAiOpen] = useState(Boolean(make));
   const [openDeck, setOpenDeck] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const togglePicked = (cards: Question[], on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current);
+
+      for (const card of cards) {
+        if (on) next.add(card.id);
+        else next.delete(card.id);
+      }
+
+      return next;
+    });
+  const stopPicking = () => {
+    setPicking(false);
+    setPicked(new Set());
+  };
 
   const allDecks = useMemo(
     () => groupDecks(cardsQuery.data ?? [], classes.map((cls) => cls.id)),
@@ -69,6 +92,7 @@ export default function FlashcardsHome({
     [allDecks],
   );
   const pickClass = filter ?? initialClassId;
+  const pickedCards = (cardsQuery.data ?? []).filter((card) => picked.has(card.id));
   const scopeTitle = filter ? classLabel(classById.get(filter)) : 'All decks';
 
   const study = (cards: Question[], title: string, all: boolean) => {
@@ -124,6 +148,11 @@ export default function FlashcardsHome({
         <ActionButton disabled={!classes.length} variant='secondary' onClick={() => setEditing({ card: null })}>
           <Plus className='h-4 w-4' /> New card
         </ActionButton>
+        {total > 0 && !picking && (
+          <ActionButton variant='secondary' onClick={() => setPicking(true)}>
+            <ListChecks className='h-4 w-4' /> Pick cards
+          </ActionButton>
+        )}
         {total > 0 && dueCount < total && (
           <ActionButton
             variant={dueCount > 0 ? 'secondary' : 'primary'}
@@ -192,12 +221,38 @@ export default function FlashcardsHome({
               cls={classById.get(group.classId)}
               group={group}
               openDeck={openDeck}
+              picking={picking ? { picked, toggle: togglePicked } : null}
               onAdd={(topic) => setEditing({ card: null, classId: group.classId, topic })}
               onEdit={(card) => setEditing({ card })}
               onStudy={study}
               onToggle={(key) => setOpenDeck((current) => (current === key ? null : key))}
             />
           ))}
+        </div>
+      )}
+
+      {picking && (
+        // Flat bar pinned to the bottom while picking; the clay buttons keep room for their lip.
+        <div className='border-st-line bg-st-bg sticky bottom-0 z-10 flex items-center gap-3 border-t pb-3 pt-3'>
+          <p className='text-st-fg min-w-0 text-sm font-medium'>
+            {picked.size ? `${picked.size} picked` : 'Tick decks or cards'}
+          </p>
+          <span className='flex-1' />
+          <ActionButton variant='ghost' onClick={stopPicking}>
+            <X className='h-4 w-4' /> Cancel
+          </ActionButton>
+          <ActionButton
+            disabled={!pickedCards.length}
+            variant='primary'
+            onClick={() => {
+              const cards = orderSession(pickedCards, { all: true });
+
+              stopPicking();
+              if (cards.length) setView({ kind: 'session', cards, title: 'Picked cards' });
+            }}
+          >
+            <Play className='h-4 w-4' /> Study {pickedCards.length || ''}
+          </ActionButton>
         </div>
       )}
     </div>
@@ -208,6 +263,7 @@ function ClassGroup({
   cls,
   group,
   openDeck,
+  picking,
   onToggle,
   onStudy,
   onEdit,
@@ -216,6 +272,7 @@ function ClassGroup({
   cls: StudyClass | undefined;
   group: ClassDecks;
   openDeck: string | null;
+  picking: Picking | null;
   onToggle: (key: string) => void;
   onStudy: (cards: Question[], title: string, all: boolean) => void;
   onEdit: (card: Question) => void;
@@ -248,6 +305,7 @@ function ClassGroup({
             classTitle={title}
             deck={deck}
             open={openDeck === deck.key}
+            picking={picking}
             onAdd={() => onAdd(deck.topic)}
             onEdit={onEdit}
             onStudy={onStudy}
@@ -263,6 +321,7 @@ function DeckRow({
   deck,
   classTitle,
   open,
+  picking,
   onToggle,
   onStudy,
   onEdit,
@@ -271,11 +330,14 @@ function DeckRow({
   deck: TopicDeck;
   classTitle: string;
   open: boolean;
+  picking: Picking | null;
   onToggle: () => void;
   onStudy: (cards: Question[], title: string, all: boolean) => void;
   onEdit: (card: Question) => void;
   onAdd: () => void;
 }) {
+  const pickedHere = picking ? deck.cards.filter((card) => picking.picked.has(card.id)).length : 0;
+
   return (
     <li className='border-st-line border-t'>
       <div className='flex min-h-11 items-center gap-2'>
@@ -294,6 +356,16 @@ function DeckRow({
           <span className='text-st-muted shrink-0 text-xs tabular-nums'>{deck.cards.length}</span>
           {deck.due > 0 && <Badge tone='accent'>{deck.due} due</Badge>}
         </button>
+        {picking ? (
+          <Checkbox
+            aria-label={`Pick every card in ${deck.topic}`}
+            className='shrink-0 px-2'
+            isIndeterminate={pickedHere > 0 && pickedHere < deck.cards.length}
+            isSelected={pickedHere === deck.cards.length}
+            onValueChange={(on) => picking.toggle(deck.cards, on)}
+          />
+        ) : (
+        <>
         <ActionButton
           aria-label={`Study ${deck.topic}`}
           className='min-h-9 shrink-0 px-3'
@@ -309,6 +381,8 @@ function DeckRow({
           target={{ resourceType: 'deck', resourceId: deck.classId, topic: deck.topic, title: `${deck.topic} (${classTitle})` }}
           variant='ghost'
         />
+        </>
+        )}
       </div>
       {open && (
         <ul className='flex flex-col gap-1 pb-2 ps-7'>
@@ -317,6 +391,17 @@ function DeckRow({
           </li>
           {deck.cards.map((card) => (
             <li key={card.id}>
+              {picking ? (
+                <Checkbox
+                  className='hover:bg-st-raised rounded-st flex min-h-10 w-full px-2'
+                  isSelected={picking.picked.has(card.id)}
+                  onValueChange={(on) => picking.toggle([card], on)}
+                >
+                  <span className='text-st-fg block min-w-0 truncate text-sm' title={`${card.stem}\n— ${card.answer}`}>
+                    {card.stem}
+                  </span>
+                </Checkbox>
+              ) : (
               <button
                 className='hover:bg-st-raised rounded-st group flex min-h-10 w-full items-center gap-2 px-2 text-left'
                 title={`${card.stem}\n— ${card.answer}`}
@@ -327,8 +412,10 @@ function DeckRow({
                 <span className='text-st-muted hidden min-w-0 flex-1 truncate text-sm sm:block'>{card.answer}</span>
                 <Pencil className='text-st-muted h-3.5 w-3.5 shrink-0' />
               </button>
+              )}
             </li>
           ))}
+          {!picking && (
           <li>
             <button
               className='text-st-accent hover:bg-st-raised rounded-st flex min-h-10 w-full items-center gap-2 px-2 text-left text-sm font-medium'
@@ -338,6 +425,7 @@ function DeckRow({
               <Plus className='h-4 w-4' /> Add a card to {deck.topic}
             </button>
           </li>
+          )}
         </ul>
       )}
     </li>

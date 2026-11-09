@@ -22,7 +22,7 @@ import { ReviewSession } from "./components/ReviewSession";
 import { SolveView } from "./components/SolveView";
 import { useLoad } from "./hooks/useLoad";
 import { readBoardSession } from "./lib/boardSession";
-import { EMPTY_FILTERS, mergeQuestions } from "./lib/filters";
+import { EMPTY_FILTERS, applyFilters, mergeQuestions } from "./lib/filters";
 import { isDue } from "./lib/verdict";
 
 import { DividerTabs } from "@/components/ui/primitives";
@@ -51,7 +51,7 @@ export type { ExtractButtonProps } from "./components/AddQuestions";
 type View =
   | { kind: "browse" }
   | { kind: "solve"; question: Question }
-  | { kind: "review"; topic?: string }
+  | { kind: "review"; topic?: string; picked?: Question[] }
   | { kind: "mastery" }
   | { kind: "exam"; topics?: string[]; blueprint?: boolean }
   /** `questions` = a new board exam from them; absent = resume the saved one. */
@@ -174,6 +174,8 @@ export default function BankHome({
     [questions],
   );
 
+  // The board exam takes what the filters show, not the whole loaded bank.
+  const shown = useMemo(() => applyFilters(items, filters), [items, filters]);
   const dueCount = useMemo(
     () => items.filter((q) => isDue(q.srs.dueAt)).length,
     [items],
@@ -217,6 +219,7 @@ export default function BankHome({
         <ReviewSession
           classId={filters.classId}
           classes={classes}
+          picked={view.picked ?? null}
           topic={view.topic ?? null}
           onExit={exit}
         />
@@ -326,14 +329,14 @@ export default function BankHome({
         )}
         <button
           className="flex h-12 items-center gap-2 rounded-st border-2 border-st-clay-edge bg-st-surface px-4 text-sm font-medium text-st-fg hover:bg-st-accent-soft disabled:opacity-50 shadow-clay transition-transform active:translate-y-[3px] active:shadow-none"
-          disabled={!items.length && !savedBoard}
+          disabled={!shown.length && !savedBoard}
           title="Every question on screen on a notebook board; submit and the AI reviews them all"
           type="button"
           onClick={() =>
             setView(
               savedBoard
                 ? { kind: "board" }
-                : { kind: "board", questions: items },
+                : { kind: "board", questions: shown },
             )
           }
         >
@@ -379,7 +382,9 @@ export default function BankHome({
           onDelete={setPendingDelete}
           onFilters={setFilters}
           onLoadMore={() => void loadMore()}
+          onBoardExam={(picked) => setView({ kind: "board", questions: picked })}
           onOpen={(question) => setView({ kind: "solve", question })}
+          onPractice={(picked) => setView({ kind: "review", picked })}
         />
       ) : (
         <MasteryPanel
