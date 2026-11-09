@@ -35,7 +35,7 @@ export function Seo({
       <meta content={image} property='og:image' />
       <meta content='1200' property='og:image:width' />
       <meta content='630' property='og:image:height' />
-      <meta content='Syllabi: handwritten notes that study with you' property='og:image:alt' />
+      <meta content='Syllabi, made for engineering students: handwritten notes that study with you' property='og:image:alt' />
       <meta content='summary_large_image' name='twitter:card' />
       <meta content={title} name='twitter:title' />
       <meta content={description} name='twitter:description' />
