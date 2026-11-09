@@ -1,7 +1,7 @@
 import Head from 'next/head';
 
 const SITE = 'https://syllabi.studio';
-const IMAGE = `${SITE}/shots/today.png`;
+const IMAGE = `${SITE}/og.jpg`;
 
 /** One page's search + link-preview tags: title, description, canonical URL, Open Graph and Twitter. */
 export function Seo({
@@ -33,7 +33,9 @@ export function Seo({
       <meta content={title} property='og:title' />
       <meta content={description} property='og:description' />
       <meta content={image} property='og:image' />
-      <meta content='Syllabi Today screen with sample classes' property='og:image:alt' />
+      <meta content='1200' property='og:image:width' />
+      <meta content='630' property='og:image:height' />
+      <meta content='Syllabi: handwritten notes that study with you' property='og:image:alt' />
       <meta content='summary_large_image' name='twitter:card' />
       <meta content={title} name='twitter:title' />
       <meta content={description} name='twitter:description' />
