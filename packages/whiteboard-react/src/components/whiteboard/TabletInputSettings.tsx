@@ -382,7 +382,7 @@ const TabletInputSettings: React.FC<TabletInputSettingsProps> = ({ settings, pen
           </div>
           <Switch
             aria-label={t('tablet.smartContrast')}
-            isSelected={settings.smartInkContrast !== false}
+            isSelected={settings.smartInkContrast === true}
             size='sm'
             onValueChange={handleSmartInkContrastChange}
           />

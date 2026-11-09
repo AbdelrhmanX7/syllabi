@@ -1218,7 +1218,7 @@ export function WhiteboardCanvas({
   // …and filled while the pen HOVERS, so the stroke that follows finds its reading waiting: an S Pen
   // reports hover well before it touches. Throttled — one cell lookup per ~50 ms is plenty, and the
   // read itself runs in idle time. The lift point is read too: the next stroke usually starts nearby.
-  const smartInkContrastEnabled = tabletInputSettings?.smartInkContrast !== false;
+  const smartInkContrastEnabled = tabletInputSettings?.smartInkContrast === true;
 
   useEffect(() => {
     const container = containerRef.current;

@@ -953,6 +953,8 @@ function applyPenCaptureLock(settings: TabletInputSettings, locked: boolean): Ta
 const PEN_BUTTONS_RESET_FLAG = 'whiteboard-pen-buttons-reset-v1';
 // Pen tilt compensation now starts at 0; reset it once for tablets that saved the old default of 2.
 const PEN_TILT_ZERO_RESET_FLAG = 'whiteboard-pen-tilt-zero-reset-v1';
+// Smart contrast is now off by default; turn it off once for tablets that saved the old default.
+const SMART_CONTRAST_OFF_RESET_FLAG = 'whiteboard-smart-contrast-off-v1';
 // The dual-tip classifier switched from MAX-axis to MINOR-axis contact size (tilt-robust). Old stored
 // thresholds were tuned for the max metric, so reset them ONCE to the new minor-axis defaults; the user
 // can still re-tune afterward. Touches only the setting, never data. Guarded by a flag — the teacher's
@@ -979,6 +981,12 @@ function readTabletInputSettings(): TabletInputSettings {
       ? normalizeTabletInputSettings(JSON.parse(rawValue) as Partial<TabletInputSettings>)
       : { ...DEFAULT_TABLET_INPUT_SETTINGS };
     let mutated = false;
+
+    if (!window.localStorage.getItem(SMART_CONTRAST_OFF_RESET_FLAG)) {
+      settings.smartInkContrast = false;
+      window.localStorage.setItem(SMART_CONTRAST_OFF_RESET_FLAG, '1');
+      mutated = true;
+    }
 
     if (!window.localStorage.getItem(PEN_TILT_ZERO_RESET_FLAG)) {
       settings.penTiltOffset = 0;

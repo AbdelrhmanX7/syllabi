@@ -289,7 +289,7 @@ export const DEFAULT_TABLET_INPUT_SETTINGS: TabletInputSettings = {
   touchInputMode: 'auto',
   penCaptureEnabled: false,
   shapeSnapOnHold: true,
-  smartInkContrast: true,
+  smartInkContrast: false,
 };
 
 export interface WhiteboardPage {

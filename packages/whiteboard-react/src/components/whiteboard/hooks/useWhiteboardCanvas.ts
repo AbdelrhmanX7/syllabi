@@ -903,7 +903,7 @@ export function useWhiteboardCanvas({
 
   if (!inkContrastRef.current) {
     inkContrastRef.current = createStrokeInkContrast<Canvas>({
-      isEnabled: () => tabletInputSettingsRef.current.smartInkContrast !== false,
+      isEnabled: () => tabletInputSettingsRef.current.smartInkContrast === true,
       sampleBackground: (c, x, y) => sampleBackgroundLuminanceRef.current?.(c, x, y) ?? null,
       // The pen family's opacity slider lands on the committed path (see the path:created handler), so
       // the stroke the teacher sees is this much fainter than its colour says.
