@@ -3,7 +3,8 @@
  * perf-trace — trace a whole user flow on the students' tablets and say where the time goes.
  *
  *   cd apps/study && TRACE_BUILD=1 next build --profile && next start -p 3022   # source maps + React profiling
- *   node tools/perf-trace/run.mjs [scenario] [--device a6|a7|both] [--base http://localhost:3022]
+ *   node tools/perf-trace/run.mjs [scenario] [--device a6|a7|a9|phone|s10u|s10up|both|all] [--base http://localhost:3022] [--shots]
+ *   (TRACE_BUILD=1 turns on browser source maps; pdf-notebook needs `node tools/perf-trace/fixtures/make-pdf.mjs` once)
  *
  * Scenarios live in ./scenarios (default: landing). Each phase of the flow is cut out of one
  * continuous Chrome trace + CPU profile, and reported as:
@@ -56,6 +57,20 @@ DEVICES.phone = {
   dpr: 2.625,
   ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36',
 };
+
+// Big-screen flagship (a student's report, 2026-11-09): Galaxy Tab S10 Ultra SM-X920, 2960×1848 panel at
+// Samsung's default 340 dpi → DPR 2.125 → 1393×870 CSS px. Dimensity 9300+ is near desktop speed, so
+// light throttling; `gpu` runs real Chrome on this PC's GPU, because the cost here is canvas pixels
+// and the default headless browser draws canvases in software.
+DEVICES.s10u = {
+  label: 'Galaxy Tab S10 Ultra SM-X920, landscape (1.5× CPU, real GPU)',
+  cpu: 1.5,
+  viewport: { width: 1393, height: 870 },
+  dpr: 2.125,
+  gpu: true,
+  ua: 'Mozilla/5.0 (Linux; Android 15; SM-X920) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+};
+DEVICES.s10up = { ...DEVICES.s10u, label: 'Galaxy Tab S10 Ultra SM-X920, portrait (1.5× CPU, real GPU)', viewport: { width: 870, height: 1393 } };
 
 const args = process.argv.slice(2);
 const flag = (name, def) => {
@@ -118,7 +133,12 @@ const isOurs = (s) => /^(apps|packages)\//.test(s);
 /* ---------- one device run ---------- */
 async function runDevice(key) {
   const dev = DEVICES[key];
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(
+    dev.gpu
+      ? // Real Chrome on the host GPU (ANGLE over EGL); the bundled headless shell only has SwiftShader.
+        { channel: 'chrome', args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-gl=angle', '--use-angle=gl-egl'] }
+      : {},
+  );
   const ctx = await browser.newContext({
     viewport: dev.viewport ?? { width: 800, height: 1280 },
     deviceScaleFactor: dev.dpr ?? 1.5,
@@ -129,6 +149,24 @@ async function runDevice(key) {
   });
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
+
+  // Frame pacing: every animation frame's gap, so a phase can say how often the screen stuttered.
+  await page.addInitScript(() => {
+    const frames = [];
+    let last = 0;
+    const tick = (now) => {
+      if (last) frames.push(now - last);
+      last = now;
+      requestAnimationFrame(tick);
+    };
+
+    window.__perfFrames = frames;
+    requestAnimationFrame(tick);
+  });
+  const frameCount = () => page.evaluate(() => window.__perfFrames?.length ?? 0).catch(() => 0);
+  const frameSlice = (from) => page.evaluate((i) => window.__perfFrames?.slice(i) ?? [], from).catch(() => []);
+  const heapMb = () =>
+    page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize / 1048576 : 0)).catch(() => 0);
 
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: dev.cpu });
   await cdp.send('Network.enable');
@@ -163,17 +201,28 @@ async function runDevice(key) {
 
   const marks = [];
   const errors = [];
+  const pacing = [];
 
   page.on('pageerror', (e) => errors.push(e.message));
   for (const [i, phase] of phases.entries()) {
     await cdp.send('Tracing.recordClockSyncMarker', { syncId: `phase-${i}` });
     marks.push(phase.name);
+    // A navigation inside a phase resets the page's frame log; count from wherever it restarts.
+    const before = await frameCount();
+    let failed = false;
+
     try {
-      await phase.run(page, { base });
+      await phase.run(page, { base, cdp, flag });
     } catch (e) {
       errors.push(`${phase.name}: ${e.message.split('\n')[0]}`);
-      break;
+      failed = true;
     }
+    const after = await frameCount();
+
+    pacing.push({ frames: await frameSlice(after >= before ? before : 0), heapMb: await heapMb() });
+    // --shots: what the screen showed at the end of each phase (did the flow really do what it says?).
+    if (args.includes('--shots')) await page.screenshot({ path: path.join(out, `${key}-${i + 1}.png`) }).catch(() => {});
+    if (failed) break;
   }
   await cdp.send('Tracing.recordClockSyncMarker', { syncId: 'phase-end' });
 
@@ -186,11 +235,11 @@ async function runDevice(key) {
   // The sampled CPU profile on its own (DevTools «Load profile» / speedscope), for per-function digging.
   fs.writeFileSync(path.join(out, `profile-${key}.cpuprofile`), JSON.stringify(profile));
 
-  return analyse(dev, events, profile, marks, errors);
+  return analyse(dev, events, profile, marks, errors, pacing);
 }
 
 /* ---------- analysis ---------- */
-function analyse(dev, events, profile, marks, errors) {
+function analyse(dev, events, profile, marks, errors, pacing = []) {
   // Phase boundaries from the clock-sync markers.
   const sync = events.filter((e) => e.name === 'clock_sync' && e.args?.sync_id).map((e) => [e.args.sync_id, e.ts]);
   const at = Object.fromEntries(sync);
@@ -231,8 +280,10 @@ function analyse(dev, events, profile, marks, errors) {
   };
   const rows = [];
 
-  for (const b of bounds) {
+  for (const [phaseIndex, b] of bounds.entries()) {
     if (b.t0 == null || b.t1 == null) continue;
+    const frames = pacing[phaseIndex]?.frames ?? [];
+    const sorted = [...frames].sort((x, y) => x - y);
     const inPhase = onMain.filter((e) => e.ts >= b.t0 && e.ts < b.t1);
     const tasks = inPhase.filter((e) => e.name === 'RunTask');
     const long = tasks.filter((e) => e.dur > 50000);
@@ -283,6 +334,12 @@ function analyse(dev, events, profile, marks, errors) {
       cats,
       selfBy,
       causeBy,
+      // Frames slower than two refreshes (> 34 ms) are what a hand on the screen feels as a stutter.
+      frames: frames.length,
+      janky: frames.filter((f) => f > 34).length,
+      p95: sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0,
+      worst: sorted.length ? sorted[sorted.length - 1] : 0,
+      heapMb: pacing[phaseIndex]?.heapMb ?? 0,
     });
   }
 
@@ -302,11 +359,11 @@ function report(results) {
   for (const { dev, rows, errors } of results) {
     L.push(`## ${dev.label}`, '');
     if (errors.length) L.push(`Errors: ${errors.join(' · ')}`, '');
-    L.push('| phase | wall | main busy | long tasks | longest | TBT | style+layout | paint | GC | script load |');
-    L.push('|---|---|---|---|---|---|---|---|---|---|');
+    L.push('| phase | wall | main busy | long tasks | longest | TBT | frames | stutters >34ms | p95 frame | worst frame | JS heap | style+layout | paint | GC |');
+    L.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of rows)
       L.push(
-        `| ${r.phase} | ${ms(r.wallMs)} | ${ms(r.busyMs)} | ${r.longTasks} | ${ms(r.longestMs)} | ${ms(r.tbtMs)} | ${ms(r.cats['style + layout'])} | ${ms(r.cats.paint)} | ${ms(r.cats.gc)} | ${ms(r.cats['script load'])} |`,
+        `| ${r.phase} | ${ms(r.wallMs)} | ${ms(r.busyMs)} | ${r.longTasks} | ${ms(r.longestMs)} | ${ms(r.tbtMs)} | ${r.frames} | ${r.janky} | ${ms(r.p95)} | ${ms(r.worst)} | ${Math.round(r.heapMb)} MB | ${ms(r.cats['style + layout'])} | ${ms(r.cats.paint)} | ${ms(r.cats.gc)} |`,
       );
     L.push('');
     for (const r of rows) {

@@ -13,5 +13,8 @@
     "server:build": "pnpm --filter @syllabi/server build",
     "server:start": "pnpm --filter @syllabi/server start",
     "server:typecheck": "pnpm --filter @syllabi/server typecheck"
+  },
+  "devDependencies": {
+    "playwright": "1.61.0"
   }
 }

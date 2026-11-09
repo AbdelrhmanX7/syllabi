@@ -300,6 +300,20 @@ export function NotebookBoard({
   // pin its 0 end to a paper position; `viewportTick` re-renders the overlay when it moves.
   const viewportRef = useRef<(() => EditorViewport | null) | null>(null);
   const [viewportTick, setViewportTick] = useState(0);
+  // The editor pings on every moved frame. Re-rendering this whole screen (and the editor's toolbar under it)
+  // per scroll frame cost ~70 ms of main thread per flick on a big tablet, so only tick when someone reads it:
+  // the ruler overlay while it is open, or a new page number (the saved ruler for that page).
+  const rulerOnRef = useRef(false);
+  const lastViewportPageRef = useRef(-1);
+  const onViewportChange = useCallback(() => {
+    const pageIndex = viewportRef.current?.()?.pageIndex ?? 0;
+
+    if (!rulerOnRef.current && pageIndex === lastViewportPageRef.current) return;
+    lastViewportPageRef.current = pageIndex;
+    setViewportTick((n) => n + 1);
+  }, []);
+
+  rulerOnRef.current = rulerOn;
   const rulerPresets = useRulerPresets(pageId);
   const putRulerPreset = usePutRulerPreset(pageId);
   const rulerPageNo = (viewportRef.current?.()?.pageIndex ?? 0) + 1;
@@ -888,7 +902,7 @@ export function NotebookBoard({
         onImagePlaced={readOnly ? undefined : onImagePlaced}
         onPdfImported={handlePdfImported}
         viewportRef={viewportRef}
-        onViewportChange={() => setViewportTick((n) => n + 1)}
+        onViewportChange={onViewportChange}
         onViewportZoomChange={setBoardZoom}
         onPendingConceptMapHandled={handleConceptMapDrawn}
         onPendingImageImportHandled={handleImageInserted}

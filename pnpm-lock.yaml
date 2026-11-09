@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      playwright:
+        specifier: 1.61.0
+        version: 1.61.0
 
   apps/server:
     dependencies:
@@ -4047,6 +4051,11 @@ packages:
   fs.realpath@1.0.0:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
 
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -4953,6 +4962,16 @@ packages:
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
+
+  playwright-core@1.61.0:
+    resolution: {integrity: sha512-caX7TrY3Ml6egyDX0WUcTHDxodl/b51y5wJOdCEA36QviK/s2g081hvmGs8eaE3DWb6NYZQ6BjO/QkNRPenoPA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.61.0:
+    resolution: {integrity: sha512-Z+7BeeqQPRRzklHsVFP4KTGIyMxKUmfeRA4WisM6G3/XW6nwGeX6fX9qYaDa+CiUqpOkb2f6X3nar05R3kSuJQ==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   plimit-lit@1.6.1:
     resolution: {integrity: sha512-B7+VDyb8Tl6oMJT9oSO2CW8XC/T4UcJGrwOVoNGwOQsQYhlpfajmrMj5xeejqaASq3V/EqThyOeATEOMuSEXiA==}
@@ -8032,9 +8051,9 @@ snapshots:
     transitivePeerDependencies:
       - '@react-spectrum/provider'
 
-  '@heroui/system-rsc@2.3.14(@heroui/theme@2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.5.7)(typescript@5.6.3))))(react@19.3.0)':
+  '@heroui/system-rsc@2.3.14(@heroui/theme@2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.19.43)(typescript@5.6.3))))(react@19.3.0)':
     dependencies:
-      '@heroui/theme': 2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.5.7)(typescript@5.6.3)))
+      '@heroui/theme': 2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.19.43)(typescript@5.6.3)))
       '@react-types/shared': 3.29.1(react@19.3.0)
       clsx: 1.2.1
       react: 19.3.0
@@ -8056,7 +8075,7 @@ snapshots:
   '@heroui/system@2.4.16(@heroui/theme@2.4.16(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.19.43)(typescript@5.6.3))))(@react-spectrum/provider@3.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(framer-motion@12.43.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@heroui/react-utils': 2.1.10(react@19.3.0)
-      '@heroui/system-rsc': 2.3.14(@heroui/theme@2.4.16(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.19.43)(typescript@5.6.3))))(react@19.3.0)
+      '@heroui/system-rsc': 2.3.14(@heroui/theme@2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.19.43)(typescript@5.6.3))))(react@19.3.0)
       '@internationalized/date': 3.8.1
       '@react-aria/i18n': 3.12.9(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@react-aria/overlays': 3.27.1(@react-spectrum/provider@3.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -8073,7 +8092,7 @@ snapshots:
   '@heroui/system@2.4.16(@heroui/theme@2.4.16(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.5.7)(typescript@5.6.3))))(@react-spectrum/provider@3.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(framer-motion@12.43.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@heroui/react-utils': 2.1.10(react@19.3.0)
-      '@heroui/system-rsc': 2.3.14(@heroui/theme@2.4.15(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.5.7)(typescript@5.6.3))))(react@19.3.0)
+      '@heroui/system-rsc': 2.3.14(@heroui/theme@2.4.16(tailwindcss@3.4.16(ts-node@10.9.2(@types/node@20.5.7)(typescript@5.6.3))))(react@19.3.0)
       '@internationalized/date': 3.8.1
       '@react-aria/i18n': 3.12.9(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@react-aria/overlays': 3.27.1(@react-spectrum/provider@3.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -11655,6 +11674,9 @@ snapshots:
 
   fs.realpath@1.0.0: {}
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -12566,6 +12588,14 @@ snapshots:
   pirates@4.0.7: {}
 
   pkce-challenge@5.0.1: {}
+
+  playwright-core@1.61.0: {}
+
+  playwright@1.61.0:
+    dependencies:
+      playwright-core: 1.61.0
+    optionalDependencies:
+      fsevents: 2.3.2
 
   plimit-lit@1.6.1:
     dependencies:

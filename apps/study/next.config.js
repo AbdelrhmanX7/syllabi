@@ -6,6 +6,8 @@ const isWebExport = process.env.WEB_EXPORT === '1';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  // tools/perf-trace maps profiled time back to source files through the browser source maps.
+  productionBrowserSourceMaps: process.env.TRACE_BUILD === '1',
   trailingSlash: true,
   // Workspace packages ship raw TypeScript (`main: src/index.ts`), so they have to be transpiled here.
   transpilePackages: ['@repo/auth', '@repo/ui', '@repo/utils', '@repo/whiteboard-core', '@repo/whiteboard-react'],
