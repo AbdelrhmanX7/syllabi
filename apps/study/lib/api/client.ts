@@ -13,6 +13,7 @@ import { readSse, setStudyTransport } from './http';
 import { createMockTransport } from './mock';
 import { rememberLiveClasses } from './mock/class-map';
 import { markSample } from './sample';
+import { isSessionDead } from './session-401';
 
 import { readSessionToken, STUDY_TOKEN_KEY, STUDY_USER_KEY } from '@/lib/auth';
 import { getBackendSettingsSnapshot, subscribeBackendSettings } from '@/lib/backend-settings';
@@ -169,8 +170,11 @@ function authHeaders(): Record<string, string> {
  * A 401 is the backend saying this JWT is gone (plain-text body, e.g. "jwt must be provided"): drop
  * the dead session and go to /login. 403 (a confined role) is a normal error for the caller.
  */
-function handleUnauthorized(): void {
+function handleUnauthorized(message: string): void {
   if (typeof window === 'undefined') return;
+  // Both backends turn ANY error in their auth check (a slow database too) into a 401: keep a
+  // still-valid session unless the server says the token or account itself is gone.
+  if (!isSessionDead(readSessionToken(), message)) return;
 
   try {
     window.localStorage.removeItem(STUDY_TOKEN_KEY);
@@ -203,7 +207,7 @@ async function throwForResponse(res: Response): Promise<never> {
     // plain-text body stays the message
   }
 
-  if (res.status === 401) handleUnauthorized();
+  if (res.status === 401) handleUnauthorized(message);
 
   // Extra fields (409 `currentVersion`, extract `failedPages`) ride along on the error object.
   throw studyApiError(res.status, message, code, extra);
