@@ -121,6 +121,9 @@ export async function mcpPost(req: Request, res: Response) {
   // JSON-RPC, …) itself and reports them ONLY here — without this they leave no trace but a
   // bare 400 in the nginx log. See the note on the first-request 400 in the P6 report.
   transport.onerror = (e) => {
+    // Newer clients probe with a protocol version the SDK does not know yet, get the 400 listing the
+    // supported ones, and retry with one of those — expected, not worth a warning per probe.
+    if (/Unsupported protocol version/i.test(e?.message ?? "")) return;
     const body = req.body as { method?: unknown } | { method?: unknown }[] | undefined;
     const methods = (Array.isArray(body) ? body : [body]).map((m) => (m && typeof m.method === "string" ? m.method : null));
     void logger.warn("study mcp transport rejected a request", {
