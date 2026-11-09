@@ -82,10 +82,11 @@ const archiveFor = () => {
 
 /* 2–3. public build + public feed */
 run('node', ['scripts/android-release.mjs', '--from-commit', sha], { STUDY_BUILD_API: PUBLIC_API, STUDY_FEED_PREFIX: PUBLIC_FEED });
+// publish-android only accepts android-release archive names; the GitHub asset gets a friendly copy.
+run('node', ['scripts/publish-android.mjs', '--apk', archiveFor(), '--feed', PUBLIC_FEED, '--notes', notes]);
 const publicApk = join(distDir, `syllabi-${version}.apk`);
 
 copyFileSync(archiveFor(), publicApk);
-run('node', ['scripts/publish-android.mjs', '--apk', publicApk, '--feed', PUBLIC_FEED, '--notes', notes]);
 
 /* 4. GitHub Release */
 const sha256 = execFileSync('sha256sum', [publicApk], { encoding: 'utf8' }).split(/\s+/)[0];
