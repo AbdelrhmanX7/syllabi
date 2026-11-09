@@ -656,6 +656,7 @@ export function applySnappedShapeControls(object: FabricObject): void {
 
     object.controls = rotate ? { ...vertexControls, mtr: rotate } : vertexControls;
   }
+  object.setCoords(); // keep the handle positions keyed like the new controls
 }
 
 /** Keep {@link SNAPPED_SHAPE_PROP} through `toJSON` (Fabric drops unlisted props). Idempotent. */

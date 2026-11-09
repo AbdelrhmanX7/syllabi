@@ -9,7 +9,7 @@ import { compactCanvasJson } from '../utils/canvasJson';
 import { radicalVertices } from '../utils/radicalSign';
 import type { RadicalParams } from '../utils/radicalSign';
 import { adjustSnappedShape, radicalShape, recognizeShape } from '../utils/shapeRecognition';
-import { isRadicalObject, RADICAL_PARAMS_PROP, setRadicalParams } from './radicalObject';
+import { applyRadicalControls, isRadicalObject, RADICAL_PARAMS_PROP, setRadicalParams } from './radicalObject';
 import { applySnappedShapeControls, createSnappedShapeObject, registerSnappedShapePersistence, SNAPPED_SHAPE_PROP } from './shapeSnap';
 
 const STYLE = { color: '#2563eb', width: 3, opacity: 1, blur: 0, nib: null };
@@ -234,5 +234,22 @@ describe('radical in the hold-to-snap pipeline', () => {
     assert.equal(adjusted.radical.params.height, shape.radical.params.height);
     assert.equal(adjusted.radical.params.tick, shape.radical.params.tick);
     assert.deepEqual(adjusted.radical.anchor, shape.radical.anchor);
+  });
+
+  it('hovering a loaded radical with Select does not crash (handle positions follow the swapped handles)', () => {
+    const object = makeRadical();
+
+    // findControl only answers on a canvas; the handle math only needs its viewport.
+    object.canvas = { viewportTransform: [1, 0, 0, 1, 0, 0], getActiveObject: () => object } as unknown as FabricObject['canvas'];
+    // A board load: the box handles' positions get computed, then the radical handles replace them.
+    object.controls = new Polyline([{ x: 0, y: 0 }, { x: 1, y: 1 }]).controls;
+    object.setCoords();
+    applyRadicalControls(object);
+    assert.deepEqual(Object.keys(object.oCoords).sort(), Object.keys(object.controls).sort());
+    assert.doesNotThrow(() => object.findControl(new Point(0, 0)));
+
+    // Safety net: controls swapped behind Fabric's back still never throw on hover.
+    object.controls = { bar: object.controls.bar };
+    assert.doesNotThrow(() => object.findControl(new Point(0, 0)));
   });
 });

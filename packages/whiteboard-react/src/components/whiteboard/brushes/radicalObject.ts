@@ -1,4 +1,4 @@
-import { Control, controlsUtils, Point, Polyline, Shadow, util } from 'fabric';
+import { Control, controlsUtils, FabricObject as FabricObjectClass, Point, Polyline, Shadow, util } from 'fabric';
 
 import type { FabricObject, TPointerEvent, Transform } from 'fabric';
 
@@ -174,6 +174,29 @@ function drawRadicalOutline(this: Polyline, ctx: CanvasRenderingContext2D, optio
 const HANDLE = { sizeX: 18, sizeY: 18, touchSizeX: 44, touchSizeY: 44 } as const;
 
 /** The radical's two stretch handles, and nothing that would scale or skew it. Idempotent. */
+/**
+ * Safety net: Fabric 7 runs `findControl` on every hovered object and reads `controls[key]` for each
+ * `oCoords` key. If anything ever swaps an object's controls without `setCoords()`, that read is
+ * undefined and the board crashes on a plain hover. Resync once instead of throwing.
+ */
+function installFindControlGuard(): void {
+  const proto = FabricObjectClass.prototype as FabricObject & { __wbFindControlGuard?: boolean };
+
+  if (proto.__wbFindControlGuard) return;
+  proto.__wbFindControlGuard = true;
+  const original = proto.findControl;
+
+  proto.findControl = function findControlGuarded(this: FabricObject, ...args: Parameters<FabricObject['findControl']>) {
+    const coords = this.oCoords as Record<string, unknown> | undefined;
+
+    if (coords && Object.keys(coords).some((key) => !this.controls[key])) this.setCoords();
+
+    return original.apply(this, args);
+  };
+}
+
+installFindControlGuard();
+
 export function applyRadicalControls(object: FabricObject): void {
   if (!isRadicalObject(object)) return;
 
@@ -206,4 +229,7 @@ export function applyRadicalControls(object: FabricObject): void {
       actionHandler: controlsUtils.wrapWithFireEvent(RADICAL_ACTION, stretchDepth),
     }),
   };
+  // The handle positions (`oCoords`) are keyed by control name; left on the old box's keys, Fabric's
+  // hover check looks up `controls.tl` etc. and throws — hovering the sign with Select crashed the board.
+  object.setCoords();
 }
