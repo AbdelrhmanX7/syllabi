@@ -5,6 +5,7 @@ import studyDevUploadRouter from "@/routes/study/dev-upload";
 import studyMcpPublicRouter from "@/routes/study/mcp";
 import studyInboxPublicRouter from "@/routes/study/inbox";
 import studyTelemetryRouter from "@/routes/study/telemetry";
+import statsRouter from "@/routes/stats";
 import { adminVerification, studyAccess } from "@/compat/auth";
 import authRouter from "@/auth/router";
 import accountsRouter from "@/auth/accounts-router";
@@ -67,6 +68,7 @@ export function createApp() {
   app.use(studyMcpPublicRouter);
   app.use(studyInboxPublicRouter);
   app.use(studyTelemetryRouter);
+  app.use(statsRouter);
   // Sharing (routes/share.ts): its own prefix, before /study so the study router never sees it.
   // Both paths: the app's transport puts every live route under /study.
   app.use(["/share", "/study/share"], adminVerification, studyAccess, shareRouter);

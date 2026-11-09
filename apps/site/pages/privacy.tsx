@@ -26,6 +26,10 @@ export default function Privacy() {
           AI features send the text or images you ask about to an AI model provider to produce the answer. Nothing is
           sent until you use an AI feature.
         </li>
+        <li>
+          To count how many people download and use the app: the app sends a random number once a day when it opens,
+          and the download button counts a press. No name, email or account is attached to these counts.
+        </li>
       </ul>
       <p>We do not sell your data, show ads or use your data to track you across other sites.</p>
       <h2>Where it lives</h2>

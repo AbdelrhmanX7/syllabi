@@ -18,6 +18,7 @@ import { OfflineRoot } from '@/lib/offline/OfflineRoot';
 import { applyPersistDefaults } from '@/lib/offline/persist';
 import { IS_ANDROID_BUILD } from '@/lib/platform/runtime';
 import { installClickSounds } from '@/lib/sound/click';
+import { pingAppOpen } from '@/lib/stats/ping';
 import '@/styles/globals.css';
 
 // Module scope: features call the API from their first render, so the transport must exist before
@@ -80,6 +81,12 @@ export default function App({ Component, pageProps }: AppProps) {
   // Android static export: a hard load of a path that has no HTML file falls back to index.html.
   // Routes here are query-param based (`/item/?id=`) so this only matters for a stale deep link.
   useEffect(() => installClickSounds(), []);
+  // A few seconds after start, so it never competes with the first screen.
+  useEffect(() => {
+    const timer = setTimeout(pingAppOpen, 5_000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!IS_ANDROID_BUILD || router.pathname !== '/') return;

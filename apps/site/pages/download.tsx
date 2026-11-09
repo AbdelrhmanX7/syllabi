@@ -19,6 +19,20 @@ interface Latest {
 const GREEN =
   'border-[#155C3F] bg-[#1F7A55] text-white shadow-[0_4px_0_0_#155C3F] hover:bg-[#1F7A55] hover:brightness-110 active:translate-y-[3px] active:shadow-none dark:border-[#2E9E6E] dark:hover:bg-[#4FD69C] dark:bg-[#4FD69C] dark:text-[#06281A] dark:shadow-[0_4px_0_0_#2E9E6E]';
 
+/** Counts a download-button press (anonymous, see the server's site_stats). Never blocks the download. */
+function countDownload() {
+  try {
+    void fetch('https://api.syllabi.studio/stats/event', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'download_click', platform: 'android' }),
+    }).catch(() => undefined);
+  } catch {
+    // ignore
+  }
+}
+
 export default function DownloadPage() {
   const [latest, setLatest] = useState<Latest | null>(null);
   const [failed, setFailed] = useState(false);
@@ -48,10 +62,12 @@ export default function DownloadPage() {
         </p>
 
         <div className='mt-6 flex flex-wrap items-center gap-3'>
-          <LinkButton className={GREEN} href={latest?.url ?? FEED_PAGE} variant='ghost'>
-            <Download aria-hidden className='h-4 w-4' />
-            Download the app
-          </LinkButton>
+          <span className='contents' onClickCapture={countDownload}>
+            <LinkButton className={GREEN} href={latest?.url ?? FEED_PAGE} variant='ghost'>
+              <Download aria-hidden className='h-4 w-4' />
+              Download the app
+            </LinkButton>
+          </span>
           <a className='text-st-accent text-sm underline' href='https://app.syllabi.studio'>
             Or use it in your browser
           </a>
