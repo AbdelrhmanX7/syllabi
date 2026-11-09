@@ -603,6 +603,7 @@ interface TargetFindingCanvas {
   _checkTarget: (obj: FabricObject, pointer: Point) => boolean;
   getZoom: () => number;
   getViewportPoint: (e: Event) => Point;
+  getScenePoint: (e: Event) => Point;
 }
 
 interface InstallOptions {
@@ -637,6 +638,17 @@ export function setSelectionGrabsByPaint(canvas: Canvas, on = true): () => void 
   return () => {
     paintGrabCanvases.delete(canvas);
   };
+}
+
+const freshSelections = new WeakMap<object, FabricObject>();
+
+/**
+ * A just-pasted or just-duplicated selection: until it is deselected, a press anywhere inside its box
+ * drags it. A duplicate lands on top of its original, and the original's strokes under the copy would
+ * otherwise take the press and the person would have to select the copy again.
+ */
+export function markFreshSelection(canvas: Canvas, active: FabricObject): void {
+  freshSelections.set(canvas, active);
 }
 
 /** Does a press at `point` (scene) grab the selected `active` object by its paint (a multi-selection by any member's)? */
@@ -719,6 +731,10 @@ export function installGeometryTargetFind(canvas: Canvas, options: InstallOption
 
     const info = originalFindTarget.call(this, e);
     const active = this._activeObject;
+
+    if (active && freshSelections.get(this) === active && typeof this.getScenePoint === 'function' && pointInPolygon(this.getScenePoint(e), active.getCoords())) {
+      return { ...info, target: active, container: active, subTargets: [] };
+    }
     const touched = info?.currentTarget;
 
     if (active && info.target === active && touched && touched !== active && !isSelectionMember(active, touched)) {

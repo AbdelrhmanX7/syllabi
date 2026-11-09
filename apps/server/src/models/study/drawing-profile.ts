@@ -20,6 +20,8 @@ export interface IStudyDrawingProfile {
   usablePageMm: { w: number; h: number };
   penModes: PenMode[];
   dashed: boolean;
+  /** Notebook paper ruling in mm (Settings → Notebook paper), so Claude's PDFs and worksheets line up. */
+  paper: { linedMm: number | null; gridMm: number | null };
   guide: string;
   createdAt: Date;
   updatedAt: Date;
@@ -43,6 +45,10 @@ const StudyDrawingProfileSchema = new Schema<IStudyDrawingProfile>(
     usablePageMm: { type: new Schema({ w: Number, h: Number }, { _id: false }), required: true },
     penModes: { type: [{ type: String, enum: PEN_MODES }], default: [...PEN_MODES] },
     dashed: { type: Boolean, default: false },
+    paper: {
+      type: new Schema({ linedMm: { type: Number, default: null }, gridMm: { type: Number, default: null } }, { _id: false }),
+      default: () => ({ linedMm: null, gridMm: null }),
+    },
     guide: { type: String, default: "" },
   },
   { timestamps: true }

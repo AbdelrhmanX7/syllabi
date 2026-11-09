@@ -6,6 +6,8 @@ import type { BackgroundType, WhiteboardDocument } from '@repo/whiteboard-core';
 import { useSyncExternalStore } from 'react';
 import { normalizePaperSpacingMm } from '@repo/whiteboard-core';
 
+import { patchPaperRuling } from '@/lib/api/endpoints';
+
 const STORAGE_KEY = 'study_paper_spacing';
 
 /** mm per paper type; a missing type = the board's original spacing. 'dotted' uses 'grid'. */
@@ -43,6 +45,23 @@ export function readPaperSpacingDefaults(): PaperSpacingDefaults {
 }
 
 /** Set (mm) or clear (null) the default for one paper type. */
+let pushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Tell the account about the ruling so the AI's PDFs and worksheets line up with the paper. Debounced
+ * (the slider fires per step); best effort — offline, demo mode or an older server just skip it.
+ */
+export function pushPaperSpacingToAccount(delayMs = 800): void {
+  if (typeof window === 'undefined') return;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    pushTimer = null;
+    const { lined, grid } = readPaperSpacingDefaults();
+
+    patchPaperRuling({ linedMm: lined ?? null, gridMm: grid ?? null }).catch(() => undefined);
+  }, delayMs);
+}
+
 export function savePaperSpacingDefault(type: 'lined' | 'grid', mm: number | null): void {
   const current = { ...readPaperSpacingDefaults() };
   const value = mm === null ? undefined : normalizePaperSpacingMm(mm);
@@ -59,6 +78,7 @@ export function savePaperSpacingDefault(type: 'lined' | 'grid', mm: number | nul
   }
 
   listeners.forEach((listener) => listener());
+  pushPaperSpacingToAccount();
 }
 
 function subscribe(listener: () => void): () => void {

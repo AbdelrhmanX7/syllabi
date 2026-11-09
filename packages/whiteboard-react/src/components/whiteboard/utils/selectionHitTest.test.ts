@@ -22,6 +22,7 @@ import {
   strokeGeometryOf,
   strokeSamples,
   tapTolerancePx,
+  markFreshSelection,
 } from './selectionHitTest';
 
 // What the pen brush produces: an open path, stroked, never filled.
@@ -410,6 +411,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
       _activeObject: null as FabricObject | null,
       getZoom: () => zoom,
       getViewportPoint: () => new Point(pointer.x * zoom, pointer.y * zoom),
+      getScenePoint: () => new Point(pointer.x, pointer.y),
       _checkTarget(obj: FabricObject, p: Point) {
         return !!obj.visible && !!obj.evented && pointInPolygon(p, obj.getCoords());
       },
@@ -506,6 +508,27 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
     assert.equal(at(20, 70), selection, 'empty space inside the selection');
     assert.equal(at(50, 1), selection, 'a member\'s ink: still the selection');
     assert.equal(at(50, 51), other, 'ink that is not in the selection');
+    uninstall();
+  });
+
+  it('a fresh duplicate on top of its original: a press inside the copy drags the copy, not an original stroke', () => {
+    const copyA = strokePath('M 20 20 L 120 20');
+    const copyB = strokePath('M 20 120 L 120 120');
+    const original = strokePath('M 0 70 L 100 70'); // under the copy, between its strokes
+
+    [copyA, copyB, original].forEach((object) => object.setCoords());
+
+    const selection = new ActiveSelection([copyA, copyB]);
+
+    selection.setCoords();
+
+    const { canvas, at, uninstall } = makeCanvas([original, copyA, copyB]);
+
+    canvas._activeObject = selection;
+    assert.equal(at(50, 70), original, 'an ordinary selection: the ink under the press is picked');
+    markFreshSelection(canvas as never, selection);
+    assert.equal(at(50, 70), selection, 'a fresh duplicate: the copy is dragged');
+    assert.equal(at(300, 300), undefined, 'outside the copy: nothing');
     uninstall();
   });
 

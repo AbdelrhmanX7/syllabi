@@ -33,7 +33,7 @@ import { putStudyObject, signedGetUrl, SIGNED_URL_TTL_SEC, studyFileKey } from "
 import { escapeRegex } from "@/controllers/study.controller";
 import { DRAW_MAX_SHAPES, DrawError, deleteDrawing, drawOnPage, drawShapeSchema } from "./board-draw";
 import { parseRuler, RulerError, rulerDto, rulersDto, validatePage } from "./page-ruler";
-import { getOrSeedProfile, profileDto } from "./drawing-profile";
+import { getOrSeedProfile, parseProfilePatch, patchProfile, profileDto } from "./drawing-profile";
 import { copyInboxImageToQuestion, QuestionImageError } from "./question-images";
 import { annotationDto } from "@/controllers/study-page-renders.controller";
 import {
@@ -1039,11 +1039,33 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     "get_drawing_profile",
     {
       description:
-        "The owner's drawing profile: device (Galaxy Tab S9 Ultra), ruler calibration, board units per paper mm, usable page size in mm, pen line modes, and the GUIDE for giving real-size drawings (state scale 1:N and vertical exaggeration first; lengths in real mm; angles in degrees counter-clockwise from horizontal; one origin; solid vs dashed; always a scale bar; numbered steps). Call this BEFORE giving or making any drawing.",
+        "The owner's drawing profile: device (Galaxy Tab S9 Ultra), ruler calibration, board units per paper mm, usable page size in mm, pen line modes, the notebook PAPER ruling (lined and grid spacing in mm — every PDF, worksheet or study guide for the notebook must be ruled at exactly that spacing, see paperNote), and the GUIDE for giving real-size drawings (state scale 1:N and vertical exaggeration first; lengths in real mm; angles in degrees counter-clockwise from horizontal; one origin; solid vs dashed; always a scale bar; numbered steps). Call this BEFORE giving or making any drawing.",
       inputSchema: {},
       annotations: READ,
     },
     async () => ok(profileDto(await getOrSeedProfile(userId)))
+  );
+
+  server.registerTool(
+    "set_paper_settings",
+    {
+      description:
+        "Save the owner's notebook paper ruling in mm (lined = space between lines, grid = grid/dot spacing), e.g. when the owner says 'my lined paper is 7.9 mm'. get_drawing_profile returns it as paper, and every PDF or worksheet for the notebook must match it. null clears a value.",
+      inputSchema: {
+        linedMm: z.number().min(2).max(40).nullable().optional(),
+        gridMm: z.number().min(2).max(40).nullable().optional(),
+      },
+      annotations: WRITE,
+    },
+    async ({ linedMm, gridMm }) => {
+      const paper: Record<string, number | null> = {};
+      if (linedMm !== undefined) paper.linedMm = linedMm;
+      if (gridMm !== undefined) paper.gridMm = gridMm;
+      const parsed = parseProfilePatch({ paper });
+      if ("error" in parsed) return toolError(parsed.error, "VALIDATION_ERROR");
+      const p = profileDto(await patchProfile(userId, parsed.set));
+      return ok({ paper: p.paper });
+    }
   );
 
   server.registerTool(

@@ -11,6 +11,7 @@ import { inkPenOf } from '../brushes/inkPenMark';
 
 import { invalidateInkBake } from './inkBake';
 import { isLockedImage } from './lockedImages';
+import { markFreshSelection } from './selectionHitTest';
 import { buildClipboard, placeClipboard, planSelectionRaster, recolorObject, rectsOverlap, restrokeObject, unionRects } from './selectionClipboard';
 
 import type { ClipboardItem, ClipboardRect, RecolorableObject, WbClipboard } from './selectionClipboard';
@@ -102,7 +103,10 @@ export async function pasteClipboard(
 
   canvas.discardActiveObject();
   canvas.add(...objects);
-  canvas.setActiveObject(objects.length === 1 ? objects[0]! : new ActiveSelection(objects, { canvas }));
+  const selection = objects.length === 1 ? objects[0]! : new ActiveSelection(objects, { canvas });
+
+  canvas.setActiveObject(selection);
+  markFreshSelection(canvas, selection);
   canvas.requestRenderAll();
 
   return objects;

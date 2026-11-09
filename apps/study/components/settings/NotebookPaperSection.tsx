@@ -9,11 +9,12 @@ import {
 } from '@repo/whiteboard-core';
 
 import { Slider } from '@repo/ui';
+import { useEffect } from 'react';
 
 import { FilterChip, SectionTitle, Surface } from '@/components/ui/primitives';
 import { ToggleRow } from '@/components/ui/Toggle';
 import { saveBoardThemeSetting, useBoardThemeSetting } from '@/lib/notebooks/board-theme';
-import { savePaperSpacingDefault, usePaperSpacingDefaults } from '@/lib/notebooks/paper-settings';
+import { pushPaperSpacingToAccount, savePaperSpacingDefault, usePaperSpacingDefaults } from '@/lib/notebooks/paper-settings';
 import { saveNotebookFillScreen, useNotebookFillScreen } from '@/lib/notebooks/fill-screen';
 import { saveHidePenShortcuts, useHidePenShortcuts } from '@/lib/notebooks/pen-shortcuts-button';
 
@@ -102,6 +103,9 @@ export function NotebookPaperSection() {
   const defaults = usePaperSpacingDefaults();
   const hidePenShortcuts = useHidePenShortcuts();
   const fillScreen = useNotebookFillScreen();
+
+  // Settings open → make sure the account (and so the AI) has this device's paper ruling.
+  useEffect(() => pushPaperSpacingToAccount(0), []);
 
   return (
     <Surface className='p-5'>

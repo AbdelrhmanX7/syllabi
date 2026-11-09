@@ -368,3 +368,7 @@ export function collectDeltas(onText: (text: string) => void): (frame: SseFrame)
 
 /** Re-exported so features can type the verdict frames without importing two modules. */
 export type { AttemptVerdict };
+
+/** Notebook paper ruling (mm, null = the board's own default) → the drawing profile Claude reads. */
+export const patchPaperRuling = (paper: { linedMm: number | null; gridMm: number | null }) =>
+  studyPatch<unknown>('/drawing-profile', { paper });

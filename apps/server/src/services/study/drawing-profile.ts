@@ -31,8 +31,13 @@ export const defaultProfile = () => ({
   usablePageMm: { w: 150, h: 200 },
   penModes: [...PEN_MODES],
   dashed: false,
+  paper: { linedMm: null as number | null, gridMm: null as number | null },
   guide: DRAWING_GUIDE,
 });
+
+/** How Claude must use the paper ruling — sent with every profile read (the stored guide is per-row and older rows lack it). */
+export const PAPER_NOTE =
+  "paper = the owner's notebook ruling in mm. Any PDF, worksheet, study guide or drawing meant for the notebook must use it: rule lined pages at exactly paper.linedMm between lines and grid/dotted pages at exactly paper.gridMm, start the first line one spacing below the top margin, and snap every text baseline, answer space and diagram edge to those lines (text about 0.6–0.7 of the spacing tall). A null value means it is not known yet: ask the owner, then save it with set_paper_settings.";
 
 /** The profile row, created from the defaults on first read (a racing create re-reads the winner). */
 export async function getOrSeedProfile(userId: Types.ObjectId): Promise<IStudyDrawingProfile> {
@@ -54,6 +59,8 @@ export const profileDto = (p: IStudyDrawingProfile) => ({
   usablePageMm: p.usablePageMm,
   penModes: p.penModes,
   dashed: p.dashed,
+  paper: { linedMm: p.paper?.linedMm ?? null, gridMm: p.paper?.gridMm ?? null },
+  paperNote: PAPER_NOTE,
   guide: p.guide,
   updatedAt: new Date(p.updatedAt).toISOString(),
 });
@@ -66,7 +73,7 @@ const GUIDE_MAX = 20_000;
 export function parseProfilePatch(body: unknown): { set: Record<string, unknown> } | { error: string } {
   if (!isObj(body)) return { error: "body must be an object" };
   const set: Record<string, unknown> = {};
-  const known = new Set(["device", "calibration", "pageUnitsPerMm", "usablePageMm", "penModes", "dashed", "guide"]);
+  const known = new Set(["device", "calibration", "pageUnitsPerMm", "usablePageMm", "penModes", "dashed", "paper", "guide"]);
   for (const k of Object.keys(body)) if (!known.has(k)) return { error: `unknown field ${k}` };
 
   if (body.device !== undefined) {
@@ -131,6 +138,17 @@ export function parseProfilePatch(body: unknown): { set: Record<string, unknown>
   if (body.dashed !== undefined) {
     if (typeof body.dashed !== "boolean") return { error: "dashed must be a boolean" };
     set.dashed = body.dashed;
+  }
+  if (body.paper !== undefined) {
+    const pp = body.paper;
+    if (!isObj(pp) || (pp.linedMm === undefined && pp.gridMm === undefined)) return { error: "paper must be {linedMm?, gridMm?}" };
+    for (const k of Object.keys(pp)) if (!["linedMm", "gridMm"].includes(k)) return { error: `unknown paper field ${k}` };
+    for (const k of ["linedMm", "gridMm"] as const) {
+      const v = pp[k];
+      if (v === undefined) continue;
+      if (v !== null && !inRange(v, 2, 40)) return { error: `paper.${k} must be 2..40 (mm) or null` };
+      set[`paper.${k}`] = v === null ? null : Math.round(v * 10) / 10;
+    }
   }
   if (body.guide !== undefined) {
     if (typeof body.guide !== "string" || body.guide.length > GUIDE_MAX) return { error: `guide must be a string (max ${GUIDE_MAX})` };

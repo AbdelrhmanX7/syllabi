@@ -67,6 +67,8 @@ export const LIVE_ROUTES = [
   '/convert',
   // Sharing (read-only share + make a copy): the server mounts it at /study/share too.
   '/share',
+  // Ruler calibration + notebook paper ruling the AI reads (get_drawing_profile).
+  '/drawing-profile',
 ] as const;
 
 /**
