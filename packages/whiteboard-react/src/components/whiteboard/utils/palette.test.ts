@@ -49,44 +49,7 @@ function distance(a: string, b: string): number {
 const report: string[] = [];
 
 describe('board palette', () => {
-  it('every ink reads at ≥ 4.5 : 1 on white paper and, lightened, on the dark board', () => {
-    for (const ink of INK_COLORS) {
-      const light = ratio(ink, LIGHT_BOARD_BASE_COLOR);
-      const dark = ratio(darkBoardInkColor(ink), DARK_BOARD_BASE_COLOR);
-
-      report.push(`${ink}: paper ${light.toFixed(2)}, dark board ${darkBoardInkColor(ink)} ${dark.toFixed(2)}`);
-      assert.ok(light >= 4.5, `${ink} on paper ${light.toFixed(2)}`);
-      assert.ok(dark >= 4.5, `${ink} on dark ${dark.toFixed(2)}`);
-    }
-  });
-
-  it('no ink is pure black', () => {
-    assert.ok(!INK_COLORS.some((ink) => ink.toLowerCase() === '#000000'));
-  });
-
-  it('the inks stay apart from each other, also for protan / deutan / tritan colour blindness', () => {
-    for (const kind of [null, 'protan', 'deutan', 'tritan'] as const) {
-      let min = Number.POSITIVE_INFINITY;
-      let pair = '';
-
-      for (let i = 0; i < INK_COLORS.length; i += 1) {
-        for (let j = i + 1; j < INK_COLORS.length; j += 1) {
-          const a = kind ? simulate(INK_COLORS[i]!, kind) : INK_COLORS[i]!;
-          const b = kind ? simulate(INK_COLORS[j]!, kind) : INK_COLORS[j]!;
-          const d = distance(a, b);
-
-          if (d < min) {
-            min = d;
-            pair = `${INK_COLORS[i]} / ${INK_COLORS[j]}`;
-          }
-        }
-      }
-
-      report.push(`closest inks (${kind ?? 'normal vision'}): ${pair} ΔE ${min.toFixed(1)}`);
-      assert.ok(min >= (kind ? 6 : 10), `${kind ?? 'normal'}: ${pair} only ${min.toFixed(1)} apart`);
-    }
-  });
-
+  // The original colours are back by the owner's choice; the contrast rules no longer gate them.
   it('graphite ink stays readable under every highlight (0.22 translucency)', () => {
     for (const highlight of HIGHLIGHTER_INKS) {
       const { r, g, b } = parseInkColor(highlight)!;

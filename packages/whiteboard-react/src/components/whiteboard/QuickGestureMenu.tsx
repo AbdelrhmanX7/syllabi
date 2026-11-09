@@ -44,8 +44,10 @@ interface QuickGestureMenuProps {
   positionStorageKey?: string;
 }
 
-/** The ring's six colour slots: the first six inks of the board palette. */
-export const QUICK_GESTURE_COLORS: readonly string[] = DEFAULT_COLORS.slice(0, 6);
+export const QUICK_GESTURE_COLORS: readonly string[] = DEFAULT_COLORS.filter((color) => color !== '#FFFFFF' && color !== '#6B7280').slice(
+  0,
+  6,
+);
 
 const SLOTS = getQuickMenuSlots();
 const DISC_SIZE = QUICK_MENU_EXTENT * 2;

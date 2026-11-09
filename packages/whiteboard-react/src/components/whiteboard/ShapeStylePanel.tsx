@@ -38,7 +38,8 @@ interface ShapeStylePanelProps {
   className?: string;
 }
 
-const STROKE_SWATCHES = INK_COLORS.slice(0, 5);
+// Black, red, green, blue, orange.
+const STROKE_SWATCHES = [INK_COLORS[0], INK_COLORS[2], INK_COLORS[5], INK_COLORS[6], INK_COLORS[3]];
 
 const TOGGLE_CLASS =
   'text-ink inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-ink/5 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1';

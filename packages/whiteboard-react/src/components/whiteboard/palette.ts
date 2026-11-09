@@ -12,16 +12,18 @@
  * black included) paints exactly as before.
  */
 
-/** Pen / stroke inks. Graphite, never pure black. The same list as whiteboard-core's `DEFAULT_COLORS`. */
+/** Pen / stroke inks: the board's original set (the owner prefers it). Same list as whiteboard-core's `DEFAULT_COLORS`. */
 export const INK_COLORS = [
-  '#1F2937', // graphite
-  '#2563EB', // blue
-  '#991B1B', // red (deep, so it never reads like the green or the orange)
-  '#15803D', // green
-  '#C2410C', // orange
-  '#581C87', // purple (deep, apart from the blue for red–green colour blindness)
-  '#A21CAF', // magenta
-  '#115E59', // teal
+  '#000000',
+  '#FFFFFF',
+  '#EF4444',
+  '#F97316',
+  '#EAB308',
+  '#22C55E',
+  '#3B82F6',
+  '#8B5CF6',
+  '#EC4899',
+  '#6B7280',
 ] as const;
 
 export const DEFAULT_INK_COLOR = INK_COLORS[0];
@@ -30,13 +32,7 @@ export const DEFAULT_INK_COLOR = INK_COLORS[0];
  * Highlighter inks — full-strength hexes, laid down at the highlighter's own translucency, so text under
  * them stays readable.
  */
-export const HIGHLIGHTER_INKS = [
-  '#FFD60A', // yellow
-  '#4ADE80', // green
-  '#38BDF8', // blue
-  '#F472B6', // pink
-  '#FB923C', // orange
-] as const;
+export const HIGHLIGHTER_INKS = ['#ffd60a', '#ff9f1c', '#ff5d8f', '#7bd389', '#4cc9f0', '#a78bfa', '#f15bb5', '#2f5bea', '#9ef01a', '#ffffff'] as const;
 
 /** «No fill». Stored as an empty fill on the object. */
 export const NO_FILL = 'transparent';
@@ -46,19 +42,20 @@ export const NO_FILL = 'transparent';
  * dark board they are painted as deep tints of the same hue instead (`darkBoardFillColor`).
  */
 export const FILL_TINTS = [
-  '#E5E7EB', // graphite
-  '#DBEAFE', // blue
+  '#E5E7EB', // black
+  '#FFFFFF', // white
   '#FEE2E2', // red
-  '#DCFCE7', // green
   '#FFEDD5', // orange
-  '#F3E8FF', // purple
-  '#FAE8FF', // magenta
-  '#CCFBF1', // teal
-  '#FEF9C3', // yellow (pairs with the yellow highlight)
+  '#FEF9C3', // yellow
+  '#DCFCE7', // green
+  '#DBEAFE', // blue
+  '#EDE9FE', // violet
+  '#FCE7F3', // pink
+  '#F3F4F6', // grey
 ] as const;
 
 /** The short background row of the shape panel: none, then light red, green, blue and yellow. */
-export const QUICK_FILL_TINTS = [NO_FILL, FILL_TINTS[2], FILL_TINTS[3], FILL_TINTS[1], FILL_TINTS[8]] as const;
+export const QUICK_FILL_TINTS = [NO_FILL, FILL_TINTS[2], FILL_TINTS[5], FILL_TINTS[6], FILL_TINTS[4]] as const;
 
 /** The light fill that pairs with an ink of the palette (null for a colour outside it). */
 export function tintForInk(ink: string): string | null {

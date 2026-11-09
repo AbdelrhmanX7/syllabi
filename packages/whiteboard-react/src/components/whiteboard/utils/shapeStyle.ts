@@ -50,7 +50,7 @@ export interface ShapeStyleSettings {
 }
 
 export const DEFAULT_SHAPE_STYLE: ShapeStyleSettings = {
-  stroke: '#1F2937',
+  stroke: '#000000',
   fill: 'transparent',
   fillStyle: 'hatch',
   width: 4,
