@@ -131,21 +131,69 @@ export async function loadInboxFile(item: InboxItem): Promise<File> {
   }
 }
 
+/** The open board's «Insert from phone» hooks, so an arrival toast can drop the file right there. */
+export interface BoardInsertTarget {
+  onInsert: (file: File, item: InboxItem) => void;
+  onInsertPdf?: (file: File, item: InboxItem) => void;
+}
+
+let boardTarget: BoardInsertTarget | null = null;
+
+/** A board registers while it is open (InsertFromPhoneButton). Returns the unregister. */
+export function registerBoardInsertTarget(target: BoardInsertTarget): () => void {
+  boardTarget = target;
+
+  return () => {
+    if (boardTarget === target) boardTarget = null;
+  };
+}
+
+/** Download an arrival and hand it to the open board: a photo goes in the middle of the page, a PDF to the import sheet. */
+async function putOnBoard(target: BoardInsertTarget, item: InboxItem): Promise<void> {
+  try {
+    const file = await loadInboxFile(item);
+
+    if (item.kind === 'pdf') {
+      target.onInsertPdf?.(file, item);
+    } else {
+      target.onInsert(file, item);
+      void markItemUsed(item.id);
+    }
+  } catch {
+    addToast({ title: 'Could not load that file', description: 'Try again from «From phone» on the board.', color: 'danger', timeout: 5_000 });
+  }
+}
+
+const TOAST_ACTION = 'text-st-accent shrink-0 text-sm font-semibold underline underline-offset-2';
+
 function toastArrival(items: InboxItem[]): void {
   const first = items[0];
   const many = items.length > 1;
+  const target = boardTarget;
+  const onBoard = !!target && (first.kind !== 'pdf' || !!target.onInsertPdf);
 
   addToast({
     title: many
-      ? `📱 ${items.length} new photos from iPhone`
-      : `📱 New ${first.kind === 'pdf' ? 'PDF' : 'photo'} from iPhone`,
-    description: first.note ?? 'In your Inbox — put it on a board, in notes or in the bank.',
-    timeout: 6_000,
-    endContent: (
-      <Link className='text-st-accent shrink-0 text-sm font-semibold underline underline-offset-2' href='/inbox/'>
-        Open
-      </Link>
-    ),
+      ? `📱 ${items.length} new photos from your phone`
+      : `📱 New ${first.kind === 'pdf' ? 'PDF' : 'photo'} from your phone`,
+    description:
+      first.note ??
+      (onBoard
+        ? many
+          ? 'Tap «Put here» for the newest one; the rest are under «From phone».'
+          : 'Tap «Put here» to add it to this page.'
+        : 'In your Inbox — put it on a board, in notes or in the bank.'),
+    timeout: onBoard ? 10_000 : 6_000,
+    endContent:
+      onBoard && target ? (
+        <button className={TOAST_ACTION} type='button' onClick={() => void putOnBoard(target, first)}>
+          Put here
+        </button>
+      ) : (
+        <Link className={TOAST_ACTION} href='/inbox/'>
+          Open
+        </Link>
+      ),
   });
 }
 

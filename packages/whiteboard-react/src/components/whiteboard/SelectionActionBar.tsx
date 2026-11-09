@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { Baseline, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Scissors, Sparkles, Trash2 } from 'lucide-react';
+import { Baseline, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Pin, Scissors, Sparkles, Trash2 } from 'lucide-react';
 import { ColorSwatch } from '@repo/ui';
 
 import { ShapeStylePanel } from './ShapeStylePanel';
@@ -63,6 +63,8 @@ interface SelectionActionBarProps {
   onStraighten?: () => void;
   /** «Crop» — the editor passes it only for one unpinned picture. */
   onCrop?: () => void;
+  /** «Pin image» — the editor passes it only for one unpinned picture (lives here so the bar never covers it). */
+  onPin?: () => void;
   /** Host buttons, after the built-in ones. */
   extraActions?: readonly WhiteboardSelectionAction[];
   onExtraAction?: (action: WhiteboardSelectionAction) => void;
@@ -127,6 +129,7 @@ export function SelectionActionBar({
   onMapTerms,
   onStraighten,
   onCrop,
+  onPin,
   extraActions,
   onExtraAction,
   variant = 'compact',
@@ -297,6 +300,12 @@ export function SelectionActionBar({
               <span>{t('selection.crop')}</span>
             </button>
           ) : null}
+          {onPin ? (
+            <button className={LABELED_BUTTON_CLASS} data-action='pin' type='button' onClick={onPin}>
+              <Pin aria-hidden className='h-5 w-5' />
+              <span>{t('editor.pinImage')}</span>
+            </button>
+          ) : null}
           <span aria-hidden className={LABELED_DIVIDER_CLASS} />
           <button
             className={`${LABELED_BUTTON_CLASS} text-sk-red`}
@@ -449,6 +458,11 @@ export function SelectionActionBar({
         {onCrop ? (
           <button aria-label={t('selection.crop')} className={BUTTON_CLASS} data-action='crop' type='button' onClick={onCrop}>
             <Crop aria-hidden className='h-5 w-5' />
+          </button>
+        ) : null}
+        {onPin ? (
+          <button aria-label={t('editor.pinImage')} className={BUTTON_CLASS} data-action='pin' title={t('editor.pinImage')} type='button' onClick={onPin}>
+            <Pin aria-hidden className='h-5 w-5' />
           </button>
         ) : null}
         <button

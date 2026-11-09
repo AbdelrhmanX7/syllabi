@@ -1,12 +1,12 @@
 import type { InboxItem } from '../types';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@repo/ui';
 import { Smartphone } from 'lucide-react';
 import Link from 'next/link';
 
 import { boardCandidates } from '../lib/reducer';
-import { loadInboxFile, markItemUsed, useInbox } from '../store';
+import { loadInboxFile, markItemUsed, registerBoardInsertTarget, useInbox } from '../store';
 
 import { InboxThumb } from './InboxThumb';
 import { Sheet } from './Sheet';
@@ -33,6 +33,20 @@ export function InsertFromPhoneButton({
 }) {
   const inbox = useInbox();
   const [open, setOpen] = useState(false);
+  // While this board is open, a new-photo toast offers «Put here» instead of sending you to the Inbox.
+  const handlers = useRef({ onInsert, onInsertPdf });
+
+  handlers.current = { onInsert, onInsertPdf };
+  const hasPdf = !!onInsertPdf;
+
+  useEffect(
+    () =>
+      registerBoardInsertTarget({
+        onInsert: (file, item) => handlers.current.onInsert(file, item),
+        onInsertPdf: hasPdf ? (file, item) => handlers.current.onInsertPdf?.(file, item) : undefined,
+      }),
+    [hasPdf],
+  );
   const fresh = boardCandidates(inbox.items, { pdfs: !!onInsertPdf }).filter((item) => !item.usedAt).length;
 
   return (

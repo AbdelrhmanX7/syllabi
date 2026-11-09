@@ -8055,7 +8055,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           ) : null}
           {/* Pin/unpin affordances. The wrappers are pointer-events-none like the geometry HUD so they
               never swallow a stroke; only the buttons themselves take input. */}
-          {pinImageAction ? (
+          {pinImageAction && !selectionActions.selectionBox ? (
+            // Only when the selection bar is not up — with it, «Pin image» is one of its buttons.
             <div
               className='pointer-events-none absolute z-20 -translate-x-1/2'
               style={{
@@ -8107,6 +8108,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               onMapTerms={termsMap && boardAi?.mapTerms ? () => sendAiCommand('ai-map-terms') : undefined}
               onStraighten={canStraighten ? handleStraightenSelection : undefined}
               onCrop={croppableImage ? handleStartCrop : undefined}
+              onPin={pinImageAction ? handlePinImage : undefined}
               onExtraAction={(action) => {
                 const objectCount = fabricCanvas.getActiveObjects().length;
 
