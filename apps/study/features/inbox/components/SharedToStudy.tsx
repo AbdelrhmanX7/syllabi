@@ -146,7 +146,7 @@ function SharedSheet({
 
   // Upload one shared file to the inbox (POST /inbox; the mock until it is live).
   const toInbox = async (file: SharedFile): Promise<InboxItem> => {
-    const item = await uploadToInbox(readSharedFile(bridge, file));
+    const item = await uploadToInbox(readSharedFile(bridge, file), { source: 'shared' });
 
     dispatchInbox({ type: 'arrived', items: [item] });
 
@@ -284,7 +284,7 @@ async function keepPdfInInbox(
 ): Promise<NotebookImport> {
   if (input.kind !== 'pdf') return input;
   try {
-    const item = await uploadToInbox(readSharedFile(bridge, file));
+    const item = await uploadToInbox(readSharedFile(bridge, file), { source: 'shared' });
 
     dispatchInbox({ type: 'arrived', items: [item] });
     void markItemUsed(item.id);

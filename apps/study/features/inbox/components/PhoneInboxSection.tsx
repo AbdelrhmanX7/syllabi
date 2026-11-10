@@ -3,8 +3,9 @@ import type { DropTokenCreated } from '../types';
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, QrCode as QrIcon, Share, Smartphone, Trash2 } from 'lucide-react';
 
-import { useDropTokenMutations, useDropTokens } from '../api';
-import { dropUrl, HEIC_HINT, shortcutSteps } from '../lib/links';
+import { HEIC_HINT, shortcutSteps } from '../lib/links';
+import { forgetDropLink } from '../lib/dropLink';
+import { usePhoneDropLink } from '../usePhoneDropLink';
 
 import { CopyButton } from './CopyButton';
 import { QrCode } from './QrCode';
@@ -21,7 +22,6 @@ import {
 } from '@/components/ui/primitives';
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { describeError } from '@/lib/api/errors';
-import { useSampleRoute } from '@/lib/api/hooks';
 import { formatRelative } from '@/lib/format';
 
 const MASK = '••••••••••••';
@@ -40,15 +40,13 @@ function Code({ children }: { children: string }) {
  */
 export function PhoneInboxSection() {
   const { backendUrl } = useBackendSettings();
-  const tokens = useDropTokens();
-  const { create, revoke } = useDropTokenMutations();
-  const isSample = useSampleRoute('/inbox/tokens');
+  const { tokens, create, revoke, isSample, link, url, make } = usePhoneDropLink();
   const [label, setLabel] = useState('iPhone');
-  // The secret exists only in this state: the backend returns it once, lists never carry it.
+  // The «ready» note for a token made just now. The secret itself is remembered on this device
+  // (usePhoneDropLink), so the board's «From phone» sheet shows the same code.
   const [fresh, setFresh] = useState<DropTokenCreated | null>(null);
   const [stepsOpen, setStepsOpen] = useState(true);
-  const url = fresh ? dropUrl(backendUrl, fresh.token) : null;
-  const steps = shortcutSteps(backendUrl, fresh?.token ?? null);
+  const steps = shortcutSteps(backendUrl, link?.token ?? null);
 
   return (
     <Surface className='p-5'>
@@ -65,7 +63,7 @@ export function PhoneInboxSection() {
         className='mb-4 flex flex-wrap items-end gap-3'
         onSubmit={(event) => {
           event.preventDefault();
-          create.mutate(label, { onSuccess: (token) => setFresh(token) });
+          make(label, (token) => setFresh(token));
         }}
       >
         <Field label='Device label'>
@@ -103,7 +101,7 @@ export function PhoneInboxSection() {
           <span className='bg-st-accent/10 text-st-accent rounded-sm px-2 py-0.5 text-[11px] font-semibold'>
             Recommended
           </span>
-          {!fresh && (
+          {!link && (
             <span className='text-st-muted ml-auto text-xs font-normal'>Create a token to fill in the secret</span>
           )}
         </button>
@@ -121,7 +119,7 @@ export function PhoneInboxSection() {
                   <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
                     <p className='text-st-fg text-sm'>{step.title}</p>
                     {step.values?.map((value) => {
-                      const hidden = value.secret && !fresh;
+                      const hidden = value.secret && !link;
 
                       return (
                         <div key={value.label} className='flex items-center gap-2'>
@@ -147,7 +145,7 @@ export function PhoneInboxSection() {
       {/* One-off: the browser upload page */}
       <div className='border-st-line rounded-st mb-4 flex flex-col gap-4 border p-4 md:flex-row md:items-center'>
         {url ? (
-          <QrCode label={`Upload page for ${fresh?.label ?? 'this token'}`} size={184} value={url} />
+          <QrCode label={`Upload page for ${link?.label || 'this token'}`} size={184} value={url} />
         ) : (
           <div className='rounded-st border-st-line flex h-[184px] w-[184px] shrink-0 flex-col items-center justify-center gap-3 border border-dashed p-3'>
             <QrIcon className='text-st-muted h-10 w-10' strokeWidth={1.5} />
@@ -155,7 +153,7 @@ export function PhoneInboxSection() {
               loading={create.isPending}
               variant='primary'
               type='button'
-              onClick={() => create.mutate(label, { onSuccess: (token) => setFresh(token) })}
+              onClick={() => make(label, (token) => setFresh(token))}
             >
               Make a code
             </ActionButton>
@@ -164,8 +162,8 @@ export function PhoneInboxSection() {
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
           <p className='text-st-fg text-sm font-semibold'>One-off send: scan with the iPhone camera</p>
           <p className='text-st-muted text-sm'>
-            Point your iPhone camera at the code to open a page where you can send a photo. It works for one quick
-            send only, so don't save it as a bookmark. For everyday use, set up the Shortcut above.
+            Point your phone camera at the code to open a page where you can send a photo. The same code also shows
+            under «From phone» on a board. For everyday use, set up the Shortcut above.
           </p>
           {url ? (
             <div className='flex items-center gap-2'>
@@ -173,7 +171,7 @@ export function PhoneInboxSection() {
               <CopyButton label='Copy link' text={url} />
             </div>
           ) : (
-            <p className='text-st-muted text-xs'>The code goes away when you leave this page. Make a new one any time.</p>
+            <p className='text-st-muted text-xs'>The code stays on this tablet until you revoke its token below.</p>
           )}
         </div>
       </div>
@@ -201,6 +199,7 @@ export function PhoneInboxSection() {
                   revoke.mutate(token.id, {
                     onSuccess: () => {
                       if (fresh?.id === token.id) setFresh(null);
+                      forgetDropLink(token.id);
                     },
                   })
                 }

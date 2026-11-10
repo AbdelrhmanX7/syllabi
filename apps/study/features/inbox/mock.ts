@@ -9,7 +9,8 @@ import { StudyApiError } from '@/lib/api/errors';
 
 type Body = Record<string, unknown> | undefined;
 
-const STATE_KEY = 'study_mock_inbox';
+// v2: items carry `source` (an older saved demo inbox would show every item as «Other»).
+const STATE_KEY = 'study_mock_inbox_v2';
 const MINUTE = 60_000;
 const uid = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
@@ -82,7 +83,7 @@ export function samplePhotoDataUrl(photo: SamplePhoto, width = 1200, height = 90
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-function sampleItem(index: number, createdAt: string, usedAt: string | null = null): InboxItem {
+function sampleItem(index: number, createdAt: string, usedAt: string | null = null, source = 'phone'): InboxItem {
   const photo = PHOTOS[index % PHOTOS.length];
   const url = samplePhotoDataUrl(photo);
 
@@ -98,6 +99,7 @@ function sampleItem(index: number, createdAt: string, usedAt: string | null = nu
     classId: null,
     createdAt,
     usedAt,
+    source,
   };
 }
 
@@ -113,8 +115,8 @@ function seedState(now = Date.now()): MockInboxState {
     ],
     items: [
       sampleItem(0, new Date(now - 42 * MINUTE).toISOString()),
-      sampleItem(1, new Date(now - 5 * 60 * MINUTE).toISOString(), new Date(now - 4 * 60 * MINUTE).toISOString()),
-      sampleItem(2, new Date(now - 26 * 60 * MINUTE).toISOString()),
+      sampleItem(1, new Date(now - 5 * 60 * MINUTE).toISOString(), new Date(now - 4 * 60 * MINUTE).toISOString(), 'claude'),
+      sampleItem(2, new Date(now - 26 * 60 * MINUTE).toISOString(), null, 'shared'),
     ],
   };
 }
@@ -240,7 +242,7 @@ const readAsDataUrl = (file: Blob) =>
 /** Stand-in for the multipart `POST /inbox`. */
 export async function mockInboxUpload(
   file: Blob,
-  fields: { note?: string; classId?: string } = {},
+  fields: { note?: string; classId?: string; source?: string } = {},
 ): Promise<InboxItem> {
   const url = await readAsDataUrl(file);
   const pdf = file.type === 'application/pdf';
@@ -257,6 +259,7 @@ export async function mockInboxUpload(
     classId: fields.classId ?? null,
     createdAt: new Date().toISOString(),
     usedAt: null,
+    source: fields.source ?? 'upload',
   });
 }
 

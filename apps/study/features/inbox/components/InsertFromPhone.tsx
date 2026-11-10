@@ -9,6 +9,7 @@ import { boardCandidates } from '../lib/reducer';
 import { loadInboxFile, markItemUsed, registerBoardInsertTarget, useInbox } from '../store';
 
 import { InboxThumb } from './InboxThumb';
+import { PhoneQrRow } from './PhoneQrRow';
 import { Sheet } from './Sheet';
 
 import { BOARD_CHIP, ErrorNote } from '@/components/ui/primitives';
@@ -127,18 +128,15 @@ export function InsertFromPhoneSheet({
           <ErrorNote message={error} />
         </div>
       )}
+      <PhoneQrRow collapsible={items.length > 0} />
       {items.length === 0 ? (
-        <div className='text-st-muted flex flex-col items-center gap-2 py-10 text-center text-sm'>
-          <Smartphone className='h-8 w-8' strokeWidth={1.5} />
-          <p className='text-st-fg font-medium'>Nothing from your phone yet</p>
-          <p>
-            Set up the iPhone in{' '}
-            <Link className='text-st-accent underline underline-offset-2' href='/settings/'>
-              Settings → Phone inbox
-            </Link>
-            , then send a photo. It appears here live.
-          </p>
-        </div>
+        <p className='text-st-muted text-sm'>
+          Nothing from your phone yet. What you send appears here live. For everyday sending, set up the Shortcut in{' '}
+          <Link className='text-st-accent underline underline-offset-2' href='/settings/'>
+            Settings → Phone inbox
+          </Link>
+          .
+        </p>
       ) : (
         <ul className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'>
           {items.map((item) => (

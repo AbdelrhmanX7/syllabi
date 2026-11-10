@@ -48,6 +48,7 @@ import {
   renderJpeg,
 } from "./notebook-renders";
 import { createGeneratedPdfPage, DOC_PAGE_SIZES, DocPageSize, renderDocumentPdf } from "./generated-pdf";
+import type { InboxSource } from "./inbox/source";
 import { createInboxItem, InboxError, listInboxItems, queueInboxItemsForPage, validateMeta, validatePageTarget } from "./inbox/items";
 import { InboxMediaError } from "./inbox/media";
 import { createUploadLink, InboxTokenError } from "./inbox/tokens";
@@ -151,9 +152,19 @@ function transcriptText(segments: { start: number; text: string }[] | undefined)
 
 const ASSIGNMENT_STATUSES = ["upcoming", "due", "overdue", "submitted", "graded", "missing", "all"] as const;
 
-/** `publicBase` = the origin the MCP request came in on (`https://<host>`), for links the tools hand out. */
-export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string } = {}): McpServer {
+/**
+ * `publicBase` = the origin the MCP request came in on (`https://<host>`), for links the tools hand out.
+ * `inboxSource` = which app is calling (claude / codex / other), resolved only when a tool saves to the inbox.
+ */
+export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string; inboxSource?: () => Promise<InboxSource> } = {}): McpServer {
   const base = (opts.publicBase || `http://localhost:${process.env.PORT || 4000}`).replace(/\/+$/, "");
+  const source = async (): Promise<InboxSource> => {
+    try {
+      return opts.inboxSource ? await opts.inboxSource() : "other";
+    } catch {
+      return "other";
+    }
+  };
   const userId = new Types.ObjectId(ownerId);
   const run = (handler: any, input: { params?: Record<string, string>; query?: Record<string, unknown>; body?: unknown }, label: string) =>
     invokeController(handler, { userId: ownerId, ...input, label });
@@ -737,7 +748,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
         return ok({ pageId: r.pageId, itemId: r.itemId, pages, bytes: pdf.length, url: r.pdfUrl, expiresAt: r.expiresAt, page: r.page });
       }
       try {
-        const item = await createInboxItem(userId, pdf, { note: note || title, classId: cls?._id ?? target?.classId ?? null, pageId: target?._id ?? null, tokenId: null });
+        const item = await createInboxItem(userId, pdf, { note: note || title, classId: cls?._id ?? target?.classId ?? null, pageId: target?._id ?? null, tokenId: null, source: await source() });
         return ok({ inboxItemId: item.id, pageId: item.pageId, pages, bytes: item.bytes, url: item.url, expiresAt: new Date(Date.now() + SIGNED_URL_TTL_SEC * 1000).toISOString() });
       } catch (e) {
         if (e instanceof InboxError || e instanceof InboxMediaError) return toolError(e.message, e.code);
@@ -776,7 +787,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       }
       await recordStudyUsage(userId, "image_gen", spend, startedAt, "done");
       try {
-        const item = await createInboxItem(userId, image, { note: note || `AI image: ${prompt.slice(0, 200)}`, classId: classId ? new Types.ObjectId(classId) : null, tokenId: null });
+        const item = await createInboxItem(userId, image, { note: note || `AI image: ${prompt.slice(0, 200)}`, classId: classId ? new Types.ObjectId(classId) : null, tokenId: null, source: await source() });
         const preview = await sharp(image).resize(512, 512, { fit: "inside" }).jpeg({ quality: 70 }).toBuffer();
         return {
           content: [
@@ -998,7 +1009,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       }
       if (toInbox) {
         try {
-          const item = await createInboxItem(userId, pdf, { note: title, classId: page.classId ?? null, tokenId: null });
+          const item = await createInboxItem(userId, pdf, { note: title, classId: page.classId ?? null, tokenId: null, source: await source() });
           return ok({ url: item.url, expiresAt: new Date(Date.now() + SIGNED_URL_TTL_SEC * 1000).toISOString(), pages: included, bytes: pdf.length, missing, inboxItemId: item.id });
         } catch (e) {
           if (e instanceof InboxError || e instanceof InboxMediaError) return toolError(e.message, e.code);
