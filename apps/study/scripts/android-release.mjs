@@ -381,7 +381,7 @@ if (play) {
   const archived = join(archiveDir, `study-${version}-${sha}${dirty}-play.aab`);
 
   copyFileSync(aab, archived);
-  log(`permissions ${permissions.join(' ')}`);
+  log(`permission names in the manifest (requested or guarding a library component) ${permissions.join(' ')}`);
   log(`archive ${archived}  ${(statSync(archived).size / 1048576).toFixed(1)} MB  (HEAD ${sha}${dirty}, versionCode ${versionCode}, stamp "${buildStamp}", API ${apiBaseUrl}, signed)`);
   process.exit(0);
 }
