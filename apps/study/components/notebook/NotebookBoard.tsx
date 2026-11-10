@@ -867,6 +867,8 @@ export function NotebookBoard({
         straightenInk
         termsMap
         verticalNotebook
+        // A notebook without a PDF is a stack of pages too (old endless ones are split on open, ink untouched).
+        notebookSheets={pdfLayout === 'scroll'}
         autoColor={autoColor}
         boardAi={boardAi}
         buildMergeOverlaysRef={buildMergeOverlaysRef}

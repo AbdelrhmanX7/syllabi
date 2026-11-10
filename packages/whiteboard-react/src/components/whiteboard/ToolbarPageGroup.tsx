@@ -25,6 +25,8 @@ export interface ToolbarPageGroupProps {
   onTogglePageList: () => void;
   /** The add-page control: the blank-sheet menu where the host offers it, otherwise a plain button. */
   addControl: React.ReactNode;
+  /** Page bookmarks (toggle + list), shown right after the arrows. */
+  bookmarkControl?: React.ReactNode;
   /** A side-docked bar: stack the group as a column and show the page as «n» over «/ total». */
   vertical?: boolean;
 }
@@ -33,6 +35,7 @@ export const PAGE_GROUP_BUTTON_CLASS = 'h-10 w-10 min-w-10 shrink-0 rounded-xl p
 
 const ToolbarPageGroup: React.FC<ToolbarPageGroupProps> = ({
   addControl,
+  bookmarkControl,
   canNext,
   canPrev,
   currentLabel,
@@ -109,6 +112,7 @@ const ToolbarPageGroup: React.FC<ToolbarPageGroupProps> = ({
           <NextIcon className='h-5 w-5' />
         </Button>
       </Tooltip>
+      {bookmarkControl}
       {addControl}
     </div>
   );

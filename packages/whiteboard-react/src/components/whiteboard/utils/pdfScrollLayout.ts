@@ -1,5 +1,5 @@
 import { getRotatedBoundingSize, normalizeRotationDeg } from './backgroundLayers';
-import { LEGACY_SHEET_LINES_PER_WIDTH, sheetPatternPitch } from './paperSpacing';
+import { boardPatternSpacingPx, LEGACY_SHEET_LINES_PER_WIDTH, sheetPatternPitch } from './paperSpacing';
 import { normalizeCanvasWidthPx, normalizePdfPlacement } from '../types';
 
 import type { PdfPlacementRect, WhiteboardPage } from '../types';
@@ -83,6 +83,11 @@ export interface PdfScrollPaintArgs {
   /** Canvas CSS size. */
   width: number;
   height: number;
+  /**
+   * The on-screen board is dark (utils/darkBoard): pages without a PDF are painted as dark paper, so
+   * the ink — remapped to light colours on screen — stays readable. Captures and exports leave it off.
+   */
+  dark?: boolean;
 }
 
 /**
@@ -439,6 +444,39 @@ export function sheetRuleLineYs(
   // Each line from its index (never by accumulation), so a line sits at the same y in every band.
   for (let k = Math.max(0, Math.ceil((bandTop - first) / pitch)); first + k * pitch <= to; k += 1) {
     out.push(first + k * pitch);
+  }
+
+  return out;
+}
+
+/**
+ * Pitch, in scene px, of a {@link WhiteboardPage.boardRuled} sheet (a free notebook page): the plain
+ * board's pattern spacing measured in the page's own frame, scaled onto the layout — so the lines sit
+ * exactly where they sat when the page was one endless board page, under the same writing.
+ */
+export function boardRuledPitch(layoutWidth: number, frameWidth: number, page: Pick<WhiteboardPage, 'paperSpacingMm'>): number {
+  const scale = Math.max(1, layoutWidth) / Math.max(1, frameWidth);
+
+  return boardPatternSpacingPx(page) * scale;
+}
+
+/**
+ * Scene y of every line of a board-ruled sheet within `[bandTop, bandBottom]`: at multiples of the
+ * pitch from the page's top edge (the board's own alignment), the top edge itself left out.
+ */
+export function boardRuledLineYs(
+  entry: Pick<PdfScrollLayoutEntry, 'top' | 'height'>,
+  pitch: number,
+  bandTop: number,
+  bandBottom: number,
+): number[] {
+  if (!(pitch > 0)) return [];
+
+  const last = Math.min(entry.top + entry.height - pitch / 4, bandBottom);
+  const out: number[] = [];
+
+  for (let k = Math.max(1, Math.ceil((bandTop - entry.top) / pitch)); entry.top + k * pitch <= last; k += 1) {
+    out.push(entry.top + k * pitch);
   }
 
   return out;

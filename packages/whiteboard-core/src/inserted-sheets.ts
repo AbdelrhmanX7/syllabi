@@ -57,6 +57,9 @@ function sheetSuffix(count: number): string {
 export function resolvePageLabels(
   pages: ReadonlyArray<Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'pdfPageIndex' | 'pdfSourcePageNumber' | 'sheetAspect'>>,
 ): string[] {
+  // A notebook without a PDF (a free notebook split into pages) simply counts its pages: 1, 2, 3.
+  if (!pages.some(hasBackground)) return pages.map((_, index) => String(index + 1));
+
   let ordinal = 0;
   let anchor = '0';
   let sheetsSinceAnchor = 0;

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button, Tooltip } from '@repo/ui';
-import { BetweenHorizontalEnd, BetweenHorizontalStart, Copy, FileText, Plus, Trash2 } from 'lucide-react';
+import { BetweenHorizontalEnd, BetweenHorizontalStart, Bookmark, Copy, FileText, Plus, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { RemakeOrb } from './ai/RemakeOrb';
@@ -173,6 +173,19 @@ const PageThumbnail: React.FC<{
             <FileText className='h-3 w-3 text-white' />
           </div>
         )}
+
+        {/* Bookmark marker */}
+        {page.bookmark ? (
+          <div
+            aria-label={t('pages.bookmarked')}
+            className='bg-primary absolute bottom-1 start-1 flex h-5 w-5 items-center justify-center rounded-sm'
+            data-wb-page-bookmarked
+            role='img'
+            title={page.bookmark.label || t('pages.bookmarked')}
+          >
+            <Bookmark aria-hidden className='h-3 w-3 text-white' fill='currentColor' />
+          </div>
+        ) : null}
 
         {/* Page number badge */}
         <div className='bg-default-800/70 absolute bottom-1 end-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1'>

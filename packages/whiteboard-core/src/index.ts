@@ -6,6 +6,7 @@ export * from './import-file-kinds';
 export * from './migrations';
 export * from './page-geometry';
 export * from './inserted-sheets';
+export * from './notebook-sheets';
 export * from './page-operations';
 export * from './pdf-assets';
 export * from './pdf-import';

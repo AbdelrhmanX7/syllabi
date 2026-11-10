@@ -103,3 +103,40 @@ test('carries recorded capture geometry through the .kawb.json whitelist, valida
   assert.equal(p3?.canvasWidthPx, 1366);
   assert.equal('pdfPlacement' in (p3 ?? {}), false);
 });
+
+test('carries bookmarks, sheet shape, board ruling and paper spacing through the whitelist', () => {
+  const doc = {
+    ...validDoc,
+    pages: [
+      {
+        id: 'p1',
+        canvasJSON: '{}',
+        thumbnail: '',
+        backgroundType: 'lined',
+        canvasWidthPx: 900,
+        sheetAspect: 2.5,
+        boardRuled: true,
+        paperSpacingMm: 7.1,
+        bookmark: { at: 123, label: '  Exam formulas  ' },
+      },
+      // Junk: a bookmark without a time, board ruling without a sheet, a sheet shape on a PDF page.
+      { id: 'p2', canvasJSON: '{}', thumbnail: '', backgroundType: 'blank', pdfAssetId: 'a', sheetAspect: 1.4, boardRuled: true, bookmark: { label: 'x' } },
+      { id: 'p3', canvasJSON: '{}', thumbnail: '', backgroundType: 'blank', bookmark: { at: 5, label: '   ' } },
+    ],
+  };
+  const r = parseWhiteboardDocumentFile(JSON.stringify(doc));
+
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+
+  const [p1, p2, p3] = r.document.pages;
+
+  assert.equal(p1?.sheetAspect, 2.5);
+  assert.equal(p1?.boardRuled, true);
+  assert.equal(p1?.paperSpacingMm, 7.1);
+  assert.deepEqual(p1?.bookmark, { at: 123, label: 'Exam formulas' });
+  assert.equal('sheetAspect' in (p2 ?? {}), false);
+  assert.equal('boardRuled' in (p2 ?? {}), false);
+  assert.equal('bookmark' in (p2 ?? {}), false);
+  assert.deepEqual(p3?.bookmark, { at: 5 });
+});

@@ -1,5 +1,12 @@
 import { createWhiteboardId } from '../id';
-import { normalizeCanvasWidthPx, normalizePaperSpacingMm, normalizePdfPlacement, normalizeSheetAspect } from '../page-geometry';
+import {
+  normalizeBoardRuled,
+  normalizeCanvasWidthPx,
+  normalizePageBookmark,
+  normalizePaperSpacingMm,
+  normalizePdfPlacement,
+  normalizeSheetAspect,
+} from '../page-geometry';
 
 import type { BackgroundType, WhiteboardDocument, WhiteboardPage } from '../types';
 import { WHITEBOARD_SCHEMA_VERSION } from '../types';
@@ -160,6 +167,8 @@ export function migrateWhiteboardPage(raw: unknown): WhiteboardPage {
   delete page.canvasWidthPx;
   delete page.pdfPlacement;
   delete page.sheetAspect;
+  delete page.boardRuled;
+  delete page.bookmark;
   delete page.paperSpacingMm;
 
   const pdfAssetId = asString(source.pdfAssetId);
@@ -199,6 +208,14 @@ export function migrateWhiteboardPage(raw: unknown): WhiteboardPage {
   const sheetAspect = page.pdfAssetId || page.pdfImageUrl ? undefined : normalizeSheetAspect(source.sheetAspect);
 
   if (sheetAspect !== undefined) page.sheetAspect = sheetAspect;
+
+  const boardRuled = normalizeBoardRuled(source.boardRuled, sheetAspect);
+
+  if (boardRuled) page.boardRuled = boardRuled;
+
+  const bookmark = normalizePageBookmark(source.bookmark);
+
+  if (bookmark) page.bookmark = bookmark;
 
   const paperSpacingMm = normalizePaperSpacingMm(source.paperSpacingMm);
 

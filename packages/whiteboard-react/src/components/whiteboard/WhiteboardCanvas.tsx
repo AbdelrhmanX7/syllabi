@@ -29,7 +29,7 @@ import {
   getScreenFitPlacement,
   normalizeRotationDeg,
 } from './utils/backgroundLayers';
-import { registerDarkBoardSurface, setBoardTheme } from './utils/darkBoard';
+import { isDarkBoard, registerDarkBoardSurface, setBoardTheme } from './utils/darkBoard';
 import { invalidateInkBake } from './utils/inkBake';
 import {
   getScaledRasterTarget,
@@ -959,6 +959,7 @@ export function WhiteboardCanvas({
         // Continuous PDF layout: the stacked pages replace the single fitted raster. Same viewport
         // transform and pixel ratio, so they stay glued to the ink exactly as one page does.
         scrollPainter(compositionContext, {
+          dark: isDarkBoard(),
           height: container.clientHeight,
           pixelRatio,
           quality,

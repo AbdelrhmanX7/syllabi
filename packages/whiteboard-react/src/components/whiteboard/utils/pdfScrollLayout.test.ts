@@ -3,6 +3,8 @@ import { test } from 'node:test';
 
 import {
   applySceneTransformToPoint,
+  boardRuledLineYs,
+  boardRuledPitch,
   buildPdfScrollLayout,
   DEFAULT_PDF_PAGE_ASPECT,
   findPdfScrollPageAt,
@@ -301,4 +303,27 @@ test('sheet ruling: width-relative pitch, header band, clipped to the band and t
   assert.ok(band.length > 0 && band.every((y) => y >= 1510 && y <= 1700));
   assert.deepEqual(band, all.filter((y) => y >= 1510 && y <= 1700));
   assert.deepEqual(sheetRuleLineYs(entry, 1000, 0, 900), []);
+});
+
+test('board-ruled sheet: lines where the endless board page had them, scaled to the layout', () => {
+  // Written in an 800 px frame with the legacy 30 px rule, shown 1200 px wide: pitch 45 scene px.
+  const pitch = boardRuledPitch(1200, 800, {});
+
+  assert.equal(pitch, 45);
+
+  // The page starts at scene y 2000 (a later page); its lines are at 2000 + k·45, the top edge left out.
+  const entry = { top: 2000, height: 1200 * (297 / 210) };
+  const all = boardRuledLineYs(entry, pitch, -Infinity, Infinity);
+
+  assert.equal(all[0], 2045);
+  assert.ok(all.every((y, k) => Math.abs(y - (2000 + (k + 1) * 45)) < 1e-9));
+  assert.ok(all.at(-1)! < entry.top + entry.height);
+
+  // A band only yields its own lines, the same ones.
+  const band = boardRuledLineYs(entry, pitch, 2300, 2500);
+
+  assert.deepEqual(band, all.filter((y) => y >= 2300 && y <= 2500));
+
+  // On the device the page was written on (frame = layout) a 7.1 mm rule is mm × 96 / 25.4 px.
+  assert.ok(Math.abs(boardRuledPitch(800, 800, { paperSpacingMm: 7.1 }) - (7.1 * 96) / 25.4) < 1e-9);
 });
