@@ -25,6 +25,7 @@ import { useRouter } from "next/router";
 import { ITEM_TYPE_PLURAL, ItemRow } from "@/components/items/ItemRow";
 import { ClassFormSheet } from "@/components/classes/ClassFormSheet";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { NoteList } from "@/components/notes/NoteList";
 import { SampleDataBanner } from "@/components/ui/SampleDataBanner";
 import { ClassTimesButton } from "@/features/lecturenotes/components/ClassTimes";
 import { weekOfName } from "@/features/lecturenotes/lib/lectures";
@@ -51,7 +52,6 @@ import {
   usePages,
   useSampleRoute,
 } from "@/lib/api/hooks";
-import { formatRelative } from "@/lib/format";
 import { rememberPages } from "@/lib/notebooks/pages-cache";
 import { useAiEnabled } from "@/hooks/useAiEnabled";
 import { AiOffNote } from "@/components/ui/AiOff";
@@ -78,10 +78,11 @@ const GuideTab = dynamic(() => import("@/features/guide"), {
   loading: () => <LoadingRows rows={4} />,
 });
 
-type ClassTab = "content" | "aplan" | "guide" | "library";
+type ClassTab = "content" | "notes" | "aplan" | "guide" | "library";
 
 const CLASS_TABS: readonly ClassTab[] = [
   "content",
+  "notes",
   "aplan",
   "guide",
   "library",
@@ -413,6 +414,11 @@ export default function ClassPage() {
             label: "Content",
             icon: <FileText className="h-4 w-4" />,
           },
+          {
+            key: "notes",
+            label: pages.data?.length ? `Notes ${pages.data.length}` : "Notes",
+            icon: <NotebookPen className="h-4 w-4" />,
+          },
           ...(manual || !aiOn
             ? []
             : [
@@ -436,6 +442,37 @@ export default function ClassPage() {
         value={tab}
         onChange={selectTab}
       />
+
+      {tab === "notes" && (
+        <Surface className="p-4">
+          <SectionTitle
+            action={
+              <ActionButton
+                className="min-h-9 px-3 text-xs"
+                variant="primary"
+                onClick={() => setLectureSheet(true)}
+              >
+                <Plus className="h-3.5 w-3.5" /> Lecture note
+              </ActionButton>
+            }
+            count={pages.data?.length}
+          >
+            Notebooks
+          </SectionTitle>
+          {pages.isLoading && !pages.data && <LoadingRows rows={3} />}
+          {pages.data && pages.data.length === 0 && (
+            <p className="text-st-muted px-1 text-sm">
+              No handwritten notes for this class yet.
+            </p>
+          )}
+          {pages.data && pages.data.length > 0 && (
+            <NoteList
+              labelFor={(page) => (page.kind === "lecture" ? "Lecture" : undefined)}
+              pages={pages.data}
+            />
+          )}
+        </Surface>
+      )}
 
       {tab === "guide" && <GuideTab classId={classId} />}
 
@@ -543,51 +580,6 @@ export default function ClassPage() {
             }
           />
 
-          <Surface className="p-4">
-            <SectionTitle
-              action={
-                <ActionButton
-                  className="min-h-9 px-3 text-xs"
-                  variant="primary"
-                  onClick={() => setLectureSheet(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" /> Lecture note
-                </ActionButton>
-              }
-              count={pages.data?.length}
-            >
-              <NotebookPen className="text-st-muted mr-1 inline h-4 w-4" />{" "}
-              Notebooks
-            </SectionTitle>
-            {pages.isLoading && !pages.data && <LoadingRows rows={3} />}
-            {pages.data && pages.data.length === 0 && (
-              <p className="text-st-muted px-1 text-sm">
-                No handwritten notes for this class yet.
-              </p>
-            )}
-            <ul className="flex flex-col">
-              {pages.data?.map((page) => (
-                <li key={page.id}>
-                  <Link
-                    className="rounded-st hover:bg-st-raised flex min-h-12 items-center gap-3 px-2 py-2"
-                    href={notebookHref(page)}
-                  >
-                    <span className="border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border">
-                      <NotebookPen className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="text-st-fg block truncate text-sm font-medium">
-                        {page.title}
-                      </span>
-                      <span className="text-st-muted block text-xs">
-                        {page.kind} · {formatRelative(page.updatedAt)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Surface>
         </aside>
       </div>
     </>
