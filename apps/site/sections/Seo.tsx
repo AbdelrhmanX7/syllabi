@@ -1,7 +1,7 @@
 import Head from 'next/head';
 
 const SITE = 'https://syllabi.studio';
-const IMAGE = `${SITE}/og.jpg`;
+const IMAGE = `${SITE}/og.jpg?v=2`;
 
 /** One page's search + link-preview tags: title, description, canonical URL, Open Graph and Twitter. */
 export function Seo({
