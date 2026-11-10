@@ -1,4 +1,4 @@
-import type { DropTokenCreated } from '../types';
+import type { DropToken, DropTokenCreated } from '../types';
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, QrCode as QrIcon, Share, Smartphone, Trash2 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { usePhoneDropLink } from '../usePhoneDropLink';
 import { CopyButton } from './CopyButton';
 import { QrCode } from './QrCode';
 
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { SampleDataBanner } from '@/components/ui/SampleDataBanner';
 import {
   ActionButton,
@@ -45,6 +46,7 @@ export function PhoneInboxSection() {
   // The «ready» note for a token made just now. The secret itself is remembered on this device
   // (usePhoneDropLink), so the board's «From phone» sheet shows the same code.
   const [fresh, setFresh] = useState<DropTokenCreated | null>(null);
+  const [toRevoke, setToRevoke] = useState<DropToken | null>(null);
   const [stepsOpen, setStepsOpen] = useState(true);
   const steps = shortcutSteps(backendUrl, link?.token ?? null);
 
@@ -195,20 +197,34 @@ export function PhoneInboxSection() {
                 className='min-h-9 px-3 text-xs'
                 loading={revoke.isPending && revoke.variables === token.id}
                 variant='danger'
-                onClick={() =>
-                  revoke.mutate(token.id, {
-                    onSuccess: () => {
-                      if (fresh?.id === token.id) setFresh(null);
-                      forgetDropLink(token.id);
-                    },
-                  })
-                }
+                onClick={() => setToRevoke(token)}
               >
                 <Trash2 className='h-3.5 w-3.5' /> Revoke
               </ActionButton>
             </li>
           ))}
         </ul>
+      )}
+      {toRevoke && (
+        <ConfirmSheet
+          danger
+          confirmLabel='Revoke'
+          title='Revoke this phone code?'
+          onClose={() => setToRevoke(null)}
+          onConfirm={() => {
+            const token = toRevoke;
+
+            revoke.mutate(token.id, {
+              onSuccess: () => {
+                if (fresh?.id === token.id) setFresh(null);
+                forgetDropLink(token.id);
+              },
+            });
+          }}
+        >
+          «{toRevoke.label}» will stop working. A phone or shortcut using it can’t send to your inbox until you set up a
+          new code.
+        </ConfirmSheet>
       )}
     </Surface>
   );

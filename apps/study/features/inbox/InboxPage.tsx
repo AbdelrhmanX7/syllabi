@@ -15,6 +15,7 @@ import { simulateMockArrival } from './mock';
 import { loadInboxFile, markInboxSeen, markItemUsed, removeInboxItem, useInbox } from './store';
 
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { SampleDataBanner } from '@/components/ui/SampleDataBanner';
 import {
   ActionButton,
@@ -72,6 +73,7 @@ function InboxCard({
   onAction: (action: Exclude<Action, null>) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -132,19 +134,30 @@ function InboxCard({
             className='ml-auto min-h-9 px-3 text-xs'
             loading={deleting}
             variant='danger'
-            onClick={async () => {
-              setDeleting(true);
-              setError(null);
-              try {
-                await removeInboxItem(item.id);
-              } catch (err) {
-                setError(describeError(err));
-                setDeleting(false);
-              }
-            }}
+            onClick={() => setConfirmDelete(true)}
           >
             <Trash2 className='h-3.5 w-3.5' />
           </ActionButton>
+          {confirmDelete && (
+            <ConfirmSheet
+              danger
+              confirmLabel='Delete'
+              title='Delete from inbox?'
+              onClose={() => setConfirmDelete(false)}
+              onConfirm={async () => {
+                setDeleting(true);
+                setError(null);
+                try {
+                  await removeInboxItem(item.id);
+                } catch (err) {
+                  setError(describeError(err));
+                  setDeleting(false);
+                }
+              }}
+            >
+              This photo or file will be removed from your inbox on every device. Anything you already put on a page stays there.
+            </ConfirmSheet>
+          )}
         </div>
       </div>
     </li>
