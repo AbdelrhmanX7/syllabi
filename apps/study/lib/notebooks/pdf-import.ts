@@ -48,7 +48,7 @@ export async function buildPdfNotebookDocument({
       ? blob
       : new File([blob], fileName || 'document.pdf', { type: 'application/pdf' });
   // English warnings/errors.
-  const result = await importPdfFile(file, { locale: 'en', onProgress });
+  const result = await importPdfFile(file, { locale: 'en', onProgress, previews: false });
 
   await storage.savePdfAsset(result.asset);
 
@@ -98,7 +98,7 @@ export interface RestorePdfAssetInput {
 export async function restorePdfAsset({ assetId, fileUrl, fileName, storage, onProgress }: RestorePdfAssetInput) {
   const blob = await fetchBlobFromUrl(fileUrl);
   const file = new File([blob], fileName || 'document.pdf', { type: 'application/pdf' });
-  const result = await importPdfFile(file, { locale: 'en', onProgress });
+  const result = await importPdfFile(file, { locale: 'en', onProgress, previews: false });
 
   await storage.savePdfAsset({ ...result.asset, id: assetId });
 }

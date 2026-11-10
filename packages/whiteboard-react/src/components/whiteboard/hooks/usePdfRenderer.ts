@@ -102,6 +102,8 @@ export function usePdfRenderer(
             }
           },
           pageRange,
+          // The board draws pages lazily from the stored PDF; the import previews were never shown.
+          previews: false,
           workerSrc,
         });
 

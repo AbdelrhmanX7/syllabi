@@ -270,6 +270,33 @@ test('one page whose render rejects costs that page, not the import (whole-file 
   assert.deepEqual(stubState().cleanedUpPages, [1, 2, 3, 4, 5]);
 });
 
+test('sizes-only import draws nothing and still gives every page its box', async () => {
+  // A page whose RENDER would reject: sizes only never renders, so it is an ordinary page here.
+  resetStubState({ failingPageNumbers: [3], numPages: 5 });
+
+  const progress: number[] = [];
+  const result = await importPdfFile(await makePdfFile(5), {
+    moduleSrc: STUB_MODULE_SRC,
+    onProgress: (next) => progress.push(next),
+    previews: false,
+  });
+
+  assert.deepEqual(
+    result.pages.map((page) => [page.pageNumber, page.pageIndex, page.previewImageUrl]),
+    [
+      [1, 0, ''],
+      [2, 1, ''],
+      [3, 2, ''],
+      [4, 3, ''],
+      [5, 4, ''],
+    ],
+  );
+  for (const page of result.pages) assert.ok(Math.abs(page.width / page.height - 600 / 800) < 0.01);
+  assert.equal(result.summary.warnings.length, 0);
+  assert.deepEqual(progress, [20, 40, 60, 80, 100]);
+  assert.deepEqual(stubState().cleanedUpPages, [1, 2, 3, 4, 5]);
+});
+
 test('a subset import keeps subset pageIndex for the failed page too', async () => {
   resetStubState({ failingPageNumbers: [3], numPages: 6 });
 

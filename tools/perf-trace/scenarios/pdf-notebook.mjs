@@ -3,7 +3,7 @@
  * the pen, write straight after scrolling (while new pages are still being drawn), and zoom.
  *
  *   node tools/perf-trace/fixtures/make-pdf.mjs     # once: builds the test PDFs
- *   node tools/perf-trace/run.mjs pdf-notebook --device s10u [--pdf textbook|scanned] [--base http://localhost:3022]
+ *   node tools/perf-trace/run.mjs pdf-notebook --device s10u [--pdf textbook|textbook-200|scanned] [--base http://localhost:3022]
  *
  * Runs on demo data (no server needed). Input goes through CDP so the board sees real touch and pen events:
  * a finger pans the continuous PDF layout once the board has «seen a pen» (localStorage flag).
@@ -63,7 +63,7 @@ export const phases = [
     },
   },
   {
-    name: 'import PDF + first page',
+    name: 'pick PDF',
     run: async (page, { flag }) => {
       const file = path.join(HERE, '..', 'fixtures', `${flag('pdf', 'textbook')}.pdf`);
       const [chooser] = await Promise.all([
@@ -72,11 +72,24 @@ export const phases = [
       ]);
 
       await chooser.setFiles(file);
-      await page.getByRole('button', { name: 'Open notebook' }).click({ timeout: 60000 });
-      await page.waitForURL(/\/notebook\//, { timeout: 120000 });
-      await page.locator('canvas.upper-canvas').first().waitFor({ timeout: 60000 });
-      await settle(page, 6000);
+      await page.getByRole('button', { name: 'Open notebook' }).waitFor({ timeout: 60000 });
     },
+  },
+  {
+    // «Open notebook» → the board is up with the first page drawn: what a student waits through.
+    name: 'import until board opens',
+    run: async (page) => {
+      const started = Date.now();
+
+      await page.getByRole('button', { name: 'Open notebook' }).click();
+      await page.waitForURL(/\/notebook\//, { timeout: 600000 });
+      await page.locator('canvas.upper-canvas').first().waitFor({ timeout: 120000 });
+      console.log(`[pdf-notebook] import → board open: ${Date.now() - started} ms`);
+    },
+  },
+  {
+    name: 'first page settles',
+    run: (page) => settle(page, 6000),
   },
   {
     name: 'scroll 12 flicks',

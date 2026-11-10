@@ -6,6 +6,7 @@
  *
  * - textbook.pdf: 40 Letter pages, two columns of dense small text, a plotted curve (2,000-point path),
  *   a grid, filled shapes and a small photo-like image per page — the vector/text-heavy case.
+ * - textbook-200.pdf: the same, 200 pages (a whole course reader) — import time scales with pages.
  * - scanned.pdf: 30 pages, each one 1700×2200 greyscale image (a phone scan of handwritten notes) —
  *   the big-raster case.
  * Both are gitignored outputs; regenerate any time (the content is deterministic).
@@ -179,6 +180,7 @@ function scannedPage(index) {
 }
 
 const textbook = writePdf(path.join(HERE, 'textbook.pdf'), Array.from({ length: 40 }, (_, i) => textbookPage(i)));
+const big = writePdf(path.join(HERE, 'textbook-200.pdf'), Array.from({ length: 200 }, (_, i) => textbookPage(i)));
 const scanned = writePdf(path.join(HERE, 'scanned.pdf'), Array.from({ length: 30 }, (_, i) => scannedPage(i)));
 
-console.log(`textbook.pdf ${(textbook / 1e6).toFixed(1)} MB · scanned.pdf ${(scanned / 1e6).toFixed(1)} MB`);
+console.log(`textbook.pdf ${(textbook / 1e6).toFixed(1)} MB · textbook-200.pdf ${(big / 1e6).toFixed(1)} MB · scanned.pdf ${(scanned / 1e6).toFixed(1)} MB`);

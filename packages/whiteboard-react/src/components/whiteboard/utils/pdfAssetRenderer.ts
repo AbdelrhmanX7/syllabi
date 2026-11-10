@@ -1039,6 +1039,7 @@ export async function importPdfFile(
     pageRange = DEFAULT_PDF_PAGE_RANGE,
     workerSrc = DEFAULT_PDF_WORKER_SRC,
     locale = 'en',
+    previews = true,
   }: {
     moduleSrc?: string;
     /** Kept for host compatibility; warnings and errors are English. */
@@ -1051,6 +1052,13 @@ export async function importPdfFile(
     onProgress?: (progress: number) => void;
     pageRange?: string;
     workerSrc?: string;
+    /**
+     * `false` = sizes only: each page's preview dimensions come from its viewport and nothing is drawn
+     * (`previewImageUrl` is ''). For hosts that render pages lazily on the board and never show the
+     * import previews — drawing + encoding every page was ~40 ms a page, 8.5 s for a 200-page reader on
+     * the S10 Ultra profile. A page pdf.js cannot open still takes the rescue / placeholder tiers.
+     */
+    previews?: boolean;
   } = {},
 ): Promise<PdfImportResult> {
   const summary = await inspectPdfFile(file, { locale, moduleSrc, pageRange, workerSrc });
@@ -1164,6 +1172,15 @@ export async function importPdfFile(
         // `getPage` is inside the guard too: it rejects on its own for a corrupt page tree, before
         // any rendering happens.
         page = await document.getPage(pageNumber);
+
+        if (!previews) {
+          // Same box the preview canvas would get, without drawing it.
+          const { height, width } = createRenderViewport(page, previewMaxEdge);
+
+          pages.push({ pageIndex, pageNumber, previewImageUrl: '', width, height });
+          continue;
+        }
+
         canvas = await renderPdfPageToCanvas(page, previewMaxEdge);
 
         const previewImageUrl = await encodeCanvasAsDataUrl(canvas, previewQuality);
@@ -1225,7 +1242,8 @@ export async function importPdfFile(
       // and process input. Rasterization (`page.render`) and JPEG encoding run on
       // the main thread even though pdf.js parses on its worker, so without this
       // a large PDF import freezes the UI between yields.
-      if (index < summary.selectedPageNumbers.length - 1) {
+      // (Sizes only draws nothing on the main thread; `getPage` already awaits the worker.)
+      if (previews && index < summary.selectedPageNumbers.length - 1) {
         await yieldToBrowserDuringImport();
       }
     }
