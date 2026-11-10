@@ -4,7 +4,7 @@ const REPO = 'https://github.com/AbdelrhmanX7/syllabi';
 
 export default function Privacy() {
   return (
-    <LegalPage path='/privacy/' title='Privacy policy' updated='7 November 2026'>
+    <LegalPage path='/privacy/' title='Privacy policy' updated='10 November 2026'>
       <p>
         This policy covers the hosted Syllabi service at app.syllabi.studio and api.syllabi.studio. If you run your own
         Syllabi server, your data stays on that server and this policy does not apply to it.
@@ -30,12 +30,23 @@ export default function Privacy() {
           To count how many people download and use the app: the app sends a random number once a day when it opens,
           and the download button counts a press. No name, email or account is attached to these counts.
         </li>
+        <li>
+          To find bugs and see which parts of the app get used: the app sends usage info such as which screens you open,
+          how long a PDF took to open, and error messages, to our analytics provider. It never sends what you write,
+          your notes, questions, file names, grades or email. If you&apos;re signed in, events carry your account id so
+          we can fix a problem you hit; the provider does not keep your IP address. You can turn this off in Settings →
+          Privacy.
+        </li>
+        <li>
+          The microphone is used only while you record a lecture or use voice features. Recordings are saved to your
+          account like your other files.
+        </li>
       </ul>
       <p>We do not sell your data, show ads or use your data to track you across other sites.</p>
       <h2>Where it lives</h2>
       <p>
-        Data is stored on our own server. Account emails are sent through an email delivery provider. Both only
-        process data to provide the service.
+        Data is stored on our own server. Account emails are sent through an email delivery provider, and usage info
+        goes to an analytics provider. They only process data to provide the service.
       </p>
       <h2>Your choices</h2>
       <p>
@@ -44,7 +55,7 @@ export default function Privacy() {
       </p>
       <h2>Contact</h2>
       <p>
-        Questions about privacy: open an issue at <a href={`${REPO}/issues`}>github.com/AbdelrhmanX7/syllabi</a>, or
+        Questions about privacy: email abdelrhman.slim26@gmail.com, open an issue at <a href={`${REPO}/issues`}>github.com/AbdelrhmanX7/syllabi</a>, or
         report something sensitive privately as described in <a href={`${REPO}/blob/master/SECURITY.md`}>SECURITY.md</a>.
       </p>
     </LegalPage>
