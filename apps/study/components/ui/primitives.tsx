@@ -434,7 +434,8 @@ export function DividerTabs<K extends string>({
             >
               {tab.icon && (
                 <span
-                  className={cn("inline-flex", active ? "text-st-accent" : "")}
+                  // Icons only where there's room: on a tablet the labels alone keep every tab in view.
+                  className={cn("hidden lg:inline-flex", active ? "text-st-accent" : "")}
                 >
                   {tab.icon}
                 </span>

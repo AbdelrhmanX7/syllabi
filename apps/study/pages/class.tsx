@@ -416,7 +416,8 @@ export default function ClassPage() {
           },
           {
             key: "notes",
-            label: pages.data?.length ? `Notes ${pages.data.length}` : "Notes",
+            label: "Notes",
+            count: pages.data?.length || undefined,
             icon: <NotebookPen className="h-4 w-4" />,
           },
           ...(manual || !aiOn
