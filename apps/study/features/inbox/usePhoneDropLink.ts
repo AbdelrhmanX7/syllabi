@@ -15,6 +15,7 @@ import { dropUrl } from './lib/links';
 
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { useSampleRoute, useStudyQueriesEnabled } from '@/lib/api/hooks';
+import { useGetUserData } from '@/lib/auth';
 
 /**
  * The phone drop link shared by Settings → Phone inbox and the board's «From phone» sheet: one
@@ -27,7 +28,9 @@ export function usePhoneDropLink() {
   const enabled = useStudyQueriesEnabled();
   const tokens = useDropTokens();
   const { create, revoke } = useDropTokenMutations();
-  const scope = isSample ? 'mock' : backendUrl.trim().replace(/\/+$/, '');
+  const { userData } = useGetUserData();
+  // Server + account: another account signing in on this tablet never sees the first one's code.
+  const scope = isSample ? 'mock' : `${backendUrl.trim().replace(/\/+$/, '')}#${userData?._id ?? userData?.email ?? ''}`;
   const saved = useSyncExternalStore(subscribeDropLink, getDropLinkSnapshot, () => null);
   const listedIds = tokens.data ? tokens.data.map((token) => token.id) : null;
   // Only a list fetched after the code was made can say it was revoked (the refetch lags the create).

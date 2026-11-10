@@ -7,7 +7,7 @@ import type { DropTokenCreated } from '../types';
 export const DROP_LINK_KEY = 'study_phone_drop_link';
 
 export interface SavedDropLink {
-  /** `mock`, or the backend URL the token belongs to. */
+  /** `mock`, or the backend URL + account the token belongs to. */
   scope: string;
   id: string;
   label: string;

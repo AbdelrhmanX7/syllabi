@@ -78,8 +78,8 @@ export function PhoneInboxSection() {
       {fresh && (
         <div className='rounded-st border-st-ok/30 bg-st-ok/5 mb-4 flex flex-col gap-2 border p-4'>
           <p className='text-st-fg text-sm font-semibold'>
-            Token “{fresh.label}” is ready. It is filled in below; copy what you need now, the secret is not shown
-            again.
+            Token “{fresh.label}” is ready. It is filled in below and stays on this tablet; other devices won’t see
+            the secret.
           </p>
           <div className='flex items-center gap-2'>
             <Code>{fresh.token}</Code>
@@ -160,7 +160,7 @@ export function PhoneInboxSection() {
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
-          <p className='text-st-fg text-sm font-semibold'>One-off send: scan with the iPhone camera</p>
+          <p className='text-st-fg text-sm font-semibold'>Quick send: scan with your phone camera</p>
           <p className='text-st-muted text-sm'>
             Point your phone camera at the code to open a page where you can send a photo. The same code also shows
             under «From phone» on a board. For everyday use, set up the Shortcut above.
