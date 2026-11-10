@@ -40,6 +40,15 @@ export function createInsertedSheet(aspect: number, backgroundType: BackgroundTy
   };
 }
 
+/**
+ * A sheet that reads «3a» and stays glued to the page before it: an inserted blank sheet among PDF
+ * pages. A free notebook's page (`boardRuled`, notebook-sheets.ts) is a sheet for the layout but an
+ * ordinary page for numbering and inserting — 1, 2, 3, even once a PDF is added to the notebook.
+ */
+export function isLetteredSheet(page: Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'sheetAspect' | 'boardRuled'> | undefined | null): boolean {
+  return isInsertedSheet(page) && page!.boardRuled !== true;
+}
+
 /** `count`-th letter suffix: a … z, then aa, ab … */
 function sheetSuffix(count: number): string {
   let n = count;
@@ -55,17 +64,16 @@ function sheetSuffix(count: number): string {
 
 /** The label shown for every page (see the module note). */
 export function resolvePageLabels(
-  pages: ReadonlyArray<Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'pdfPageIndex' | 'pdfSourcePageNumber' | 'sheetAspect'>>,
+  pages: ReadonlyArray<
+    Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'pdfPageIndex' | 'pdfSourcePageNumber' | 'sheetAspect'> & Partial<Pick<WhiteboardPage, 'boardRuled'>>
+  >,
 ): string[] {
-  // A notebook without a PDF (a free notebook split into pages) simply counts its pages: 1, 2, 3.
-  if (!pages.some(hasBackground)) return pages.map((_, index) => String(index + 1));
-
   let ordinal = 0;
   let anchor = '0';
   let sheetsSinceAnchor = 0;
 
   return pages.map((page) => {
-    if (isInsertedSheet(page)) {
+    if (isLetteredSheet(page)) {
       const label = `${anchor}${sheetSuffix(sheetsSinceAnchor)}`;
 
       sheetsSinceAnchor += 1;
@@ -88,12 +96,15 @@ export function resolvePageLabels(
  * Where «insert after page `index`» puts the sheet: right after it, but after any sheets that already
  * follow it, so «3a» stays before a new «3b» and the PDF page that comes next stays next.
  */
-export function resolveSheetInsertIndex(pages: ReadonlyArray<Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'sheetAspect'>>, index: number): number {
+export function resolveSheetInsertIndex(
+  pages: ReadonlyArray<Pick<WhiteboardPage, 'pdfAssetId' | 'pdfImageUrl' | 'sheetAspect'> & Partial<Pick<WhiteboardPage, 'boardRuled'>>>,
+  index: number,
+): number {
   if (pages.length === 0) return 0;
 
   let insertAt = Math.min(Math.max(index, 0), pages.length - 1) + 1;
 
-  while (insertAt < pages.length && isInsertedSheet(pages[insertAt])) insertAt += 1;
+  while (insertAt < pages.length && isLetteredSheet(pages[insertAt])) insertAt += 1;
 
   return insertAt;
 }

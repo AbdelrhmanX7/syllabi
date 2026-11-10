@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@repo/ui';
 import { Bookmark, BookmarkX, ListChecks } from 'lucide-react';
@@ -36,8 +36,21 @@ export interface PageBookmarksProps {
 function BookmarkName({ name, onSave, pageLabel }: { name: string; pageLabel: string; onSave: (value: string) => void }) {
   const { t } = useWbStrings();
   const [draft, setDraft] = useState(name);
+  // The latest draft/name/save for the unmount below (closing the list by tapping the board may never
+  // blur the field, and the typed name must not be lost).
+  const latest = useRef({ draft, name, onSave });
+
+  latest.current = { draft, name, onSave };
 
   useEffect(() => setDraft(name), [name]);
+  useEffect(
+    () => () => {
+      const { draft: last, name: saved, onSave: save } = latest.current;
+
+      if (last.trim() !== saved) save(last);
+    },
+    [],
+  );
 
   const commit = () => {
     if (draft.trim() !== name) onSave(draft);

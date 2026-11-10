@@ -7,12 +7,12 @@ import { useWbStrings } from '../../i18n/context';
 
 /**
  * The one «delete this page?» dialog of the board: the page manager's delete and the blank-page menu's
- * delete both open it. It names the page and says whether writing goes with it. The red button is the
+ * delete both open it. It names the page and says what goes with it (writing, a PDF page). The red button is the
  * only footer action; the X (or tapping outside) cancels.
  */
 export interface ConfirmDeletePageModalProps {
   /** `null` = closed. */
-  target: { label: string; hasInk: boolean } | null;
+  target: { label: string; content: 'blank' | 'ink' | 'pdf' } | null;
   portalContainer?: Element;
   onCancel: () => void;
   onConfirm: () => void;
@@ -33,7 +33,9 @@ const ConfirmDeletePageModal: React.FC<ConfirmDeletePageModalProps> = ({ onCance
           </Button>
         </ModalHeader>
         <ModalBody>
-          <p className='text-sm'>{t(target?.hasInk ? 'editor.sheet.confirmInk' : 'editor.sheet.confirmEmpty')}</p>
+          <p className='text-sm'>
+            {t(target?.content === 'pdf' ? 'editor.sheet.confirmPdf' : target?.content === 'ink' ? 'editor.sheet.confirmInk' : 'editor.sheet.confirmEmpty')}
+          </p>
         </ModalBody>
         <ModalFooter>
           <Button color='danger' data-wb-delete-page-confirm onPress={onConfirm}>

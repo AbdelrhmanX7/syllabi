@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { normalizeWhiteboardDocument } from '../src/defaults';
-import { createInsertedSheet, resolvePageLabels } from '../src/inserted-sheets';
+import { createInsertedSheet, resolvePageLabels, resolveSheetInsertIndex } from '../src/inserted-sheets';
 import { migrateWhiteboardDocument, migrateWhiteboardPage } from '../src/migrations';
 import {
   canvasJsonInkExtent,
@@ -145,6 +145,21 @@ test('a notebook of sheets counts its pages 1, 2, 3', () => {
     resolvePageLabels([{ ...freePage('p', ''), pdfAssetId: 'x', pdfPageIndex: 0 }, createInsertedSheet(1.4, 'lined')]),
     ['1', '1a'],
   );
+});
+
+test('a free notebook page is numbered and inserted like a plain page, even next to a PDF', () => {
+  const five = [1, 2, 3, 4, 5].map(() => createNotebookSheet('lined'));
+
+  // «After p.2» lands right after page 2, not at the end.
+  assert.equal(resolveSheetInsertIndex(five, 1), 2);
+
+  // A PDF appended to the notebook: its pages keep their own numbers, the notebook's stay 1, 2…, and a
+  // blank sheet inserted after the PDF page still reads «1a».
+  const pdfPage: WhiteboardPage = { ...freePage('p', ''), pdfAssetId: 'x', pdfPageIndex: 0 };
+  const mixed = [createNotebookSheet('lined'), createNotebookSheet('lined'), pdfPage, createInsertedSheet(1.4, 'lined')];
+
+  assert.deepEqual(resolvePageLabels(mixed), ['1', '2', '1', '1a']);
+  assert.equal(resolveSheetInsertIndex(mixed, 2), 4);
 });
 
 test('board ruling and bookmarks survive normalize and migrate; junk is dropped', () => {

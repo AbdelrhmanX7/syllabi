@@ -3889,8 +3889,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         const compactedPages = splitPages ?? storedPages;
 
         // The split pages differ from what is stored: write them once (the save baseline below stays
-        // what is on disk, so exactly the changed pages go out).
-        if (splitPages && splitPages !== storedPages) needsPersistRef.current = true;
+        // what is on disk, so exactly the changed pages go out). A view-only open splits in memory only.
+        if (splitPages && splitPages !== storedPages && !readOnly) needsPersistRef.current = true;
 
         setDocumentTitle(doc.title);
         setSharedBackgroundImageUrl(doc.sharedBackgroundImageUrl ?? '');
@@ -4982,7 +4982,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   pageLabelsRef.current = pageLabels;
 
   // --- Delete a page: always through the confirm dialog ---
-  const [pendingPageDelete, setPendingPageDelete] = useState<{ pageId: string; label: string; hasInk: boolean } | null>(null);
+  const [pendingPageDelete, setPendingPageDelete] = useState<{ pageId: string; label: string; content: 'blank' | 'ink' | 'pdf' } | null>(
+    null,
+  );
   const requestDeletePage = useCallback(
     (pageId: string) => {
       const synced = flushCurrentPageSnapshot();
@@ -4991,7 +4993,11 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
       if (!page || synced.length <= 1) return;
 
-      setPendingPageDelete({ hasInk: pageHasInk(page), label: pageLabelsRef.current?.[index] ?? String(index + 1), pageId });
+      setPendingPageDelete({
+        content: page.pdfAssetId || page.pdfImageUrl ? 'pdf' : pageHasInk(page) ? 'ink' : 'blank',
+        label: pageLabelsRef.current?.[index] ?? String(index + 1),
+        pageId,
+      });
     },
     [flushCurrentPageSnapshot],
   );
@@ -5074,6 +5080,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         // Same paper, same size: a duplicated sheet stays a sheet, its ruling stays its ruling.
         ...(sourcePage.paperSpacingMm !== undefined ? { paperSpacingMm: sourcePage.paperSpacingMm } : {}),
         ...(sourcePage.sheetAspect !== undefined ? { sheetAspect: sourcePage.sheetAspect } : {}),
+        ...(sourcePage.boardRuled ? { boardRuled: true } : {}),
         pdfAssetId: sourcePage.pdfAssetId,
         pdfFingerprint: sourcePage.pdfFingerprint,
         pdfPageIndex: sourcePage.pdfPageIndex,

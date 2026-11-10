@@ -28,6 +28,7 @@ export const EDITOR_STRINGS = {
   'editor.sheet.confirmTitle': 'Delete page {page}?',
   'editor.sheet.confirmEmpty': 'This page is blank.',
   'editor.sheet.confirmInk': 'Everything written on this page will be deleted too.',
+  'editor.sheet.confirmPdf': 'This page of the PDF and anything written on it will be deleted.',
   'editor.sheet.confirmDelete': 'Delete page',
   'editor.sheet.close': 'Close',
   'editor.notebook.addPage': 'Add a page at the end',
