@@ -129,6 +129,9 @@ interface HydratedPage {
   recordedFrame: PdfScrollPageFrame | null;
 }
 
+/** How many times a missing page raster is asked for again on its own (≈ 300 ms … 4 s apart). */
+const IMAGE_RETRY_LIMIT = 8;
+
 interface PageImageEntry {
   image: HTMLImageElement | null;
   loading: boolean;
@@ -187,6 +190,7 @@ export class PdfScrollSession {
   /** Aspects learned from rasters for pages without a record. */
   private readonly learnedAspects = new Map<string, number>();
   private windowRange: PdfScrollRange | null = null;
+  private readonly imageRetries = new Map<string, number>();
   private generation = 0;
   private currentIndex = -1;
   private disposed = false;
@@ -1116,13 +1120,40 @@ export class PdfScrollSession {
         entry.loading = false;
         entry.image = image;
 
-        if (image) this.learnAspect(page, image);
+        if (image) {
+          this.imageRetries.delete(page.id);
+          this.learnAspect(page, image);
+        } else {
+          this.retryImageSoon(page.id);
+        }
 
         this.options.requestRepaint();
       })
       .catch(() => {
         entry.loading = false;
+        this.retryImageSoon(page.id);
       });
+  }
+
+  /**
+   * A page whose raster was not ready yet (the PDF still being saved or fetched right after an
+   * import) is asked for again by itself — otherwise it stayed blank until the next scroll.
+   */
+  private retryImageSoon(pageId: string): void {
+    const attempt = (this.imageRetries.get(pageId) ?? 0) + 1;
+
+    if (attempt > IMAGE_RETRY_LIMIT || this.disposed) return;
+
+    this.imageRetries.set(pageId, attempt);
+    setTimeout(() => {
+      if (this.disposed || this.suspended) return;
+
+      const entry = this.images.get(pageId);
+
+      if (entry && !entry.image && !entry.loading) this.images.delete(pageId);
+
+      this.checkViewport();
+    }, Math.min(4000, 300 * 2 ** (attempt - 1)));
   }
 
   private learnAspect(page: WhiteboardPage, image: HTMLImageElement): void {
