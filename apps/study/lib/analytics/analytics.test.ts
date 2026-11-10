@@ -3,7 +3,7 @@ import type { AnalyticsClient } from './core';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createAnalytics, megabyteBucket, pageBucket, scrubEvent, SHARE_USAGE_KEY } from './core';
+import { createAnalytics, megabyteBucket, pageBucket, scrubEvent, SHARE_USAGE_KEY, stripUrlsInText } from './core';
 
 function memoryStorage() {
   const data = new Map<string, string>();
@@ -153,13 +153,20 @@ test('errors: stack trimmed to 2 KB and repeats sent once', async () => {
 
 test('URLs lose their query string and fragment; buckets are coarse', () => {
   const event = scrubEvent({
-    properties: { $current_url: 'https://app.test/login/?next=/x#token=secret', $ip: '1.2.3.4', other: 'kept' },
+    properties: {
+      $current_url: 'https://app.test/login/?next=/x#token=secret',
+      $session_entry_url: 'https://app.test/x/#token=abc',
+      $ip: '1.2.3.4',
+      other: 'kept',
+    },
     $set_once: { $initial_current_url: 'https://app.test/item/?id=1' },
   });
 
   assert.equal(event.properties.$current_url, 'https://app.test/login/');
   assert.equal('$ip' in event.properties, false);
+  assert.equal(event.properties.$session_entry_url, 'https://app.test/x/');
   assert.equal(event.properties.other, 'kept');
+  assert.equal(stripUrlsInText('GET https://a.test/f?sig=1#t=2 failed (500)'), 'GET https://a.test/f failed (500)');
   assert.equal(event.$set_once.$initial_current_url, 'https://app.test/item/');
   assert.equal(pageBucket(1), '1');
   assert.equal(pageBucket(120), '51-200');

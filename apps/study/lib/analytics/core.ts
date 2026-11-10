@@ -50,15 +50,27 @@ export function stripUrl(value: unknown): unknown {
   return value.split(/[?#]/)[0];
 }
 
-const URL_PROPS = ['$current_url', '$referrer', '$initial_current_url', '$initial_referrer', '$pathname'];
+/** Any web address inside free text (an error message) loses its query string and fragment too. */
+export function stripUrlsInText(text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/gi, '$1');
+}
 
-/** Runs on every event right before it is sent: drops query strings/fragments and the IP. */
+const URL_VALUE = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+/**
+ * Runs on every event right before it is sent: every web-address value (whatever the property is
+ * called, the client adds several) loses its query string and fragment, and the IP is dropped.
+ */
 export function scrubEvent<T extends { properties?: Record<string, unknown>; $set?: Record<string, unknown>; $set_once?: Record<string, unknown> }>(
   event: T,
 ): T {
   for (const bag of [event.properties, event.$set, event.$set_once]) {
     if (!bag) continue;
-    for (const name of URL_PROPS) if (name in bag) bag[name] = stripUrl(bag[name]);
+    for (const name of Object.keys(bag)) {
+      const value = bag[name];
+
+      if (typeof value === 'string' && URL_VALUE.test(value)) bag[name] = stripUrl(value);
+    }
     delete bag.$ip;
   }
 
@@ -225,7 +237,7 @@ export function createAnalytics(options: AnalyticsOptions) {
     captureError: (error: unknown, context: AnalyticsProps = {}) => {
       if (!enabled || errorsSent >= ERRORS_PER_SESSION) return;
       const err = error instanceof Error ? error : null;
-      const message = (err?.message ?? (typeof error === 'string' ? error : 'Unknown error')).slice(0, 300);
+      const message = stripUrlsInText(err?.message ?? (typeof error === 'string' ? error : 'Unknown error')).slice(0, 300);
       const signature = `${err?.name ?? ''}:${message}`;
 
       if (seenErrors.has(signature)) return;
@@ -234,7 +246,7 @@ export function createAnalytics(options: AnalyticsOptions) {
       track('app_error', {
         name: err?.name ?? typeof error,
         message,
-        stack: err?.stack ? err.stack.slice(0, STACK_MAX) : undefined,
+        stack: err?.stack ? stripUrlsInText(err.stack).slice(0, STACK_MAX) : undefined,
         ...context,
       });
     },
