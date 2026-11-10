@@ -212,6 +212,10 @@ const ACCESS_RE = /^sat_[A-Za-z0-9_-]{43}$/;
 export interface McpPrincipal {
   userId: Types.ObjectId;
   via: "key" | "oauth";
+  /** The personal key used (via = key) — its name says which app it was made for. */
+  keyId?: Types.ObjectId;
+  /** The OAuth client (via = oauth) — its registered name / callbacks say which app it is. */
+  clientId?: string;
 }
 
 /** A key or an unexpired, unrevoked access token issued for THIS resource, owned by a full admin. */
@@ -219,17 +223,33 @@ export async function authenticateBearer(token: string, req: Request, now = new 
   let principal: McpPrincipal | null = null;
   if (token.startsWith("sk_study_")) {
     const k = await authenticateKey(token);
-    if (k) principal = { userId: k.userId, via: "key" };
+    if (k) principal = { userId: k.userId, via: "key", keyId: k.keyId };
   } else if (ACCESS_RE.test(token)) {
     const row = await StudyOAuthToken.findOne({ tokenHash: sha256Hex(token), kind: "access" }).lean<IStudyOAuthToken>();
     if (row && !row.revokedAt && new Date(row.expiresAt) > now && sameResource(row.resource, resourceUri(req))) {
       if (!(await loadFullAdmin(row.userId))) return null;
       void touchGrant(row, now).catch(() => undefined);
-      return { userId: row.userId, via: "oauth" };
+      return { userId: row.userId, via: "oauth", clientId: row.clientId };
     }
   }
   if (!principal) return null;
   return (await loadFullAdmin(principal.userId)) ? principal : null;
+}
+
+/**
+ * The name and callbacks of the app behind an MCP credential, for tagging what it creates (inbox
+ * items). Looked up only when needed, never on the auth path. Nulls when the row is gone.
+ */
+export async function mcpClientIdentity(principal: McpPrincipal): Promise<{ name: string | null; redirectUris: string[] }> {
+  if (principal.via === "key" && principal.keyId) {
+    const key = await StudyMcpKey.findOne({ _id: principal.keyId, userId: principal.userId }, { name: 1 }).lean<IStudyMcpKey>();
+    return { name: key?.name ?? null, redirectUris: [] };
+  }
+  if (principal.via === "oauth" && principal.clientId) {
+    const client = await StudyOAuthClient.findOne({ clientId: principal.clientId }, { clientName: 1, redirectUris: 1 }).lean<IStudyOAuthClient>();
+    return { name: client?.clientName || null, redirectUris: client?.redirectUris ?? [] };
+  }
+  return { name: null, redirectUris: [] };
 }
 
 // ─── dynamic client registration (RFC 7591) ─────────────────────────────────────────────

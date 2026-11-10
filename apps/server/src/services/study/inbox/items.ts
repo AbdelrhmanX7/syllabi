@@ -6,6 +6,7 @@ import { IStudyInboxItem, StudyInboxItem } from "@/models/study/inbox";
 import { putStudyObject, signedGetUrl } from "@/services/study/storage";
 import { publishInboxItem } from "./bus";
 import { processUpload } from "./media";
+import type { InboxSource } from "./source";
 
 export const INBOX_LIST_LIMIT = 50;
 export const NOTE_MAX = 500;
@@ -31,6 +32,7 @@ export async function inboxItemDto(d: IStudyInboxItem) {
     pageId: d.pageId ? String(d.pageId) : null,
     createdAt: new Date(d.createdAt).toISOString(),
     usedAt: d.usedAt ? new Date(d.usedAt).toISOString() : null,
+    source: d.source ?? null,
   };
 }
 
@@ -78,7 +80,7 @@ export async function validateMeta(userId: Types.ObjectId, note: unknown, classI
 export async function createInboxItem(
   userId: Types.ObjectId,
   file: Buffer,
-  meta: { note: string | null; classId: Types.ObjectId | null; pageId?: Types.ObjectId | null; tokenId: Types.ObjectId | null }
+  meta: { note: string | null; classId: Types.ObjectId | null; pageId?: Types.ObjectId | null; tokenId: Types.ObjectId | null; source?: InboxSource | null }
 ) {
   const media = await processUpload(file);
   const uid = String(userId);
@@ -101,6 +103,7 @@ export async function createInboxItem(
     classId: meta.classId,
     pageId: meta.pageId ?? null,
     tokenId: meta.tokenId,
+    source: meta.source ?? null,
   });
   const dto = await inboxItemDto(doc.toObject() as IStudyInboxItem);
   publishInboxItem(uid, dto);

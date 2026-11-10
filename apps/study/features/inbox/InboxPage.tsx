@@ -1,6 +1,8 @@
+import type { InboxSource } from './lib/source';
 import type { InboxItem } from './types';
 
 import { useEffect, useState } from 'react';
+import { Chip } from '@repo/ui';
 import { BookOpen, Inbox, Network, NotebookPen, Radio, Settings, Smartphone, Trash2 } from 'lucide-react';
 import Head from 'next/head';
 
@@ -8,12 +10,21 @@ import { BankExtractSheet } from './components/BankExtractSheet';
 import { InboxThumb } from './components/InboxThumb';
 import { NotebookPickerSheet } from './components/NotebookPickerSheet';
 import { Sheet } from './components/Sheet';
+import { inboxSource, SOURCE_COLOR, SOURCE_LABEL, sourcesPresent } from './lib/source';
 import { simulateMockArrival } from './mock';
 import { loadInboxFile, markInboxSeen, markItemUsed, removeInboxItem, useInbox } from './store';
 
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SampleDataBanner } from '@/components/ui/SampleDataBanner';
-import { ActionButton, Badge, EmptyState, ErrorNote, LinkButton, LoadingRows } from '@/components/ui/primitives';
+import {
+  ActionButton,
+  Badge,
+  EmptyState,
+  ErrorNote,
+  FilterChip,
+  LinkButton,
+  LoadingRows,
+} from '@/components/ui/primitives';
 import { useBackendSettings } from '@/hooks/useBackendSettings';
 import { describeError } from '@/lib/api/errors';
 import { useSampleRoute } from '@/lib/api/hooks';
@@ -30,6 +41,24 @@ function LiveChip({ mode }: { mode: ReturnType<typeof useInbox>['mode'] }) {
       <Radio className={live ? 'text-st-ok h-3.5 w-3.5' : 'h-3.5 w-3.5'} />
       {live ? 'Live' : mode === 'poll' ? 'Checking every 10 s' : mode === 'connecting' ? 'Connecting…' : 'Offline'}
     </span>
+  );
+}
+
+/** Where the item came from, top-right on the photo (opposite «New»). */
+function SourceTag({ item }: { item: InboxItem }) {
+  const source = inboxSource(item);
+
+  return (
+    <Chip
+      className='absolute right-2 top-2'
+      color={SOURCE_COLOR[source]}
+      radius='sm'
+      size='sm'
+      title={`Came from: ${SOURCE_LABEL[source]}`}
+      variant='flat'
+    >
+      {SOURCE_LABEL[source]}
+    </Chip>
   );
 }
 
@@ -59,6 +88,7 @@ function InboxCard({
             New
           </span>
         )}
+        <SourceTag item={item} />
       </button>
       <div className='flex flex-1 flex-col gap-2 p-3'>
         <div className='flex items-center gap-2 text-xs'>
@@ -127,6 +157,11 @@ export default function InboxPage() {
   const { mockMode } = useBackendSettings();
   const isSample = useSampleRoute('/inbox');
   const [action, setAction] = useState<Action>(null);
+  const [only, setOnly] = useState<InboxSource | null>(null);
+  const sources = sourcesPresent(inbox.items);
+  // A tag that vanished (its last item deleted) stops filtering.
+  const filter = only && sources.includes(only) ? only : null;
+  const shown = filter ? inbox.items.filter((item) => inboxSource(item) === filter) : inbox.items;
   // Unread is judged against the mark as it was when the page opened, so «New» stays visible here.
   const [openedSeenAt, setOpenedSeenAt] = useState<string | null>(null);
 
@@ -158,7 +193,7 @@ export default function InboxPage() {
             </LinkButton>
           </div>
         }
-        subtitle='Photos and PDFs sent from your iPhone.'
+        subtitle='Photos and PDFs from your phone, Claude and other apps.'
         title='Inbox'
       />
       {isSample && <SampleDataBanner className='mb-4' what='phone uploads' />}
@@ -177,11 +212,25 @@ export default function InboxPage() {
           title='Nothing from your phone yet'
         />
       ) : (
-        <ul className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-          {inbox.items.map((item) => (
+        <>
+          {sources.length > 1 && (
+            <div aria-label='Filter by where it came from' className='mb-4 flex flex-wrap gap-x-2 gap-y-2.5 pb-[3px]' role='group'>
+              <FilterChip active={!filter} onClick={() => setOnly(null)}>
+                All
+              </FilterChip>
+              {sources.map((source) => (
+                <FilterChip key={source} active={filter === source} onClick={() => setOnly(source)}>
+                  {SOURCE_LABEL[source]}
+                </FilterChip>
+              ))}
+            </div>
+          )}
+          <ul className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+          {shown.map((item) => (
             <InboxCard key={item.id} item={item} unread={isUnread(item)} onAction={setAction} />
           ))}
-        </ul>
+          </ul>
+        </>
       )}
 
       {action?.kind === 'notes' && <NotebookPickerSheet item={action.item} onClose={() => setAction(null)} />}

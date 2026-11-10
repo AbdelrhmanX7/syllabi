@@ -4,6 +4,7 @@ import { adminVerification, studyAccess } from "@/compat/auth";
 import { openStudySse } from "@/services/study/sse";
 import { subscribeInbox } from "@/services/study/inbox/bus";
 import { newNonce, renderDropPage, renderInvalidDropPage, setDropPageHeaders } from "@/services/study/inbox/drop-page";
+import { uploadSource } from "@/services/study/inbox/source";
 import { createInboxItem, deleteInboxItem, inboxItemDto, InboxError, listInboxItems, patchInboxItem, validateMeta } from "@/services/study/inbox/items";
 import { INBOX_MAX_BYTES, InboxMediaError } from "@/services/study/inbox/media";
 import { IStudyClass, StudyClass } from "@/models/study/class";
@@ -160,7 +161,7 @@ export const postInboxItem = wrap(async (req, res) => {
   try {
     const userId = uid(req);
     const meta = oneShot ? { note: oneShot.note, classId: oneShot.classId, pageId: oneShot.pageId } : await validateMeta(userId, req.body?.note, req.body?.classId, req.body?.pageId);
-    const dto = await createInboxItem(userId, file.buffer, { ...meta, tokenId });
+    const dto = await createInboxItem(userId, file.buffer, { ...meta, tokenId, source: uploadSource(tokenId, req.body?.source) });
     if (tokenId && !oneShot) touchDropToken(tokenId);
     res.status(201).json(dto);
   } catch (e) {

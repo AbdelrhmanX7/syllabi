@@ -22,6 +22,7 @@ import {
   makeCsrfToken,
   McpKeyError,
   McpPrincipal,
+  mcpClientIdentity,
   newCsrfNonce,
   NONCE_RE,
   OAuthError,
@@ -33,6 +34,7 @@ import {
   CSRF_TTL_SEC,
 } from "@/services/study/mcp-auth";
 import { buildStudyMcpServer } from "@/services/study/mcp-tools";
+import { mcpSource, type InboxSource } from "@/services/study/inbox/source";
 import { logger } from "@/services/logger.service";
 import { fail, isOid, uid, wrap } from "./study.controller";
 import type { IStudyOAuthClient } from "@/models/study/mcp";
@@ -115,7 +117,13 @@ export async function requireMcpAuth(req: Request, res: Response, next: NextFunc
 /** Stateless Streamable HTTP: a fresh server + transport per POST, JSON responses. */
 export async function mcpPost(req: Request, res: Response) {
   const principal = res.locals.mcpPrincipal as McpPrincipal;
-  const server = buildStudyMcpServer(String(principal.userId), { publicBase: publicBase(req) });
+  const userAgent = req.get("user-agent") ?? null;
+  let inboxSource: Promise<InboxSource> | null = null;
+  const server = buildStudyMcpServer(String(principal.userId), {
+    publicBase: publicBase(req),
+    // Which app is calling, for the inbox item's tag — looked up once, only if a tool saves to the inbox.
+    inboxSource: () => (inboxSource ??= mcpClientIdentity(principal).then((id) => mcpSource({ ...id, userAgent }))),
+  });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   // The SDK answers protocol-level rejections (unsupported MCP-Protocol-Version, malformed
   // JSON-RPC, …) itself and reports them ONLY here — without this they leave no trace but a

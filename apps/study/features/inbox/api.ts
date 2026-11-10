@@ -101,14 +101,19 @@ async function liveError(res: Response): Promise<StudyApiError> {
   return studyApiError(res.status, message, code);
 }
 
-/** Multipart `POST /inbox` (`file` + optional `note`, `classId`) as the signed-in admin. */
-export async function uploadToInbox(file: Blob, fields: { note?: string; classId?: string } = {}): Promise<InboxItem> {
+/** Multipart `POST /inbox` (`file` + optional `note`, `classId`, `source`) as the signed-in admin. */
+export async function uploadToInbox(
+  file: Blob,
+  fields: { note?: string; classId?: string; source?: 'shared' | 'upload' } = {},
+): Promise<InboxItem> {
   if (isMockRoute('/inbox', 'POST')) return markSample(await mockInboxUpload(file, fields));
   const form = new FormData();
 
   form.append('file', file);
   if (fields.note?.trim()) form.append('note', fields.note.trim().slice(0, INBOX_NOTE_MAX));
   if (fields.classId) form.append('classId', fields.classId);
+  // Where it came from (an older server ignores the extra field; a drop-token upload is always `phone`).
+  if (fields.source) form.append('source', fields.source);
   const res = await fetch(`${liveBase()}/inbox`, { method: 'POST', headers: liveAuth(), body: form });
 
   if (!res.ok) {

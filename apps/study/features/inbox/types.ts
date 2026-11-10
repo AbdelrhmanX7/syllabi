@@ -23,6 +23,11 @@ export interface InboxItem {
    * The board of that page appends it from its «waiting from Claude» chip. Absent on an older backend.
    */
   pageId?: string | null;
+  /**
+   * Where it came from: `phone` (drop token / QR page), `claude`, `codex`, `shared` (Android share
+   * into the app), `upload` (the app itself) or `other`. Absent on an older backend → shown as Other.
+   */
+  source?: string | null;
 }
 
 /** A drop token as listed — the secret never comes back after creation. */

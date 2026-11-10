@@ -85,6 +85,11 @@ export interface IStudyInboxItem {
   deletedAt: Date | null;
   /** The drop token that uploaded it; null = uploaded with the admin JWT. */
   tokenId: Types.ObjectId | null;
+  /**
+   * Where it came from (services/study/inbox/source.ts): phone | claude | codex | shared | upload | other.
+   * Null on items made before the field existed (the app shows them as «Other»).
+   */
+  source: string | null;
   createdAt: Date;
 }
 
@@ -105,6 +110,7 @@ const StudyInboxItemSchema = new Schema<IStudyInboxItem>(
     usedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
     tokenId: { type: Schema.Types.ObjectId, default: null },
+    source: { type: String, default: null, maxlength: 20 },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
