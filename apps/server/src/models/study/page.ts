@@ -1,5 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { EditedBySchema, IEditedBy } from "@/models/share";
+import { COVER_COLORS, COVER_ICONS, MATH_TOOLS_MODES, MathToolsMode, MetaEdited } from "@/services/study/page-meta";
 
 export const STUDY_PAGE_KINDS = ["note", "pdf", "lecture", "solve"] as const;
 export type StudyPageKind = (typeof STUDY_PAGE_KINDS)[number];
@@ -30,6 +31,19 @@ export interface IStudyPageAnnotation {
   markdown: string;
   author: "claude";
   createdAt: Date;
+}
+
+/**
+ * A notebook's cover (Notebook details): an AI picture stored at `key`, or a brand colour + icon.
+ * `by` = who chose it; a cover the owner picked is never replaced by AI.
+ */
+export interface IStudyPageCover {
+  kind: "image" | "color";
+  key?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  by: "ai" | "user";
+  updatedAt: Date;
 }
 
 export interface IPageVersionEntry {
@@ -112,6 +126,18 @@ export interface IStudyPage {
   versionLog?: IPageVersionEntry[];
   /** Unlogged earlier versions up to here were already removed by the thinning (services/study/page-versions-prune.ts). */
   prunedThrough?: number;
+  /** Notebook details (services/study/page-meta.ts): one or two plain sentences, ≤ 300 chars. */
+  description?: string | null;
+  /** ≤ 6 lowercase tags, ≤ 24 chars each. */
+  tags?: string[];
+  cover?: IStudyPageCover | null;
+  /** Math symbol bar on the board: auto = on when a tag is math-ish. */
+  mathTools?: MathToolsMode;
+  /** Fields the owner edited — AI never writes them. A missing flag is read from the data (effectiveEdited). */
+  metaEdited?: Partial<MetaEdited> | null;
+  /** When AI last described the notebook, and which content version it saw. */
+  metaAiAt?: Date | null;
+  metaAiVersion?: number | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -203,6 +229,32 @@ const StudyPageSchema = new Schema<IStudyPage>(
       ],
       default: undefined,
     },
+    description: { type: String, default: null, maxlength: 300 },
+    tags: { type: [String], default: undefined },
+    cover: {
+      type: new Schema(
+        {
+          kind: { type: String, enum: ["image", "color"], required: true },
+          key: { type: String, default: null },
+          color: { type: String, enum: [...COVER_COLORS, null], default: null },
+          icon: { type: String, enum: [...COVER_ICONS, null], default: null },
+          by: { type: String, enum: ["ai", "user"], required: true },
+          updatedAt: { type: Date, required: true },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    mathTools: { type: String, enum: MATH_TOOLS_MODES, default: "auto" },
+    metaEdited: {
+      type: new Schema(
+        { title: { type: Boolean }, description: { type: Boolean }, tags: { type: Boolean }, cover: { type: Boolean } },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    metaAiAt: { type: Date, default: null },
+    metaAiVersion: { type: Number, default: null },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

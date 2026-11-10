@@ -1,6 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 
-export const STUDY_AI_ENDPOINTS = ["extract", "attempt", "similar", "flashcards", "transcribe", "lecture", "code_review", "mcp_explain", "mcp_plan", "concept_map_grade", "concept_map_predict", "concept_map_reference", "concept_map_short_answers", "concept_map_notes", "concept_map_terms", "concept_map_from_terms", "policy", "digest", "a_plan", "ask", "ask_vision", "board_actions", "ink_classify", "dictate", "image_gen"] as const;
+export const STUDY_AI_ENDPOINTS = ["extract", "attempt", "similar", "flashcards", "transcribe", "lecture", "code_review", "mcp_explain", "mcp_plan", "concept_map_grade", "concept_map_predict", "concept_map_reference", "concept_map_short_answers", "concept_map_notes", "concept_map_terms", "concept_map_from_terms", "policy", "digest", "a_plan", "ask", "ask_vision", "board_actions", "ink_classify", "dictate", "image_gen", "page_describe", "page_cover"] as const;
 export type StudyAiEndpoint = (typeof STUDY_AI_ENDPOINTS)[number];
 
 /**

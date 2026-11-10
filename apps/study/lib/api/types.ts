@@ -160,6 +160,20 @@ export interface PageLectureLink {
   date: string;
 }
 
+/** Notebook details (AI-made, owner-editable). Absent on a backend that has not shipped them. */
+export type MathToolsMode = 'auto' | 'on' | 'off';
+export type PageCoverColor = 'blue' | 'star' | 'green' | 'amber' | 'red' | 'slate';
+export type MetaField = 'title' | 'description' | 'tags' | 'cover';
+export type MetaEdited = Record<MetaField, boolean>;
+export interface PageCover {
+  kind: 'image' | 'color';
+  color: PageCoverColor | null;
+  /** Lucide icon name from the server's fixed list (lib/notebooks/cover-icons.tsx). */
+  icon: string | null;
+  by: 'ai' | 'user';
+  updatedAt: string | null;
+}
+
 export interface Page {
   id: string;
   classId: string | null;
@@ -186,7 +200,21 @@ export interface Page {
   shared?: { role: 'editor'; ownerName: string } | null;
   /** Someone besides the owner may edit it: the board syncs live (changes in and out as they happen). */
   live?: boolean;
+  description?: string | null;
+  tags?: string[];
+  cover?: PageCover | null;
+  /** Signed link to the AI cover picture (expires hourly); null for a colour cover. */
+  coverUrl?: string | null;
+  mathTools?: MathToolsMode;
+  /** Fields the owner edited: AI keeps away from them. */
+  metaEdited?: MetaEdited;
+  metaAiAt?: string | null;
+  /** Content version AI last described; null = never. */
+  metaAiVersion?: number | null;
 }
+
+/** `POST /pages/:id/describe`: the page as it is now, plus whether a cover picture is still being made. */
+export type DescribedPage = Page & { coverPending?: boolean };
 
 /** `GET /pages/:id/content`. Before the first commit `url` is null and `version` 0 — an empty page. */
 export interface PageContentRef {

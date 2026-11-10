@@ -23,6 +23,9 @@ import type {
   McpConnection,
   McpKey,
   ModuleNode,
+  DescribedPage,
+  MathToolsMode,
+  MetaField,
   Page,
   PageLectureLink,
   PageContentRef,
@@ -117,11 +120,29 @@ export const createPage = (body: {
   moduleId?: string | null;
   lecture?: PageLectureLink | null;
 }) => studyPost<Page>('/pages', body);
-/** Rename / file a page under a lecture. Leaves the content version alone. */
+/**
+ * Rename / file a page under a lecture / edit its details. Leaves the content version alone.
+ * Setting title / description / tags (or `cover: null`) marks that field as the owner's, so AI never
+ * changes it again; `aiPick` hands fields back to AI; `titleByApp` = the app renamed it itself.
+ */
 export const patchPage = (
   pageId: string,
-  patch: { title?: string; week?: number | null; moduleId?: string | null; lecture?: PageLectureLink | null },
+  patch: {
+    title?: string;
+    titleByApp?: boolean;
+    week?: number | null;
+    moduleId?: string | null;
+    lecture?: PageLectureLink | null;
+    description?: string | null;
+    tags?: string[];
+    mathTools?: MathToolsMode;
+    cover?: null;
+    aiPick?: MetaField[];
+  },
 ) => studyPatch<Page>(`/pages/${enc(pageId)}`, patch);
+/** AI names / describes the notebook (only fields the owner has not edited). `only: 'cover'` = a new cover. */
+export const describePage = (pageId: string, body: { force?: boolean; only?: 'cover'; fileName?: string } = {}) =>
+  studyPost<DescribedPage>(`/pages/${enc(pageId)}/describe`, body);
 export const getPageContent = (pageId: string) => studyGet<PageContentRef>(`/pages/${enc(pageId)}/content`);
 /**
  * One-call save: the board JSON as the raw body, upload + commit server-side → `{ version, expiresAt }`.

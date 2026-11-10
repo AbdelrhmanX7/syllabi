@@ -2,20 +2,24 @@ import type { Page } from '@/lib/api/types';
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { NotebookPen, Trash2 } from 'lucide-react';
+import { SlidersHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
+import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
+import { NoteCover } from '@/components/notes/NoteCover';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ActionButton, ErrorNote } from '@/components/ui/primitives';
 import { notebookHref } from '@/features/lecturenotes/hooks';
 import { describeError } from '@/lib/api/errors';
 import { formatRelative } from '@/lib/format';
+import { noteRowLine } from '@/lib/notebooks/page-meta';
 import { deleteNotePage } from '@/lib/offline/jobs';
 
-/** One-line notebook rows with a delete button (confirmed in a modal). */
+/** One-line notebook rows: cover, name, tags + when; details and delete (confirmed in a modal). */
 export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page: Page) => string | undefined }) {
   const queryClient = useQueryClient();
   const [toDelete, setToDelete] = useState<Page | null>(null);
+  const [details, setDetails] = useState<Page | null>(null);
   const remove = useMutation({
     mutationFn: (page: Page) => deleteNotePage(page.id),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ['study', 'pages'] }),
@@ -35,17 +39,25 @@ export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page:
                 href={notebookHref(page)}
                 title={page.title}
               >
-                <span className='border-st-line bg-st-raised text-st-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border'>
-                  <NotebookPen className='h-4 w-4' />
-                </span>
+                <NoteCover page={page} />
                 <span className='min-w-0 flex-1'>
                   <span className='text-st-fg block truncate text-sm font-medium'>{page.title}</span>
                   <span className='text-st-muted block truncate text-xs'>
-                    {label ? `${label} · ` : ''}
-                    {formatRelative(page.updatedAt)}
+                    {noteRowLine(page.tags, formatRelative(page.updatedAt), label)}
                   </span>
                 </span>
               </Link>
+              {!page.shared && (
+                <ActionButton
+                  aria-label={`Details of ${page.title}`}
+                  className='h-10 w-10 shrink-0 px-0'
+                  title='Notebook details'
+                  variant='ghost'
+                  onClick={() => setDetails(page)}
+                >
+                  <SlidersHorizontal className='text-st-muted h-4 w-4' />
+                </ActionButton>
+              )}
               <ActionButton
                 aria-label={`Delete ${page.title}`}
                 className='h-10 w-10 shrink-0 px-0'
@@ -59,6 +71,8 @@ export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page:
           );
         })}
       </ul>
+
+      {details && <NotebookDetailsSheet page={details} onClose={() => setDetails(null)} />}
 
       {toDelete && (
         <ConfirmSheet

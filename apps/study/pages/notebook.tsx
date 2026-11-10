@@ -5,15 +5,20 @@ import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
+import { SlidersHorizontal } from 'lucide-react';
+
 import { NotebookBoard } from '@/components/notebook/NotebookBoard';
-import { EmptyState, LinkButton } from '@/components/ui/primitives';
+import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
+import { ActionButton, BOARD_CHIP_OVERRIDE, EmptyState, LinkButton } from '@/components/ui/primitives';
 import { PlacePhoneImageChip } from '@/features/inbox';
 import { recordPhoneImage } from '@/features/conceptmaps/lib/pageImages';
 import { useNotebookConceptMaps } from '@/features/conceptmaps/notes/NotebookConceptMaps';
 import { AttachToLectureButton, lectureNoteSeed, usePageLecture } from '@/features/lecturenotes';
 import { track } from '@/lib/analytics';
 import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
+import { PAGE_DESCRIBED_EVENT, rememberPdfName } from '@/lib/notebooks/auto-describe';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
+import { mathToolsOn } from '@/lib/notebooks/page-meta';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { isLocalPageId, pageRedirect } from '@/lib/offline/local-pages';
 import { useStudyBoardAi } from '@/features/tutor';
@@ -48,6 +53,25 @@ export default function NotebookPage() {
     lecture,
   });
   const [missing, setMissing] = useState(false);
+  // Notebook details sheet (`&details=1` opens it, e.g. from a link); `&math=1` shows the math bar.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (router.query.details === '1') setDetailsOpen(true);
+  }, [router.query.details]);
+
+  // AI described this notebook after a sync: new name / tags (math tools on Auto follow the tags).
+  useEffect(() => {
+    const onDescribed = (event: Event) => {
+      const fresh = (event as CustomEvent<Page>).detail;
+
+      if (fresh?.id === pageId) setPage((current) => (current ? { ...current, ...fresh } : current));
+    };
+
+    window.addEventListener(PAGE_DESCRIBED_EVENT, onDescribed);
+
+    return () => window.removeEventListener(PAGE_DESCRIBED_EVENT, onDescribed);
+  }, [pageId]);
   // `&inbox=<itemId>` (Inbox → «Add to notes»): offer that photo / PDF on the board; a tap places it
   // (a PDF's pages are appended through the editor's import sheet).
   const inboxItemId = typeof router.query.inbox === 'string' ? router.query.inbox : '';
@@ -152,12 +176,15 @@ export default function NotebookPage() {
   // someone typed is never touched). Local first so the pill updates at once; the backend follows.
   const adoptPdfTitle = useCallback(
     (fileName: string) => {
-      const next = page ? retitleForPdf(page.title, fileName) : null;
+      if (page) rememberPdfName(page.id, fileName);
+      // A name the owner set in Notebook details is never replaced, even when it looks generated.
+      const next = page && page.metaEdited?.title !== true ? retitleForPdf(page.title, fileName) : null;
 
       if (!page || !next) return;
       setPage({ ...page, title: next });
       rememberPages([{ ...page, title: next }]);
-      patchPage(page.id, { title: next })
+      // The app renamed it, not the owner: AI may still improve the name later.
+      patchPage(page.id, { title: next, titleByApp: true })
         .then((saved) => rememberPages([saved]))
         .catch(() => undefined);
     },
@@ -190,6 +217,19 @@ export default function NotebookPage() {
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
           live={Boolean(page.live)}
+          secondRowStart={
+            sharedWithMe ? undefined : (
+              <ActionButton
+                aria-label='Notebook details'
+                className={BOARD_CHIP_OVERRIDE}
+                title='Notebook details: name, tags, cover, math tools'
+                onClick={() => setDetailsOpen(true)}
+              >
+                <SlidersHorizontal className='h-3.5 w-3.5' /> <span data-chip-label>Details</span>
+              </ActionButton>
+            )
+          }
+          mathTools={router.query.math === '1' || mathToolsOn(page.mathTools, page.tags)}
           pageId={page.id}
           pendingImage={inboxImage}
           pendingPdf={inboxPdf}
@@ -237,6 +277,9 @@ export default function NotebookPage() {
           onPdfInserted={() => setInboxPdf(null)}
           onPdfFileImported={adoptPdfTitle}
         />
+      )}
+      {page && detailsOpen && !sharedWithMe && (
+        <NotebookDetailsSheet page={page} onChange={setPage} onClose={() => setDetailsOpen(false)} />
       )}
     </>
   );

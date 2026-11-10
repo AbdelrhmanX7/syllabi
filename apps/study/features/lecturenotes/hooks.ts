@@ -40,6 +40,7 @@ import { localIso, termStartFor } from '@/features/guide/lib/schedule';
 import { createPage, patchPage } from '@/lib/api/endpoints';
 import { studyKeys, useClassModules, usePages } from '@/lib/api/hooks';
 import { rememberPages } from '@/lib/notebooks/pages-cache';
+import { isAutoNoteTitle } from '@/lib/notebooks/note-title';
 
 export { useLectureNoteMetas };
 
@@ -237,7 +238,7 @@ export async function attachPageToLecture(
   writeLectureNoteMeta(page.id, meta);
   if (fieldsSupported !== false) {
     try {
-      const saved = await patchPage(page.id, { ...lectureFields(meta), ...(rename ? { title: rename } : {}) });
+      const saved = await patchPage(page.id, { ...lectureFields(meta), ...(rename ? { title: rename, titleByApp: isAutoNoteTitle(rename) } : {}) });
 
       if (saved && typeof saved === 'object' && 'id' in saved) {
         rememberPages([saved]);

@@ -164,6 +164,31 @@ async function imageObject(dataUrl: string): Promise<FabricImage | null> {
   }
 }
 
+/**
+ * ONE typeset math object (the `'math'` block's renderer, alone): KaTeX → crisp image sized to look
+ * `fontPx` on screen at `zoom`, tagged `{kind: 'math', source}`; a readable-text Textbox when KaTeX
+ * cannot render here. Positioned at (0, 0), top-left origin — the caller places it.
+ */
+export async function buildMathObject(tex: string, options: { zoom: number; color: string; fontPx?: number }): Promise<FabricObject> {
+  const unit = 1 / (options.zoom || 1);
+  const fontPx = options.fontPx ?? 30;
+  const raster = await renderMathImage(tex, { fontPx, color: options.color });
+  const image = raster ? await imageObject(raster.dataUrl) : null;
+
+  if (image && raster) {
+    const scale = (raster.width * unit) / (image.width || 1);
+
+    image.set({ ...TOP_LEFT, left: 0, top: 0, scaleX: scale, scaleY: scale });
+
+    return tag(image, { kind: 'math', source: tex });
+  }
+
+  const text = latexToText(tex);
+  const box = textbox(text, unit, { size: fontPx, color: options.color, width: Math.max(40, text.length * fontPx * 0.7) * unit, align: 'center' });
+
+  return tag(box, { kind: 'math', source: tex });
+}
+
 /** Stacks blocks top-to-bottom from (0, 0). Returns the objects, top-level, in z-order. */
 export async function buildBlockObjects(blocks: BoardAiBlock[], baseOptions: BuildOptions): Promise<FabricObject[]> {
   // Re-pointed per block: a toned block (a `> [!wrong]` callout, tones.ts) is written in its ink.

@@ -15,9 +15,10 @@ export function pdfNoteTitle(fileName: string | null | undefined): string | null
 }
 
 const DAY = '(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) [A-Z][a-z]{2} \\d{1,2}';
-// «<course> — [Week N · ]Mon Oct 5» (sessionLecture), «Lecture 8 — topic» / «Week 8 — topic» (lectureNoteTitle).
+// «<course> — [Week N · ]Mon Oct 5» (sessionLecture), «Lecture 8 — topic» / «Week 8 — topic» (lectureNoteTitle),
+// «Note · Nov 10» (New note on /notes).
 const AUTO_TITLE = new RegExp(
-  `^(?:.+ — (?:Week \\d+ · )?${DAY}|(?:Lecture|Lab|Session|Recitation|Week) (?:\\d+|\\?)(?: — .+)?|Notebook|Untitled)$`,
+  `^(?:.+ — (?:Week \\d+ · )?${DAY}|(?:Lecture|Lab|Session|Recitation|Week) (?:\\d+|\\?)(?: — .+)?|Note · [A-Z][a-z]{2} \\d{1,2}|Notebook|Untitled)$`,
 );
 
 /** True for a name the app generated (safe to replace), false for anything a person may have typed. */

@@ -33,6 +33,7 @@ import dynamic from 'next/dynamic';
 import { ClaudeFeedback } from '@/components/notebook/ClaudeFeedback';
 import { RulerOverlay } from '@/components/notebook/RulerOverlay';
 import { useRulerPresets, usePutRulerPreset } from '@/lib/api/hooks';
+import { MathSymbolBar } from '@/components/notebook/MathSymbolBar';
 import { ActionButton, BOARD_CHIP, BOARD_CHIP_OVERRIDE } from '@/components/ui/primitives';
 import { BOARD_DRAW_EVENT, boardGraphInput, clearBoardDraw, peekBoardDraw } from '@/features/conceptmaps/lib/boardDraw';
 import { recordPhoneImage } from '@/features/conceptmaps/lib/pageImages';
@@ -158,6 +159,10 @@ export interface NotebookBoardProps {
    * and everyone else's come in live; never a "keep mine / keep theirs" choice. See lib/notebooks/live.ts.
    */
   live?: boolean;
+  /** Show the math symbol bar (Notebook details → Math tools). */
+  mathTools?: boolean;
+  /** A host chip at the start of the board's second row, before the math bar (e.g. «Details»). */
+  secondRowStart?: ReactNode;
 }
 
 const newClientId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -269,6 +274,8 @@ export function NotebookBoard({
   buildMergeOverlaysRef,
   onPdfFileImported,
   live = false,
+  mathTools = false,
+  secondRowStart,
 }: NotebookBoardProps) {
   // The title only seeds a brand-new document; a rename must not re-open (and so remount) the board.
   const titleRef = useRef(title);
@@ -295,6 +302,9 @@ export function NotebookBoard({
   // «Typed note» on the board: back to Claude's text after the board has ink.
   const [forceSheet, setForceSheet] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  // The math symbol bar's last tap, until the editor has placed it (a fresh object per tap).
+  const [pendingMath, setPendingMath] = useState<{ tex: string } | null>(null);
+  const handleMathInserted = useCallback(() => setPendingMath(null), []);
   const [rulerOn, setRulerOn] = useState(false);
   // Ruler presets (Claude or the student saved them for a board page): the editor's live viewport lets the ruler
   // pin its 0 end to a paper position; `viewportTick` re-renders the overlay when it moves.
@@ -906,6 +916,8 @@ export function NotebookBoard({
         viewportRef={viewportRef}
         onViewportChange={onViewportChange}
         onViewportZoomChange={setBoardZoom}
+        pendingMath={pendingMath}
+        onPendingMathHandled={handleMathInserted}
         onPendingConceptMapHandled={handleConceptMapDrawn}
         onPendingImageImportHandled={handleImageInserted}
         onPendingPdfImportHandled={handlePdfInserted}
@@ -913,6 +925,18 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
+      {/* Second row, under the board's top chips: the host's chip, then the math symbol bar. */}
+      {!readOnly && !focusMode && (secondRowStart || mathTools) && (
+        <div
+          className={`pointer-events-none absolute inset-x-3 top-[6.75rem] z-20 flex items-start gap-2 pb-1 md:top-[3.75rem] ${boardTheme === 'dark' ? 'dark' : ''}`}
+          data-board-compact='true'
+        >
+          {secondRowStart && <div className='pointer-events-auto shrink-0'>{secondRowStart}</div>}
+          {mathTools && (
+            <MathSymbolBar className='min-w-0 flex-1 md:max-w-max md:flex-initial' onInsert={(symbol) => setPendingMath({ tex: symbol.tex })} />
+          )}
+        </div>
+      )}
       {rulerOn && !readOnly && (
         <RulerOverlay
           edgesRef={rulerEdgesRef}

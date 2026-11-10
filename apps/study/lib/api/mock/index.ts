@@ -53,6 +53,8 @@ import {
   patchPageFields,
   withClassMeetings,
 } from '@/features/lecturenotes/mock';
+// Notebook details: PATCH fields + POST /pages/:id/describe (fake AI, deterministic).
+import { describeMockPage, patchPageMeta, withMetaDefaults } from './page-meta';
 // Sharing: /share (demo classmates + make a copy through this transport); undefined = not its path.
 import { shareMockRoutes } from '@/features/share/mock';
 // Perf telemetry: /telemetry/perf (POST batches, GET the owner read); undefined = not its path.
@@ -397,7 +399,7 @@ class MockDb {
     lectureKey: string | null = null,
   ): Page[] {
     return this.state.pages
-      .map((page) => ({ ...pageLectureFields(page), ...page }))
+      .map((page) => withMetaDefaults({ ...pageLectureFields(page), ...page }))
       .filter((page) => !classId || page.classId === classId)
       .filter((page) => !itemId || page.itemId === itemId)
       .filter((page) => pageMatchesLecture(page, week, lectureKey))
@@ -899,14 +901,23 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
       if (!a && method === 'GET')
         return db.pages(query.get('classId'), query.get('itemId'), query.get('week'), query.get('lectureKey'));
       if (a && !b && method === 'PATCH') {
-        const page = patchPageFields(db.page(a), body);
+        const page = withMetaDefaults(patchPageMeta(patchPageFields(db.page(a), body), body));
 
         db.persist();
 
         return page;
       }
+      if (a && b === 'describe' && !c && method === 'POST') {
+        const page = db.page(a);
+        const cls = page.classId ? db.classes(null).find((candidate) => candidate.id === page.classId) : null;
+        const described = describeMockPage(page, body, cls ? cls.code || cls.name : null);
+
+        db.persist();
+
+        return described;
+      }
       if (!a && method === 'POST') return db.createPage((body ?? {}) as Partial<Page>);
-      if (a && !b && method === 'GET') return db.page(a);
+      if (a && !b && method === 'GET') return withMetaDefaults(db.page(a));
       if (a && !b && method === 'DELETE') return db.deletePage(a);
       if (a && b === 'content' && !c && method === 'GET') return db.pageContent(a);
       if (a && b === 'content' && !c && method === 'PUT') return db.beginPageUpload(a, Number(body?.baseVersion ?? 0));

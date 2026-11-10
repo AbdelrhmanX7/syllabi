@@ -29,6 +29,7 @@ import {
   restorePageVersion,
   search,
 } from "@/controllers/study-pages.controller";
+import { describePage } from "@/controllers/study-page-meta.controller";
 import { pushPageLive, streamPageLive } from "@/controllers/study-page-live.controller";
 import {
   getMyPdfAsset,
@@ -140,6 +141,8 @@ router.get("/pages", listPages);
 router.post("/pages", createPage);
 router.get("/pages/:id", getPage);
 router.patch("/pages/:id", patchPage);
+// Notebook details: AI title / description / tags / cover (controllers/study-page-meta.controller.ts).
+router.post("/pages/:id/describe", describePage);
 router.get("/pages/:id/content", getPageContent);
 router.put("/pages/:id/content", putPageContent);
 // Proxy upload. index.ts skips the app-wide json parser for this path (STUDY_BLOB_PATH), so the

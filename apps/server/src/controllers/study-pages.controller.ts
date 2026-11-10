@@ -8,14 +8,16 @@ import { Admin } from "@/models/admin";
 import { StudyModule } from "@/models/study/module";
 import { StudyLecture, IStudyLecture } from "@/models/study/lecture";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
-import { getStudyObject, pageContentKey, presignedPutUrl, putStudyObject, signedGetUrl, studyObjectExists } from "@/services/study/storage";
+import { deleteStudyObject, getStudyObject, pageContentKey, presignedPutUrl, putStudyObject, signedGetUrl, studyObjectExists } from "@/services/study/storage";
 import { editedByDto, editedByOf, pageHasEditors, scopedPage } from "@/services/share/edit";
 import { publishPageEvent, withPageLock } from "@/services/study/page-live";
 import { displayName, loadCaller, NamedCaller } from "@/services/share/access";
 import { itemsDto, LIST_PROJECTION } from "@/services/study/views";
 import { questionDto } from "@/services/study/questions";
 import { searchTranscripts } from "@/services/study/transcript-search";
+import { logger } from "@/services/logger.service";
 import { prunePageVersions } from "@/services/study/page-versions-prune";
+import { effectiveEdited, MATH_TOOLS_MODES, MetaField, normalizeDescription, normalizeTags } from "@/services/study/page-meta";
 import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
 
 /**
@@ -45,7 +47,31 @@ export const pageDto = (p: IStudyPage) => ({
   moduleId: p.moduleId ? String(p.moduleId) : null,
   lecture: p.lecture ? { number: p.lecture.number ?? null, key: p.lecture.key, date: p.lecture.date } : null,
   editedBy: editedByDto(p.editedBy, p.userId),
+  // Notebook details (services/study/page-meta.ts).
+  description: p.description ?? null,
+  tags: p.tags ?? [],
+  cover: p.cover
+    ? { kind: p.cover.kind, color: p.cover.color ?? null, icon: p.cover.icon ?? null, by: p.cover.by, updatedAt: iso(p.cover.updatedAt) }
+    : null,
+  mathTools: p.mathTools ?? "auto",
+  metaEdited: effectiveEdited(p),
+  metaAiAt: iso(p.metaAiAt),
+  metaAiVersion: p.metaAiVersion ?? null,
 });
+
+/** The Page DTO + `coverUrl`: a signed GET for an AI cover picture (null for a colour cover or none). */
+export async function pageDtoWithCover(p: IStudyPage) {
+  const dto = pageDto(p);
+  if (p.cover?.kind !== "image" || !p.cover.key) return { ...dto, coverUrl: null };
+  const { url } = await signedGetUrl(p.cover.key, { contentType: "image/webp" }).catch(() => ({ url: null as string | null }));
+  return { ...dto, coverUrl: url };
+}
+/** A removed AI cover's picture (best effort: a leftover costs storage, never correctness). */
+async function dropCoverObject(cover: IStudyPage["cover"]): Promise<void> {
+  if (cover?.kind !== "image" || !cover.key) return;
+  await deleteStudyObject(cover.key).catch((e) => logger.warn("study: cover delete failed", { key: cover.key, error: String((e as Error)?.message ?? e).slice(0, 200) }));
+}
+const pagesDto = (pages: IStudyPage[]) => Promise.all(pages.map(pageDtoWithCover));
 
 const validWeek = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30;
 const validDate = (v: unknown): v is string => {
@@ -114,7 +140,7 @@ export const listPages = wrap(async (req, res) => {
     filter["lecture.key"] = lectureKey;
   }
   const pages = await StudyPage.find(filter, PAGE_PROJECTION).sort({ updatedAt: -1, _id: 1 }).limit(1000).lean<IStudyPage[]>();
-  res.json(pages.map(pageDto));
+  res.json(await pagesDto(pages));
 });
 
 /** One page: the Page DTO + `markdown` = its stored OCR/search text (what `PUT /pages/:id/ocr` wrote). */
@@ -124,11 +150,11 @@ export const getPage = wrap(async (req, res) => {
   if (!found) return fail(res, 404, "NOT_FOUND", "Page not found");
   const page = found.doc;
   // `live`: someone besides the owner may edit, so the app syncs it live (pushes + the stream).
-  if (!found.editor) return res.json({ ...pageDto(page), markdown: page.ocrText ?? null, live: await pageHasEditors(page) });
+  if (!found.editor) return res.json({ ...(await pageDtoWithCover(page)), markdown: page.ocrText ?? null, live: await pageHasEditors(page) });
   // Someone else's page shared with the caller to edit: no class / lecture links into the owner's account.
   const owner = await Admin.findById(page.userId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
   res.json({
-    ...pageDto(page),
+    ...(await pageDtoWithCover(page)),
     classId: null,
     itemId: null,
     lectureId: null,
@@ -190,14 +216,18 @@ export const createPage = wrap(async (req, res) => {
 });
 
 /**
- * `PATCH /pages/:id {title?, week?, moduleId?, lecture?}` — organisation metadata. `null` clears.
+ * `PATCH /pages/:id {title?, week?, moduleId?, lecture?, description?, tags?, mathTools?, cover?: null,
+ * aiPick?: MetaField[], titleByApp?: true}` — organisation metadata + notebook details. `null` clears.
+ * Setting title / description / tags (or removing the cover) marks that field as the owner's, so AI
+ * never writes it again; `aiPick` hands fields back to AI (clears their flags). `titleByApp`: the app
+ * renamed the note itself (after a PDF landed) — the title stays AI's to improve.
  * Does NOT touch `version`/contentKey, and (like OCR) does not move `updatedAt`: that field
  * means "content changed", so renaming/filing a page must not reorder the notebook list.
  */
 export const patchPage = wrap(async (req, res) => {
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-  const keys = ["title", "week", "moduleId", "lecture"].filter((k) => body[k] !== undefined);
-  if (!keys.length) return fail(res, 400, "VALIDATION_ERROR", "Send at least one of title, week, moduleId, lecture");
+  const keys = ["title", "week", "moduleId", "lecture", "description", "tags", "mathTools", "cover", "aiPick"].filter((k) => body[k] !== undefined);
+  if (!keys.length) return fail(res, 400, "VALIDATION_ERROR", "Send at least one of title, week, moduleId, lecture, description, tags, mathTools, cover, aiPick");
   const err = orgFieldError(body);
   if (err) return fail(res, 400, "VALIDATION_ERROR", err);
   const set: Record<string, unknown> = {};
@@ -205,6 +235,39 @@ export const patchPage = wrap(async (req, res) => {
     const t = typeof body.title === "string" ? body.title.trim() : "";
     if (!t || t.length > 200) return fail(res, 400, "VALIDATION_ERROR", "title must be a non-empty string (max 200)");
     set.title = t;
+    set["metaEdited.title"] = body.titleByApp !== true;
+  }
+  if (body.description !== undefined) {
+    if (body.description !== null && (typeof body.description !== "string" || body.description.length > 300))
+      return fail(res, 400, "VALIDATION_ERROR", "description must be a string (max 300) or null");
+    set.description = normalizeDescription(body.description);
+    set["metaEdited.description"] = true;
+  }
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags) || body.tags.length > 20 || body.tags.some((t) => typeof t !== "string"))
+      return fail(res, 400, "VALIDATION_ERROR", "tags must be a list of strings");
+    set.tags = normalizeTags(body.tags);
+    set["metaEdited.tags"] = true;
+  }
+  if (body.mathTools !== undefined) {
+    if (!(MATH_TOOLS_MODES as readonly unknown[]).includes(body.mathTools)) return fail(res, 400, "VALIDATION_ERROR", `mathTools must be one of ${MATH_TOOLS_MODES.join(", ")}`);
+    set.mathTools = body.mathTools;
+  }
+  if (body.cover !== undefined) {
+    if (body.cover !== null) return fail(res, 400, "VALIDATION_ERROR", "cover can only be removed (null); ask AI for a new one");
+    set.cover = null;
+    set["metaEdited.cover"] = true;
+  }
+  if (body.aiPick !== undefined) {
+    const fields: readonly string[] = ["title", "description", "tags", "cover"];
+    if (!Array.isArray(body.aiPick) || body.aiPick.some((f) => !fields.includes(f as string)))
+      return fail(res, 400, "VALIDATION_ERROR", `aiPick must list fields of ${fields.join(", ")}`);
+    for (const f of body.aiPick as MetaField[]) {
+      if (set[`metaEdited.${f}`] !== undefined) return fail(res, 400, "VALIDATION_ERROR", `Do not edit ${f} and hand it to AI at once`);
+      set[`metaEdited.${f}`] = false;
+    }
+    // A field handed back is AI's to fill again on the next describe, whatever the content version.
+    if (body.aiPick.length) set.metaAiVersion = null;
   }
   const page = await ownPage(req, res);
   if (!page) return;
@@ -225,7 +288,8 @@ export const patchPage = wrap(async (req, res) => {
     { new: true, projection: PAGE_PROJECTION, timestamps: false }
   ).lean<IStudyPage>();
   if (!updated) return fail(res, 404, "NOT_FOUND", "Page not found");
-  res.json(pageDto(updated));
+  if (body.cover === null) void dropCoverObject(page.cover);
+  res.json(await pageDtoWithCover(updated));
 });
 
 /** `{url, version, expiresAt}`; before the first commit `{url:null, version:0, expiresAt:null}`. */
@@ -331,7 +395,7 @@ export const commitPageContent = wrap(async (req, res) => {
   const updated = await casCommit(page, version, key, author);
   if (!updated) return stale();
   announceVersion(page, page.version, version, req, author);
-  res.json(pageDto(updated));
+  res.json(await pageDtoWithCover(updated));
 });
 
 /**
@@ -471,7 +535,7 @@ export const restorePageVersion = wrap(async (req, res) => {
   });
   if (!updated) return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
   announceVersion(page, updated.version - 1, updated.version, req, author);
-  res.json(pageDto(updated));
+  res.json(await pageDtoWithCover(updated));
 });
 
 // ─── search ─────────────────────────────────────────────────────────────────────────────
@@ -493,5 +557,5 @@ export const search = wrap(async (req, res) => {
     StudyPage.find({ userId, deletedAt: null, $or: [{ title: rx }, { ocrText: rx }] }, PAGE_PROJECTION).sort({ updatedAt: -1, _id: 1 }).limit(SEARCH_LIMIT).lean<IStudyPage[]>(),
     StudyQuestion.find({ userId, $or: [{ stem: rx }, { tags: rx }] }, { shingles: 0 }).sort({ createdAt: -1, _id: -1 }).limit(SEARCH_LIMIT).lean<IStudyQuestion[]>(),
   ]);
-  res.json({ items: await itemsDto(items), pages: pages.map(pageDto), questions: questions.map(questionDto), transcripts: await searchTranscripts(userId, rx, SEARCH_LIMIT) });
+  res.json({ items: await itemsDto(items), pages: await pagesDto(pages), questions: questions.map(questionDto), transcripts: await searchTranscripts(userId, rx, SEARCH_LIMIT) });
 });

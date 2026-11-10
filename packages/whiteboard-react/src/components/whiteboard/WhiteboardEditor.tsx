@@ -367,6 +367,15 @@ export interface WhiteboardEditorProps {
   /** Fired once the pending map was drawn (`true`) or could not be (`false`); the host drops its reference. */
   onPendingConceptMapHandled?: (drawn: boolean) => void;
   /**
+   * A MATH expression (LaTeX) the host wants typeset onto the current page — e.g. Study's math symbol
+   * bar. Rendered by the same KaTeX path as the board AI's math blocks (ai/boardObjects
+   * `buildMathObject`), placed in the middle of the view, selected, one undo step; the object keeps its
+   * LaTeX in `wbAi.source`. One-shot: a new object identity inserts again (send a fresh `{tex}` each
+   * tap). Clearing it is the host's job — see {@link onPendingMathHandled}.
+   */
+  pendingMath?: { tex: string } | null;
+  onPendingMathHandled?: () => void;
+  /**
    * IMAGES the HOST wants added to the board currently open as PAGES — one page per photo, in the
    * given order, the image as each page's background.
    *
@@ -1526,6 +1535,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   onPendingImageImportHandled,
   pendingConceptMap = null,
   onPendingConceptMapHandled,
+  pendingMath = null,
+  onPendingMathHandled,
   pendingImagePagesImport,
   onPendingImagePagesImportHandled,
   onPublishVersion,
@@ -7319,6 +7330,72 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     void insertImageFile(pendingImageImport);
     onPendingImageImportHandled?.();
   }, [insertImageFile, onPendingImageImportHandled, pendingImageImport]);
+
+  // A host-supplied math expression (the math symbol bar): typeset by the board AI's math renderer and
+  // dropped in the middle of the view, at a size that reads the same at any zoom.
+  const mathHandledRef = useRef(onPendingMathHandled);
+  // The last symbol placed and where: the next tap lands right after it (like typing) while it is
+  // still on the board where it was put; otherwise in the middle of the view again.
+  const lastMathRef = useRef<{ object: FabricObject; left: number; top: number } | null>(null);
+
+  mathHandledRef.current = onPendingMathHandled;
+  // Taps are queued: each insert waits for the one before (the first loads the renderer and its fonts,
+  // over a second on an old tablet), so quick taps all land, in order. Cancelled only on unmount.
+  const mathQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const mathAliveRef = useRef(true);
+
+  useEffect(() => {
+    mathAliveRef.current = true;
+
+    return () => {
+      mathAliveRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pendingMath) return;
+    const tex = pendingMath.tex;
+
+    // Taken: the host may clear it at once (and send the next tap) — the queue keeps this one.
+    mathHandledRef.current?.();
+    if (readOnly) return;
+    mathQueueRef.current = mathQueueRef.current.then(async () => {
+      const canvas = fabricCanvasRef.current;
+
+      if (!canvas || !mathAliveRef.current) return;
+      const [{ Point, util }, { buildMathObject }] = await Promise.all([import('fabric'), import('./ai/boardObjects')]);
+      const object = await buildMathObject(tex, { zoom: canvas.getZoom() || 1, color: '#18204a' }).catch(() => null);
+
+      if (!object || !mathAliveRef.current || fabricCanvasRef.current !== canvas) return;
+      const inverse = util.invertTransform(canvas.viewportTransform);
+      const topLeft = util.transformPoint(new Point(0, 0), inverse);
+      const bottomRight = util.transformPoint(new Point(canvas.getWidth(), canvas.getHeight()), inverse);
+      const width = object.getScaledWidth();
+      const height = object.getScaledHeight();
+      const last = lastMathRef.current;
+      const follows =
+        last &&
+        canvas.getObjects().includes(last.object) &&
+        last.object.left === last.left &&
+        last.object.top === last.top &&
+        last.left + last.object.getScaledWidth() + width < bottomRight.x &&
+        last.top > topLeft.y &&
+        last.top < bottomRight.y;
+      const gap = 6 / (canvas.getZoom() || 1);
+      const left = follows ? last.left + last.object.getScaledWidth() + gap : topLeft.x + (bottomRight.x - topLeft.x - width) / 2;
+      // Same middle line as the symbol before it, so «x» «²» «+» read as one row.
+      const top = follows ? last.top + (last.object.getScaledHeight() - height) / 2 : topLeft.y + (bottomRight.y - topLeft.y - height) / 2;
+
+      object.set({ left, top, selectable: true, evented: true });
+      lastMathRef.current = { object, left, top };
+      object.setCoords();
+      canvas.add(object);
+      canvas.setActiveObject(object);
+      canvas.requestRenderAll();
+      handleToolChange('select');
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one insert per pendingMath identity
+  }, [pendingMath]);
 
   // A host-supplied concept map, drawn in hand ink. One-shot like `pendingImageImport`, but it waits
   // for the page to finish loading first (an add before the load lands would be wiped by it, or land

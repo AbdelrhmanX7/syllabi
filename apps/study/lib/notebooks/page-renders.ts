@@ -4,6 +4,7 @@ import { pageInkKey } from '@repo/whiteboard-react';
 
 import { commitPageRenders, getPageRenders, putPageRender } from '@/lib/api/endpoints';
 import { isStudyApiError } from '@/lib/api/errors';
+import { maybeAutoDescribe } from '@/lib/notebooks/auto-describe';
 
 /**
  * Page images for the Study MCP — what lets Claude SEE a notebook (grade it, export it). The backend
@@ -83,7 +84,11 @@ async function run(
   } catch (error) {
     // 409 STALE_VERSION: a newer sync already committed; this one has nothing left to say.
     if (!isStudyApiError(error, 409)) throw error;
+
+    return;
   }
+  // The pictures AI reads are up: name / describe the notebook when it is due (quiet, gated).
+  maybeAutoDescribe(pageId, version, pages);
 }
 
 /**

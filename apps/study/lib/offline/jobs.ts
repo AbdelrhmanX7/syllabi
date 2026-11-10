@@ -125,6 +125,16 @@ function addToPageLists(page: Page): void {
   );
 }
 
+/** A page's fresh record (e.g. after AI described it) into every loaded page list. */
+export function updatePageInLists(page: Page): void {
+  replaceInPageLists(page.id, page);
+}
+
+/** Reload the page lists (e.g. once a cover picture had time to be made). */
+export function refreshPageLists(): void {
+  void client?.invalidateQueries({ queryKey: ['study', 'pages'] });
+}
+
 function replaceInPageLists(localId: string, page: Page): void {
   client?.setQueriesData<Page[]>({ queryKey: ['study', 'pages'] }, (current) =>
     Array.isArray(current) ? current.map((other) => (other.id === localId ? page : other)) : current,
