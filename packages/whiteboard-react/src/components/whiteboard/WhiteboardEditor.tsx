@@ -25,8 +25,11 @@ import {
   formatPdfPageRange,
   imageMimeTypeForFileName,
   createInsertedSheet,
+  createNotebookSheet,
   insertWhiteboardPageAt,
   isInsertedSheet,
+  isSheetNotebook,
+  splitFreeNotebookIntoSheets,
   isLikelyMongoObjectId,
   normalizePaperSpacingMm,
   pageHasInk,
@@ -49,7 +52,7 @@ import { ImageCropOverlay } from './ImageCropOverlay';
 import { PasteChip, SelectionActionBar } from './SelectionActionBar';
 import { installModernSelectionChrome, SELECTION_MARQUEE } from './utils/selectionChrome';
 import { rasterizeSelection, selectionSceneBounds } from './utils/selectionActions';
-import { boardRuleGrid, sheetRuleGrid } from './utils/straightenInk';
+import { boardRuleGrid, boardSheetRuleGrid, sheetRuleGrid } from './utils/straightenInk';
 import { selectedInkStrokes, straightenSelection } from './utils/straightenInkCanvas';
 import { createSnappedShapeObject } from './brushes/shapeSnap';
 import { defaultRadicalParams } from './utils/radicalSign';
@@ -58,6 +61,8 @@ import { excludeTransientPages } from './ai/remakeDraft';
 import { WhiteboardErrorBoundary } from './WhiteboardErrorBoundary';
 import FocusModeDock from './FocusModeDock';
 import BlankPageMenu from './BlankPageMenu';
+import ConfirmDeletePageModal from './ConfirmDeletePageModal';
+import PageBookmarks from './PageBookmarks';
 import PageManager from './PageManager';
 import ToolbarPageGroup, { PAGE_GROUP_BUTTON_CLASS } from './ToolbarPageGroup';
 import { TOOLBAR_SURFACE } from './toolbarSurfaces';
@@ -470,6 +475,14 @@ export interface WhiteboardEditorProps {
   /** Notebook sheet at its fit zoom spans the whole pane width (no 1150 px cap / side margins). Default false. */
   notebookFillScreen?: boolean;
   /**
+   * A board with no PDF is a stack of real pages (paper sheets) shown in the continuous layout, like a
+   * PDF notebook, instead of endless pages one at a time. An older endless notebook is split on open
+   * without touching its ink (each old page becomes one sheet tall enough for all of it); one whose ink
+   * cannot be proven to fit stays as it was. New pages are added at the end — and by themselves when
+   * writing reaches the bottom of the last page. See whiteboard-core notebook-sheets. Default false.
+   */
+  notebookSheets?: boolean;
+  /**
    * Free zoom: every viewport cage (notebook sheet, PDF scroll, paged zoom-lock) drops its zoom floor
    * to FREE_ZOOM_MIN and its pan limits, so a long board can be crossed fast. Turning it off glides the
    * view back inside the cage. Default false.
@@ -757,6 +770,13 @@ const IDENTITY_VIEWPORT: [number, number, number, number, number, number] = [1, 
 const TOOLBAR_DOCK_STORAGE_KEY = 'whiteboard-toolbar-dock';
 /** Per-document sticky PDF layout preference (see `pdfLayout`). */
 const PDF_LAYOUT_STORAGE_PREFIX = 'whiteboard-pdf-layout:';
+
+/** The page with its bookmark dropped (removing one loses nothing else). */
+function withoutBookmark(page: WhiteboardPage): WhiteboardPage {
+  const { bookmark: _removed, ...rest } = page;
+
+  return rest;
+}
 const TABLET_INPUT_SETTINGS_STORAGE_KEY = 'whiteboard-tablet-input-settings';
 const STROKE_SETTINGS_STORAGE_KEY = 'whiteboard-stroke-settings';
 const DEFAULT_VIEWPORT_ZOOM = 1;
@@ -1526,6 +1546,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   onPdfLayoutChange,
   lockZoomToPage = false,
   verticalNotebook = false,
+  notebookSheets = false,
   notebookFillScreen = false,
   freeZoom = false,
   paperOverPdf = false,
@@ -1838,7 +1859,13 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // Scroll is only meaningful for a board that has PDF pages; it owns the canvas (one scene of stacked
   // pages) while active. An export/publish sweep steps every page through the canvas paged, so the
   // session is torn down for its duration and rebuilt after (writing back any unsaved ink first).
-  const isScrollActive = pdfLayout === 'scroll' && hasAnyPdfBackground;
+  // A free notebook split into pages (notebookSheets) is always shown as the stack; the PDF layout
+  // toggle never applies to it.
+  const isSheetNotebookDoc = useMemo(() => notebookSheets && isSheetNotebook(pages), [notebookSheets, pages]);
+  const isSheetNotebookRef = useRef(isSheetNotebookDoc);
+
+  isSheetNotebookRef.current = isSheetNotebookDoc;
+  const isScrollActive = (pdfLayout === 'scroll' && hasAnyPdfBackground) || isSheetNotebookDoc;
   // The PDF-covers-view cage applies in scroll mode always, and in paged mode when `lockZoomToPage`.
   const isZoomLockedToPage = isScrollActive || (lockZoomToPage && hasPdfPageBackground);
   const scrollSessionRef = useRef<PdfScrollSession | null>(null);
@@ -3855,7 +3882,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       .then((doc) => {
         if (!doc) return;
 
-        const compactedPages = compactPdfPreviewPages(doc.pages);
+        const storedPages = compactPdfPreviewPages(doc.pages);
+        // A free notebook opens as a stack of pages; an old endless one is split here without touching
+        // its ink (null = it cannot be split safely, so it opens exactly as before).
+        const splitPages = notebookSheets ? splitFreeNotebookIntoSheets(storedPages) : null;
+        const compactedPages = splitPages ?? storedPages;
+
+        // The split pages differ from what is stored: write them once (the save baseline below stays
+        // what is on disk, so exactly the changed pages go out). A view-only open splits in memory only.
+        if (splitPages && splitPages !== storedPages && !readOnly) needsPersistRef.current = true;
 
         setDocumentTitle(doc.title);
         setSharedBackgroundImageUrl(doc.sharedBackgroundImageUrl ?? '');
@@ -3885,7 +3920,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           setBackgroundType(pageToLoad?.backgroundType ?? 'blank');
           // What is on disk right now IS this page list: seed the save baseline from it so the first
           // autosave diffs against it instead of rewriting every page of a 109-page board.
-          lastFullSavedPagesRef.current = compactedPages.slice();
+          lastFullSavedPagesRef.current = storedPages.slice();
           lastFullSavedMetaRef.current = {
             sharedBackgroundImageOpacity: doc.sharedBackgroundImageOpacity ?? 1,
             sharedBackgroundImageUrl: doc.sharedBackgroundImageUrl || undefined,
@@ -3906,6 +3941,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       .finally(() => {
         initialLoadSettledRef.current = true;
       });
+    // notebookSheets is read once, at the load (hasLoadedRef).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadPage, storage, storage.isReady, whiteboardId]);
 
   // --- Save current page state to the pages array ---
@@ -4490,14 +4527,35 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     [allowPaperSpacing, defaultPaperSpacingMm],
   );
 
+  // The next blank page. In a free notebook split into pages (notebookSheets) it is a sheet on the
+  // paper, spacing and frame width of the page it follows, so the lines and the size of the writing
+  // carry on from page to page; everywhere else a plain page as before.
+  const newBlankPage = useCallback(
+    (paper: BackgroundType, anchor?: WhiteboardPage): WhiteboardPage => {
+      if (!isSheetNotebookRef.current) return withDefaultPaperSpacing(createBlankWhiteboardPage(paper));
+
+      const type = anchor?.backgroundType ?? paper;
+      const spacing =
+        anchor?.paperSpacingMm ?? (allowPaperSpacing ? resolveDefaultPaperSpacingMm(defaultPaperSpacingMm, type) : undefined);
+      const sheet = createNotebookSheet(type, spacing);
+
+      return anchor?.canvasWidthPx ? { ...sheet, canvasWidthPx: anchor.canvasWidthPx } : sheet;
+    },
+    [allowPaperSpacing, defaultPaperSpacingMm, withDefaultPaperSpacing],
+  );
+
   const insertPageAt = useCallback(
     async (insertAt: number) => {
       if (isBatchRenderingRef.current) return;
 
       const syncedPages = flushCurrentPageSnapshot();
-      const newPage = withDefaultPaperSpacing(createBlankWhiteboardPage(backgroundType));
+      const newPage = newBlankPage(backgroundType, syncedPages[Math.max(0, insertAt - 1)]);
       const { insertedIndex, pages: nextPages } = insertWhiteboardPageAt(syncedPages, newPage, insertAt);
 
+      // A free notebook's page in the continuous layout: «undo» takes it back out (as for a blank sheet).
+      if (scrollSessionRef.current && isSheetNotebookRef.current) history.recordPageInsert(newPage, insertedIndex);
+
+      needsPersistRef.current = true;
       pagesRef.current = nextPages;
       currentPageIndexRef.current = insertedIndex;
       setPages(nextPages);
@@ -4505,7 +4563,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       setBackgroundType(newPage.backgroundType);
       await loadPage(newPage);
     },
-    [backgroundType, flushCurrentPageSnapshot, loadPage, withDefaultPaperSpacing],
+    [backgroundType, flushCurrentPageSnapshot, history, loadPage, newBlankPage],
   );
 
   // --- Add new blank page ---
@@ -4528,11 +4586,13 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
       const liveAspect = scrollSessionRef.current?.layout.entries[anchorIndex]?.aspect;
       const aspect = liveAspect ?? resolvePdfPageAspect(anchor);
-      const newPage = createInsertedSheet(
-        aspect,
-        blankPagePaper,
-        allowPaperSpacing ? resolveDefaultPaperSpacingMm(defaultPaperSpacingMm, blankPagePaper) : undefined,
-      );
+      const newPage = isSheetNotebookRef.current
+        ? newBlankPage(anchor.backgroundType, anchor)
+        : createInsertedSheet(
+            aspect,
+            blankPagePaper,
+            allowPaperSpacing ? resolveDefaultPaperSpacingMm(defaultPaperSpacingMm, blankPagePaper) : undefined,
+          );
       const insertAt = where === 'end' ? syncedPages.length : resolveSheetInsertIndex(syncedPages, anchorIndex);
       const { insertedIndex, pages: nextPages } = insertWhiteboardPageAt(syncedPages, newPage, insertAt);
 
@@ -4547,7 +4607,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       setBackgroundType(newPage.backgroundType);
       await loadPage(newPage);
     },
-    [allowPaperSpacing, blankPagePaper, defaultPaperSpacingMm, flushCurrentPageSnapshot, history, loadPage],
+    [allowPaperSpacing, blankPagePaper, defaultPaperSpacingMm, flushCurrentPageSnapshot, history, loadPage, newBlankPage],
   );
 
   // --- Board AI -------------------------------------------------------------------------------------
@@ -4605,7 +4665,11 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     if (!entry || !page) return;
 
     straightenSelection(canvas, {
-      rules: isInsertedSheet(page) ? sheetRuleGrid(entry, session.layout.width, page) : null,
+      rules: !isInsertedSheet(page)
+        ? null
+        : page.boardRuled
+          ? boardSheetRuleGrid(entry, boardPatternSpacingPx(page) * session.sceneTransformAt(entry.top + 1).scale, page)
+          : sheetRuleGrid(entry, session.layout.width, page),
       within: { top: entry.top, bottom: entry.top + entry.height },
     });
   }, []);
@@ -4855,22 +4919,25 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     [flushCurrentPageSnapshot, loadPage],
   );
 
-  // Only an inserted sheet can be deleted from the blank-page menu, never a PDF page.
-  const deleteBlankSheet = useCallback(async () => {
-    const index = currentPageIndexRef.current;
+  // Delete any page by id, once the student confirmed it (ConfirmDeletePageModal).
+  const deletePageById = useCallback(
+    async (pageId: string) => {
+      const synced = flushCurrentPageSnapshot();
+      const index = synced.findIndex((page) => page.id === pageId);
+      const page = synced[index];
 
-    if (!isInsertedSheet(pagesRef.current[index])) return;
+      if (!page || synced.length <= 1) return;
 
-    // Recorded with its ink as of now, so «undo» puts the sheet back exactly as it was.
-    const sheet = flushCurrentPageSnapshot()[index];
+      // A sheet in the continuous layout is recorded with its ink as of now, so «undo» puts it back.
+      if (scrollSessionRef.current && isInsertedSheet(page)) history.recordPageDelete(page, index);
 
-    if (sheet && scrollSessionRef.current) history.recordPageDelete(sheet, index);
-
-    // A page leaving the list is a document change the autosave must write (and upload) even though
-    // no ink changed; deletePage alone leaves the save gate closed.
-    await deletePage(index);
-    needsPersistRef.current = true;
-  }, [deletePage, flushCurrentPageSnapshot, history]);
+      // A page leaving the list is a document change the autosave must write (and upload) even though
+      // no ink changed; deletePage alone leaves the save gate closed.
+      await deletePage(index);
+      needsPersistRef.current = true;
+    },
+    [deletePage, flushCurrentPageSnapshot, history],
+  );
 
   // Undo/redo of a sheet insert/delete (see useWhiteboardHistory's applyPageListChange).
   applyHistoryPageListChangeRef.current = async (action, entry) => {
@@ -4907,16 +4974,93 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     return true;
   };
 
-  const currentSheetHasInk = useCallback(() => {
-    const synced = flushCurrentPageSnapshot();
-    const page = synced[currentPageIndexRef.current];
-
-    return Boolean(page && pageHasInk(page));
-  }, [flushCurrentPageSnapshot]);
-
   // PDF pages keep their own numbers; sheets read «3a». Identical to index + 1 without sheets.
   const pageLabels = useMemo(() => (allowInsertBlankPages ? resolvePageLabels(pages) : null), [allowInsertBlankPages, pages]);
   const currentPageLabel = pageLabels?.[currentPageIndex] ?? String(currentPageIndex + 1);
+  const pageLabelsRef = useRef(pageLabels);
+
+  pageLabelsRef.current = pageLabels;
+
+  // --- Delete a page: always through the confirm dialog ---
+  const [pendingPageDelete, setPendingPageDelete] = useState<{ pageId: string; label: string; content: 'blank' | 'ink' | 'pdf' } | null>(
+    null,
+  );
+  const requestDeletePage = useCallback(
+    (pageId: string) => {
+      const synced = flushCurrentPageSnapshot();
+      const index = synced.findIndex((page) => page.id === pageId);
+      const page = synced[index];
+
+      if (!page || synced.length <= 1) return;
+
+      setPendingPageDelete({
+        content: page.pdfAssetId || page.pdfImageUrl ? 'pdf' : pageHasInk(page) ? 'ink' : 'blank',
+        label: pageLabelsRef.current?.[index] ?? String(index + 1),
+        pageId,
+      });
+    },
+    [flushCurrentPageSnapshot],
+  );
+  const confirmPendingPageDelete = useCallback(() => {
+    const target = pendingPageDelete;
+
+    setPendingPageDelete(null);
+
+    if (target) void deletePageById(target.pageId);
+  }, [deletePageById, pendingPageDelete]);
+  const cancelPendingPageDelete = useCallback(() => setPendingPageDelete(null), []);
+
+  // --- Page bookmarks (stored on the page: WhiteboardPage.bookmark) ---
+  // A bookmark is page meta, not ink: patched straight into the live list and saved like a page edit.
+  const patchPage = useCallback((pageId: string, patch: (page: WhiteboardPage) => WhiteboardPage) => {
+    const current = pagesRef.current;
+    const index = current.findIndex((page) => page.id === pageId);
+    const page = current[index];
+
+    if (!page) return;
+
+    const next = current.slice();
+
+    next[index] = patch(page);
+    pagesRef.current = next;
+    needsPersistRef.current = true;
+    setPages(next);
+  }, []);
+  const toggleCurrentBookmark = useCallback(() => {
+    const page = pagesRef.current[currentPageIndexRef.current];
+
+    if (!page) return;
+
+    patchPage(page.id, (candidate) => (candidate.bookmark ? withoutBookmark(candidate) : { ...candidate, bookmark: { at: Date.now() } }));
+  }, [patchPage]);
+  const renameBookmark = useCallback(
+    (pageId: string, name: string) => {
+      const label = name.trim().slice(0, 60);
+
+      patchPage(pageId, (page) =>
+        page.bookmark ? { ...page, bookmark: label ? { at: page.bookmark.at, label } : { at: page.bookmark.at } } : page,
+      );
+    },
+    [patchPage],
+  );
+  const removeBookmark = useCallback((pageId: string) => patchPage(pageId, withoutBookmark), [patchPage]);
+  // Resolved against the live list by id; the continuous layout scrolls there, the paged one switches.
+  const jumpToBookmark = useCallback(
+    (pageId: string) => {
+      const index = pagesRef.current.findIndex((page) => page.id === pageId);
+
+      if (index >= 0) navigateToPage(index);
+    },
+    [navigateToPage],
+  );
+  const bookmarkRows = useMemo(
+    () =>
+      pages.flatMap((page, index) =>
+        page.bookmark ? [{ name: page.bookmark.label, pageId: page.id, pageLabel: pageLabels?.[index] ?? String(index + 1) }] : [],
+      ),
+    [pageLabels, pages],
+  );
+  const isCurrentPageBookmarked = Boolean(pages[currentPageIndex]?.bookmark);
 
   // --- Duplicate page ---
   const duplicatePage = useCallback(
@@ -4936,6 +5080,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         // Same paper, same size: a duplicated sheet stays a sheet, its ruling stays its ruling.
         ...(sourcePage.paperSpacingMm !== undefined ? { paperSpacingMm: sourcePage.paperSpacingMm } : {}),
         ...(sourcePage.sheetAspect !== undefined ? { sheetAspect: sourcePage.sheetAspect } : {}),
+        ...(sourcePage.boardRuled ? { boardRuled: true } : {}),
         pdfAssetId: sourcePage.pdfAssetId,
         pdfFingerprint: sourcePage.pdfFingerprint,
         pdfPageIndex: sourcePage.pdfPageIndex,
@@ -5018,14 +5163,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     [navigateToPage, resolveLivePageIndex],
   );
 
-  const handlePageManagerDelete = useCallback(
-    (pageId: string) => {
-      const index = resolveLivePageIndex(pageId);
-
-      if (index >= 0) void deletePage(index);
-    },
-    [deletePage, resolveLivePageIndex],
-  );
+  // Never deletes on the spot: the confirm dialog asks first (see requestDeletePage).
+  const handlePageManagerDelete = useCallback((pageId: string) => requestDeletePage(pageId), [requestDeletePage]);
 
   const handlePageManagerDuplicate = useCallback(
     (pageId: string) => {
@@ -5230,6 +5369,53 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     viewportConstraintsRef.current = session.getConstraints();
     void session.enter(currentPageIndex);
   }, [currentPageIndex]);
+
+  // A free notebook grows by itself: ink that reaches the bottom fifth of the LAST page adds a blank
+  // page after it (never a taller page, and the view does not move). Teacher/student ink only — the
+  // session's own hydration, history restores and export sweeps are not writing.
+  useEffect(() => {
+    const canvas = fabricCanvas;
+
+    if (!canvas || !isSheetNotebookDoc || !isScrollActive || readOnly) return;
+
+    const handleAdded = (event: { target?: FabricObject }) => {
+      if (isSyncingCanvasRef.current || isRestoringHistoryRef.current || isBatchRenderingRef.current) return;
+
+      const session = scrollSessionRef.current;
+      const target = event.target;
+
+      if (!session || session.suspended || !target || (target as { excludeFromExport?: boolean }).excludeFromExport) return;
+
+      const entries = session.layout.entries;
+      const last = entries[entries.length - 1];
+      const lastPage = pagesRef.current[pagesRef.current.length - 1];
+
+      if (!last || !lastPage || last.pageId !== lastPage.id) return;
+
+      let rect: { top: number; height: number };
+
+      try {
+        rect = target.getBoundingRect();
+      } catch {
+        return;
+      }
+
+      // On the last page (by its centre) and reaching into its bottom fifth.
+      if (rect.top + rect.height / 2 < last.top || rect.top + rect.height < last.top + last.height * 0.8) return;
+
+      const next = [...pagesRef.current, newBlankPage(lastPage.backgroundType, lastPage)];
+
+      pagesRef.current = next;
+      needsPersistRef.current = true;
+      setPages(next);
+    };
+
+    canvas.on('object:added', handleAdded as never);
+
+    return () => {
+      canvas.off('object:added', handleAdded as never);
+    };
+  }, [fabricCanvas, isScrollActive, isSheetNotebookDoc, newBlankPage, readOnly]);
 
   // Paged zoom-lock (lockZoomToPage, no scroll session): cage the viewport to the current PDF page's
   // rect so it always fills the width and never reveals the board around it. Recomputed when the page,
@@ -5952,7 +6138,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         if (isBatchRenderingRef.current) return null;
 
         const syncedPages = flushCurrentPageSnapshot();
-        const newPage = createBlankWhiteboardPage(backgroundType);
+        const newPage = newBlankPage(backgroundType, syncedPages[currentPageIndexRef.current]);
         const { insertedIndex, pages: nextPages } = insertWhiteboardPageAt(syncedPages, newPage, currentPageIndexRef.current + 1);
 
         // Marked BEFORE the page exists anywhere a writer could see it.
@@ -6056,6 +6242,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       insertPageAt,
       loadCanvasImage,
       loadPage,
+      newBlankPage,
       renderAiRegion,
       resolvePdfPageImageUrl,
       switchToPage,
@@ -7526,14 +7713,17 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const pageAddControl =
     allowInsertBlankPages && isScrollActive && !readOnly ? (
       <BlankPageMenu
-        canDelete={isInsertedSheet(pages[currentPageIndex])}
+        canDelete={isInsertedSheet(pages[currentPageIndex]) && pages.length > 1}
         currentLabel={currentPageLabel}
-        hasInk={currentSheetHasInk}
         overlayPortalContainer={overlayPortalContainer}
         placement={isPagerInToolbar && toolbarDock === 'top' ? 'bottom-end' : 'top-end'}
         triggerClassName={isPagerInToolbar ? PAGE_GROUP_BUTTON_CLASS : undefined}
         triggerStyle={isPagerInToolbar ? TOOLBAR_SURFACE.brand : undefined}
-        onDelete={() => void deleteBlankSheet()}
+        onDelete={() => {
+          const page = pagesRef.current[currentPageIndexRef.current];
+
+          if (page && isInsertedSheet(page)) requestDeletePage(page.id);
+        }}
         onInsertAfter={() => void insertBlankSheet('after')}
         onInsertAtEnd={() => void insertBlankSheet('end')}
       />
@@ -7553,9 +7743,24 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         </Button>
       </Tooltip>
     );
+  const bookmarkControl = (placementTop: boolean, buttonClassName: string) =>
+    readOnly ? null : (
+      <PageBookmarks
+        buttonClassName={buttonClassName}
+        isBookmarked={isCurrentPageBookmarked}
+        overlayPortalContainer={overlayPortalContainer}
+        placement={placementTop ? 'bottom-end' : 'top-end'}
+        rows={bookmarkRows}
+        onJump={jumpToBookmark}
+        onRemove={removeBookmark}
+        onRename={renameBookmark}
+        onToggle={toggleCurrentBookmark}
+      />
+    );
   const toolbarPageGroup = isPagerInToolbar ? (
     <ToolbarPageGroup
       addControl={pageAddControl}
+      bookmarkControl={bookmarkControl(toolbarDock === 'top', PAGE_GROUP_BUTTON_CLASS)}
       canNext={currentPageIndex < pages.length - 1}
       canPrev={currentPageIndex > 0}
       currentLabel={currentPageLabel}
@@ -7701,6 +7906,12 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       <TouchDebugOverlay enabled={tabletInputSettings.touchDebugOverlay} />
       {/* Page Manager — right side panel. Kept in focus mode: its own small toggle (above the focus
           knob) is how a long notebook is still paged through with the toolbar gone. */}
+      <ConfirmDeletePageModal
+        portalContainer={overlayPortalContainer}
+        target={pendingPageDelete}
+        onCancel={cancelPendingPageDelete}
+        onConfirm={confirmPendingPageDelete}
+      />
       {(!embedded || isPagerInToolbar) && (
       <PageManager
         currentPageId={currentPage?.id ?? ''}
@@ -7837,6 +8048,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 <ChevronRight className='h-4 w-4' />
               </Button>
             </Tooltip>
+            {bookmarkControl(false, 'h-8 w-8 min-w-8 shrink-0 rounded-md p-0')}
           </div>
           {pageAddControl}
         </div>

@@ -1,6 +1,13 @@
 import type { BackgroundType, WhiteboardDocument, WhiteboardPage, WhiteboardSummary } from './types';
 import { createWhiteboardId } from './id';
-import { normalizeCanvasWidthPx, normalizePaperSpacingMm, normalizePdfPlacement, normalizeSheetAspect } from './page-geometry';
+import {
+  normalizeBoardRuled,
+  normalizeCanvasWidthPx,
+  normalizePageBookmark,
+  normalizePaperSpacingMm,
+  normalizePdfPlacement,
+  normalizeSheetAspect,
+} from './page-geometry';
 import { WHITEBOARD_SCHEMA_VERSION } from './types';
 
 function clampSharedBackgroundOpacity(opacity: number | null | undefined): number {
@@ -49,6 +56,9 @@ function persistedPageThumbnail(page: WhiteboardPage | null | undefined): string
 
 function normalizeWhiteboardPage(page: WhiteboardPage | null | undefined): WhiteboardPage {
   const hasPdfBackground = Boolean(page?.pdfAssetId || page?.pdfImageUrl);
+  const sheetAspect = hasPdfBackground ? undefined : normalizeSheetAspect(page?.sheetAspect);
+  const boardRuled = normalizeBoardRuled(page?.boardRuled, sheetAspect);
+  const bookmark = normalizePageBookmark(page?.bookmark);
 
   return {
     id: page?.id ?? createWhiteboardId(),
@@ -64,7 +74,10 @@ function normalizeWhiteboardPage(page: WhiteboardPage | null | undefined): White
     // means something on a page that has a PDF/image background to place.
     canvasWidthPx: normalizeCanvasWidthPx(page?.canvasWidthPx),
     pdfPlacement: hasPdfBackground ? normalizePdfPlacement(page?.pdfPlacement) : undefined,
-    sheetAspect: hasPdfBackground ? undefined : normalizeSheetAspect(page?.sheetAspect),
+    sheetAspect,
+    // Optional page flags ride through only when set, so an untouched page stays byte-identical.
+    ...(boardRuled ? { boardRuled } : {}),
+    ...(bookmark ? { bookmark } : {}),
     backgroundType: page?.backgroundType ?? 'blank',
     paperSpacingMm: normalizePaperSpacingMm(page?.paperSpacingMm),
     viewportOffsetX: page?.viewportOffsetX ?? 0,

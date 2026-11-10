@@ -1,5 +1,13 @@
 import type { BackgroundType, WhiteboardDocument, WhiteboardPage } from '../types';
-import { normalizeCanvasWidthPx, normalizePdfPlacement, WHITEBOARD_SCHEMA_VERSION } from '../types';
+import {
+  normalizeBoardRuled,
+  normalizeCanvasWidthPx,
+  normalizePageBookmark,
+  normalizePaperSpacingMm,
+  normalizePdfPlacement,
+  normalizeSheetAspect,
+  WHITEBOARD_SCHEMA_VERSION,
+} from '../types';
 import { wbT, type WbLocale } from '../../../i18n/strings';
 
 /**
@@ -58,6 +66,20 @@ function normalizePage(value: unknown): WhiteboardPage | null {
 
   if (canvasWidthPx !== undefined) page.canvasWidthPx = canvasWidthPx;
   if (pdfPlacement !== undefined) page.pdfPlacement = pdfPlacement;
+
+  if (typeof value.pdfRotation === 'number' && Number.isFinite(value.pdfRotation)) page.pdfRotation = value.pdfRotation;
+
+  // A sheet's size and ruling, the paper spacing and the bookmark: without them a notebook split into
+  // pages would come back as one endless page, with other lines and no bookmarks.
+  const sheetAspect = page.pdfAssetId || page.pdfImageUrl ? undefined : normalizeSheetAspect(value.sheetAspect);
+  const boardRuled = normalizeBoardRuled(value.boardRuled, sheetAspect);
+  const paperSpacingMm = normalizePaperSpacingMm(value.paperSpacingMm);
+  const bookmark = normalizePageBookmark(value.bookmark);
+
+  if (sheetAspect !== undefined) page.sheetAspect = sheetAspect;
+  if (boardRuled) page.boardRuled = boardRuled;
+  if (paperSpacingMm !== undefined) page.paperSpacingMm = paperSpacingMm;
+  if (bookmark) page.bookmark = bookmark;
 
   return page;
 }

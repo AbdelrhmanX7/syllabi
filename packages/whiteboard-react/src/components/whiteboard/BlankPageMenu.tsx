@@ -8,8 +8,8 @@ import { useWbStrings } from '../../i18n/context';
 /**
  * The pager's «blank page» menu (`WhiteboardEditor.allowInsertBlankPages`): insert an empty writing
  * sheet after the page in view or at the end, and delete the sheet in view (inserted sheets only —
- * a PDF page is never offered). Deleting always asks first; the question says so when the sheet has
- * ink. Rows are 48px tall: this is driven with a finger or an S Pen on a tablet.
+ * a PDF page is never offered). Deleting asks first, in the editor's confirm dialog (`onDelete` opens
+ * it). Rows are 48px tall: this is driven with a finger or an S Pen on a tablet.
  */
 export interface BlankPageMenuProps {
   /** Label of the page in view («3», «3a»). */
@@ -19,8 +19,7 @@ export interface BlankPageMenuProps {
   overlayPortalContainer?: Element;
   onInsertAfter: () => void;
   onInsertAtEnd: () => void;
-  /** Flushes and answers whether the sheet in view carries ink (asked when the confirm opens). */
-  hasInk: () => boolean;
+  /** Asks to delete the sheet in view: the host opens its confirm dialog. */
   onDelete: () => void;
   /** Where the menu opens from its trigger. Default `'top-end'` (the floating pager at the bottom). */
   placement?: 'top-end' | 'bottom-end';
@@ -34,7 +33,6 @@ const ROW_CLASS = 'text-ink h-12 w-full justify-start gap-3 rounded-xl px-3 text
 const BlankPageMenu: React.FC<BlankPageMenuProps> = ({
   canDelete,
   currentLabel,
-  hasInk,
   onDelete,
   onInsertAfter,
   onInsertAtEnd,
@@ -45,23 +43,11 @@ const BlankPageMenu: React.FC<BlankPageMenuProps> = ({
 }) => {
   const { t } = useWbStrings();
   const [isOpen, setIsOpen] = useState(false);
-  const [confirm, setConfirm] = useState<null | { ink: boolean }>(null);
 
-  const close = () => {
-    setIsOpen(false);
-    setConfirm(null);
-  };
+  const close = () => setIsOpen(false);
 
   return (
-    <Popover
-      isOpen={isOpen}
-      placement={placement}
-      portalContainer={overlayPortalContainer}
-      onOpenChange={(open) => {
-        setIsOpen(open);
-        if (!open) setConfirm(null);
-      }}
-    >
+    <Popover isOpen={isOpen} placement={placement} portalContainer={overlayPortalContainer} onOpenChange={setIsOpen}>
       <PopoverTrigger>
         <Button
           aria-label={t('editor.sheet.menu')}
@@ -75,67 +61,46 @@ const BlankPageMenu: React.FC<BlankPageMenuProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className='w-72 p-2'>
-        {confirm ? (
-          <div className='flex w-full flex-col gap-3 p-2' data-wb-sheet-confirm>
-            <p className='text-ink text-sm font-semibold'>
-              {t(confirm.ink ? 'editor.sheet.confirmInk' : 'editor.sheet.confirmEmpty', { page: currentLabel })}
-            </p>
-            <div className='flex gap-2'>
-              <Button className='h-11 flex-1' variant='flat' onPress={() => setConfirm(null)}>
-                {t('editor.sheet.cancel')}
-              </Button>
-              <Button
-                className='h-11 flex-1'
-                color='danger'
-                data-wb-sheet-confirm-delete
-                onPress={() => {
-                  close();
-                  onDelete();
-                }}
-              >
-                {t('editor.sheet.confirmDelete')}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className='flex w-full flex-col gap-1'>
+        <div className='flex w-full flex-col gap-1'>
+          <Button
+            className={ROW_CLASS}
+            data-wb-sheet-insert-after
+            variant='light'
+            onPress={() => {
+              close();
+              onInsertAfter();
+            }}
+          >
+            <BetweenHorizontalEnd aria-hidden className='h-5 w-5 shrink-0' />
+            {t('editor.sheet.insertAfter', { page: currentLabel })}
+          </Button>
+          <Button
+            className={ROW_CLASS}
+            data-wb-sheet-insert-end
+            variant='light'
+            onPress={() => {
+              close();
+              onInsertAtEnd();
+            }}
+          >
+            <ArrowDownToLine className='h-5 w-5 shrink-0' />
+            {t('editor.sheet.insertAtEnd')}
+          </Button>
+          {canDelete && (
             <Button
-              className={ROW_CLASS}
-              data-wb-sheet-insert-after
+              className={`${ROW_CLASS} text-danger`}
+              data-wb-sheet-delete
               variant='light'
               onPress={() => {
                 close();
-                onInsertAfter();
+                onDelete();
               }}
             >
-              <BetweenHorizontalEnd aria-hidden className='h-5 w-5 shrink-0' />
-              {t('editor.sheet.insertAfter', { page: currentLabel })}
+              <Trash2 className='h-5 w-5 shrink-0' />
+              {t('editor.sheet.delete', { page: currentLabel })}
             </Button>
-            <Button
-              className={ROW_CLASS}
-              data-wb-sheet-insert-end
-              variant='light'
-              onPress={() => {
-                close();
-                onInsertAtEnd();
-              }}
-            >
-              <ArrowDownToLine className='h-5 w-5 shrink-0' />
-              {t('editor.sheet.insertAtEnd')}
-            </Button>
-            {canDelete && (
-              <Button
-                className={`${ROW_CLASS} text-danger`}
-                data-wb-sheet-delete
-                variant='light'
-                onPress={() => setConfirm({ ink: hasInk() })}
-              >
-                <Trash2 className='h-5 w-5 shrink-0' />
-                {t('editor.sheet.delete', { page: currentLabel })}
-              </Button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

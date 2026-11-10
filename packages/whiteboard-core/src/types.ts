@@ -347,6 +347,19 @@ export interface WhiteboardPage {
    * absent on every page written before the feature, which therefore load and render unchanged.
    */
   sheetAspect?: number;
+  /**
+   * A sheet of a free-writing notebook (no PDF) split into pages (see notebook-sheets.ts): its paper is
+   * ruled like a plain board page — `paperSpacingMm` on the board-px scale, measured in the page's own
+   * frame (`canvasWidthPx`) from its top-left corner — instead of the per-page-width ruling of a sheet
+   * inserted among PDF pages. So a page written before the split keeps its lines exactly under its
+   * writing. Only ever `true` on a page that also has `sheetAspect`; absent everywhere else.
+   */
+  boardRuled?: boolean;
+  /**
+   * The student bookmarked this page. `label` is an optional short name they typed; `at` is when it
+   * was set (ms since epoch). Absent = not bookmarked. Removing a bookmark just drops the field.
+   */
+  bookmark?: PageBookmark;
   backgroundType: BackgroundType;
   /**
    * Spacing of the page's paper (the ruled lines of 'lined', the cells of 'grid' and 'dotted') in
@@ -365,6 +378,11 @@ export interface WhiteboardPage {
   viewportOffsetX?: number;
   viewportOffsetY?: number;
   viewportZoom?: number;
+}
+
+export interface PageBookmark {
+  label?: string;
+  at: number;
 }
 
 /**

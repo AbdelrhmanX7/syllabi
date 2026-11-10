@@ -5,9 +5,12 @@ import type { Canvas, FabricObject } from 'fabric';
 import { drawScreenFitImage, normalizeRotationDeg } from './backgroundLayers';
 import { canvasObjectJson, restorePageObjects, stringifyHistoryObject } from './boardHistoryCanvas';
 import { compactCanvasJson } from './canvasJson';
+import { DARK_BOARD_BASE_COLOR, DARK_BOARD_PATTERN_COLOR } from './darkBoard';
 import { invalidateInkBake } from './inkBake';
 import { enforceLockedImageInvariants, notifyLockedImagesChanged } from './lockedImages';
 import {
+  boardRuledLineYs,
+  boardRuledPitch,
   buildPdfScrollLayout,
   findPdfScrollPageAt,
   hasPdfBackground,
@@ -1224,7 +1227,7 @@ export class PdfScrollSession {
   paint(ctx: CanvasRenderingContext2D, args: PdfScrollPaintArgs): void {
     if (this.disposed || this.layout.entries.length === 0) return;
 
-    const { height, pixelRatio, quality, viewportTransform, width } = args;
+    const { dark = false, height, pixelRatio, quality, viewportTransform, width } = args;
     const dpr = pixelRatio > 0 ? pixelRatio : 1;
     const zoom = viewportTransform[0] || 1;
     const offsetX = viewportTransform[4] || 0;
@@ -1247,9 +1250,13 @@ export class PdfScrollSession {
 
       if (!entry || entry.top > band.bottom || entry.top + entry.height < band.top) continue;
 
-      ctx.fillStyle = '#ffffff';
+      const page = this.pagesById.get(entry.pageId);
+      // A page without a PDF is paper of the board's theme; a PDF page is a white sheet under its raster.
+      const darkPaper = dark && Boolean(page) && !isPdfPage(page!);
+
+      ctx.fillStyle = darkPaper ? DARK_BOARD_BASE_COLOR : '#ffffff';
       ctx.fillRect(0, entry.top, this.width, entry.height);
-      this.paintSheetRuling(ctx, entry, band, zoom);
+      this.paintSheetRuling(ctx, entry, band, zoom, false, darkPaper);
       ctx.strokeStyle = PDF_SCROLL_PAGE_EDGE_COLOR;
       ctx.lineWidth = 1 / zoom;
       ctx.strokeRect(0.5 / zoom, entry.top + 0.5 / zoom, this.width - 1 / zoom, entry.height - 1 / zoom);
@@ -1318,21 +1325,27 @@ export class PdfScrollSession {
     band: { top: number; bottom: number },
     zoom: number,
     overPdf = false,
+    darkPaper = false,
   ): void {
     const page = this.pagesById.get(entry.pageId);
     const paper = page?.backgroundType;
 
     if (!page || (!overPdf && !isInsertedSheet(page)) || !paper || paper === 'blank') return;
 
-    const ys = sheetRuleLineYs(entry, this.width, band.top, band.bottom, page.paperSpacingMm);
+    // A free notebook page keeps the plain board's ruling (see WhiteboardPage.boardRuled).
+    const boardRuled = !overPdf && page.boardRuled === true;
+    const pitch = boardRuled
+      ? boardRuledPitch(this.width, this.frameFor(page, entry.index).frameWidth, page)
+      : sheetRulePitch(this.width, page.paperSpacingMm);
+    const ys = boardRuled
+      ? boardRuledLineYs(entry, pitch, band.top, band.bottom)
+      : sheetRuleLineYs(entry, this.width, band.top, band.bottom, page.paperSpacingMm);
 
     if (ys.length === 0) return;
 
-    const pitch = sheetRulePitch(this.width, page.paperSpacingMm);
-
     ctx.save();
-    ctx.strokeStyle = SHEET_RULE_COLOR;
-    ctx.fillStyle = SHEET_RULE_COLOR;
+    ctx.strokeStyle = darkPaper ? DARK_BOARD_PATTERN_COLOR : SHEET_RULE_COLOR;
+    ctx.fillStyle = darkPaper ? DARK_BOARD_PATTERN_COLOR : SHEET_RULE_COLOR;
     ctx.lineWidth = 1 / zoom;
     ctx.beginPath();
 

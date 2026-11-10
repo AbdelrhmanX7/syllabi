@@ -391,6 +391,19 @@ export function sheetRuleGrid(
   return kMax < 0 ? null : { origin, pitch, kMin: 0, kMax };
 }
 
+/** A free notebook sheet's rules (`boardRuled`): every `pitch` from the sheet's top, top edge excluded. */
+export function boardSheetRuleGrid(
+  entry: Pick<PdfScrollLayoutEntry, 'top' | 'height'>,
+  pitch: number,
+  page: Pick<WhiteboardPage, 'backgroundType'> | null | undefined,
+): RuleGrid | null {
+  if (!page || (page.backgroundType !== 'lined' && page.backgroundType !== 'grid') || !(pitch > 0)) return null;
+
+  const origin = entry.top + pitch;
+  const kMax = Math.floor((entry.top + entry.height - pitch / 4 - origin) / pitch);
+
+  return kMax < 0 ? null : { origin, pitch, kMin: 0, kMax };
+}
 
 // ---------------------------------------------------------------------------
 // The whole thing

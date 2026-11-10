@@ -1,4 +1,4 @@
-import type { PdfPlacementRect } from './types';
+import type { PageBookmark, PdfPlacementRect } from './types';
 
 /**
  * Validators for the per-page canvas geometry a snapshot records for the server-side ink
@@ -107,4 +107,29 @@ export function isSamePdfPlacement(
     Math.abs(a.width - b.width) <= tolerance &&
     Math.abs(a.height - b.height) <= tolerance
   );
+}
+
+/** Longest bookmark label kept (characters); a longer one is cut. */
+export const BOOKMARK_LABEL_MAX = 60;
+
+/**
+ * A page bookmark as stored: `at` a finite time, `label` trimmed, capped and dropped when empty.
+ * Anything else (junk from an old file, a wrong type) → absent, i.e. not bookmarked.
+ */
+export function normalizePageBookmark(value: unknown): PageBookmark | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const record = value as Record<string, unknown>;
+  const at = asFiniteNumber(record.at);
+
+  if (at === undefined) return undefined;
+
+  const label = typeof record.label === 'string' ? record.label.trim().slice(0, BOOKMARK_LABEL_MAX) : '';
+
+  return label ? { at, label } : { at };
+}
+
+/** `boardRuled` is only meaningful (and only kept) as a literal `true` on a page that is a sheet. */
+export function normalizeBoardRuled(value: unknown, sheetAspect: number | undefined): true | undefined {
+  return value === true && sheetAspect !== undefined ? true : undefined;
 }
