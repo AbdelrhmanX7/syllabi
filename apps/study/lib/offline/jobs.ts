@@ -11,7 +11,7 @@ import { isOnline, reportNetworkFailure, reportNetworkSuccess, subscribeOnline }
 import { newClientId, Outbox, type OutboxJob } from './outbox';
 import { offlineOwner } from './owner';
 
-import { attemptQuestion, createPage, markItemSeen, patchPage } from '@/lib/api/endpoints';
+import { attemptQuestion, createPage, deletePage, markItemSeen, patchPage } from '@/lib/api/endpoints';
 import { isNetworkError, StudyApiError } from '@/lib/api/errors';
 import { getBackendSettingsSnapshot } from '@/lib/backend-settings';
 import { forgetPage, readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
@@ -154,6 +154,33 @@ export async function createNotePage(body: NewPageBody): Promise<Page> {
   await outbox.enqueue<CreatePagePayload>({ kind: 'create-page', payload: { localId, body }, scope: currentScope(), id: localId });
 
   return page;
+}
+
+/**
+ * Delete a notebook everywhere: on the server (a page never sent there is just dropped from the
+ * outbox), then its board on this device and every cached list entry.
+ */
+export async function deleteNotePage(pageId: string): Promise<void> {
+  if (pageId.startsWith(LOCAL_PAGE_PREFIX)) {
+    await outbox.remove(pageId);
+  } else {
+    await deletePage(pageId);
+  }
+  client?.setQueriesData<Page[]>({ queryKey: ['study', 'pages'] }, (current) =>
+    Array.isArray(current) ? current.filter((other) => other.id !== pageId) : current,
+  );
+  forgetPage(pageId);
+  const { createIndexedDbWhiteboardStorage } = await import('@repo/whiteboard-core');
+  const storage = createIndexedDbWhiteboardStorage();
+
+  try {
+    await storage.ready();
+    await storage.deleteWhiteboard(pageId);
+  } catch {
+    // The board may never have been saved on this device.
+  } finally {
+    storage.close();
+  }
 }
 
 /** Move the board from the temporary id to the server's, then upload it. */

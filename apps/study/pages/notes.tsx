@@ -1,8 +1,8 @@
 import type { Page } from "@/lib/api/types";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { NotebookPen, Plus } from "lucide-react";
+import { NotebookPen, Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -18,7 +18,8 @@ import {
   Surface,
 } from "@/components/ui/primitives";
 import { notebookHref } from "@/features/lecturenotes/hooks";
-import { createNotePage } from "@/lib/offline/jobs";
+import { createNotePage, deleteNotePage } from "@/lib/offline/jobs";
+import { ConfirmSheet } from "@/components/ui/ConfirmSheet";
 import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
 import { formatRelative } from "@/lib/format";
@@ -29,11 +30,19 @@ const ImportNotebookButton = dynamic(
   { ssr: false },
 );
 
-function NoteRow({ page, label }: { page: Page; label?: string }) {
+function NoteRow({
+  page,
+  label,
+  onDelete,
+}: {
+  page: Page;
+  label?: string;
+  onDelete: (page: Page) => void;
+}) {
   return (
-    <li>
+    <li className="flex items-center gap-1">
       <Link
-        className="rounded-st hover:bg-st-raised flex min-h-12 items-center gap-3 px-2 py-2"
+        className="rounded-st hover:bg-st-raised flex min-h-12 min-w-0 flex-1 items-center gap-3 px-2 py-2"
         href={notebookHref(page)}
         title={page.title}
       >
@@ -50,6 +59,15 @@ function NoteRow({ page, label }: { page: Page; label?: string }) {
           </span>
         </span>
       </Link>
+      <ActionButton
+        aria-label={`Delete ${page.title}`}
+        className="h-10 w-10 shrink-0 px-0"
+        title="Delete notebook"
+        variant="ghost"
+        onClick={() => onDelete(page)}
+      >
+        <Trash2 className="text-st-muted h-4 w-4" />
+      </ActionButton>
     </li>
   );
 }
@@ -60,6 +78,12 @@ export default function NotesPage() {
   const queryClient = useQueryClient();
   const pages = usePages({});
   const { data: classes } = useClasses();
+  const [toDelete, setToDelete] = useState<Page | null>(null);
+  const remove = useMutation({
+    mutationFn: (page: Page) => deleteNotePage(page.id),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: ["study", "pages"] }),
+  });
 
   useEffect(() => {
     if (pages.data) rememberPages(pages.data);
@@ -110,6 +134,7 @@ export default function NotesPage() {
         title="Notes"
       />
       {create.error && <ErrorNote message={describeError(create.error)} />}
+      {remove.error && <ErrorNote message={describeError(remove.error)} />}
       {pages.error && (
         <ErrorNote
           message={describeError(pages.error)}
@@ -131,7 +156,7 @@ export default function NotesPage() {
               <SectionTitle count={own.length}>My notes</SectionTitle>
               <ul className="flex flex-col gap-1">
                 {own.map((page) => (
-                  <NoteRow key={page.id} page={page} />
+                  <NoteRow key={page.id} page={page} onDelete={setToDelete} />
                 ))}
               </ul>
             </Surface>
@@ -148,12 +173,29 @@ export default function NotesPage() {
                     key={page.id}
                     label={classNames.get(page.classId as string) ?? "Class"}
                     page={page}
+                    onDelete={setToDelete}
                   />
                 ))}
               </ul>
             </Surface>
           )}
         </div>
+      )}
+
+      {toDelete && (
+        <ConfirmSheet
+          danger
+          confirmLabel="Delete notebook"
+          title="Delete this notebook?"
+          onClose={() => setToDelete(null)}
+          onConfirm={() => remove.mutate(toDelete)}
+        >
+          <p>
+            «<span className="text-st-fg font-semibold">{toDelete.title}</span>»
+            and all its pages and writing will be deleted on every device. This
+            can’t be undone.
+          </p>
+        </ConfirmSheet>
       )}
     </>
   );
