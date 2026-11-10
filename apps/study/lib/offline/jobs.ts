@@ -12,7 +12,7 @@ import { newClientId, Outbox, type OutboxJob } from './outbox';
 import { offlineOwner } from './owner';
 
 import { attemptQuestion, createPage, markItemSeen, patchPage } from '@/lib/api/endpoints';
-import { isNetworkError } from '@/lib/api/errors';
+import { isNetworkError, StudyApiError } from '@/lib/api/errors';
 import { getBackendSettingsSnapshot } from '@/lib/backend-settings';
 import { forgetPage, readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 
@@ -137,9 +137,14 @@ function replaceInPageLists(localId: string, page: Page): void {
  */
 export async function createNotePage(body: NewPageBody): Promise<Page> {
   if (isOnline()) {
-    const result = await trySend(() => createPage(body));
+    try {
+      const result = await trySend(() => createPage(body));
 
-    if (result.ok) return result.value;
+      if (result.ok) return result.value;
+    } catch (error) {
+      // Signed out: the note lives on this device (as the signed-out banner promises), not an error.
+      if (!(error instanceof StudyApiError && error.code === 'NO_SESSION')) throw error;
+    }
   }
   const localId = newClientId(LOCAL_PAGE_PREFIX);
   const page = localPageRecord(localId, body);

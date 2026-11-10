@@ -17,7 +17,7 @@ import { rememberPages, writeSyncedVersion } from './pages-cache';
 import { readPaperSpacingDefaults, withPaperSpacingDefaults } from './paper-settings';
 import { buildPdfNotebookDocument } from './pdf-import';
 
-import { createPage } from '@/lib/api/endpoints';
+import { createNotePage } from '@/lib/offline/jobs';
 
 /** A file read only when its turn comes (a shared file is base64 over the bridge — one at a time). */
 export interface ImportSource {
@@ -98,7 +98,8 @@ export async function importNotebook({ classId, title, input, onProgress }: Impo
     }
 
     onProgress?.(importProgressLabel('saving'));
-    const page = await createPage({ classId, title, kind: 'note' });
+    // Signed out or offline: the notebook starts on this device and moves to the server later.
+    const page = await createNotePage({ classId: classId ?? null, title, kind: 'note' });
     const ready = withPaperSpacingDefaults({ ...doc, id: page.id, title: page.title }, readPaperSpacingDefaults());
 
     await storage.saveWhiteboard(ready);
