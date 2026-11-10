@@ -64,6 +64,7 @@ import { studyKeys, useCanvasStatus, useMcpConnections, useMcpKeys, useSampleRou
 import { getBuildTimeApiBaseUrl, saveBackendUrlOverride, saveMockMode } from '@/lib/backend-settings';
 import { daysUntil, formatDateTime, formatRelative } from '@/lib/format';
 import { canInstallInApp, checkForUpdates, startUpdate } from '@/lib/platform/app-update';
+import { SELF_UPDATE_ENABLED } from '@/lib/platform/store';
 import { isTauri } from '@/lib/platform/runtime';
 
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
@@ -489,6 +490,9 @@ function McpSection() {
 }
 
 function UpdatesSection() {
+  // Google Play build: Play updates the app, so there is nothing to check here.
+  if (!SELF_UPDATE_ENABLED) return null;
+
   return isTauri() ? <AppUpdatesSection /> : <WebUpdatesSection />;
 }
 

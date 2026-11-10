@@ -22,6 +22,11 @@ const analyticsEnv = resolveReleaseAnalyticsEnv(appDir);
 
 console.log(`[android-export] Baking NEXT_PUBLIC_API = ${apiBaseUrl}`);
 console.log(`[android-export] Usage counts ${analyticsEnv.NEXT_PUBLIC_POSTHOG_KEY ? 'on' : 'off (no key)'}`);
+// Google Play build (STUDY_STORE=play from scripts/build-play.mjs): no in-app updates (lib/platform/store.ts).
+// Pinned like the API so no .env file decides it.
+const store = (process.env.STUDY_STORE ?? process.env.NEXT_PUBLIC_STORE ?? '').trim();
+
+console.log(`[android-export] Store ${store || 'none (sideloaded: in-app updates on)'}`);
 
 // Fonts the shared UI stylesheet references (packages/ui/fonts → public/font), same as `predev`.
 execSync('sh ../../packages/ui/scripts/copy-fonts.sh', { cwd: appDir, stdio: 'inherit' });
@@ -38,6 +43,7 @@ execSync(`node "${nextBin}" build --webpack`, {
     ANDROID_BUILD: '1',
     NEXT_PUBLIC_API: apiBaseUrl,
     ...analyticsEnv,
+    NEXT_PUBLIC_STORE: store,
     NODE_ENV: 'production',
   },
 });

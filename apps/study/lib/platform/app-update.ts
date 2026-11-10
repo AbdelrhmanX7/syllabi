@@ -13,6 +13,7 @@
 import type { ReleaseFeed, Snooze } from './update-check';
 
 import { BUILD_STAMP } from './runtime';
+import { SELF_UPDATE_ENABLED } from './store';
 
 import { track } from '@/lib/analytics';
 import {
@@ -213,6 +214,8 @@ let inFlight: Promise<void> | null = null;
  * request; the Settings button passes nothing and always checks.
  */
 export function checkForUpdates(options: { ifOlderThan?: number } = {}): Promise<void> {
+  // Google Play build: updates come from Play only, the feed is never read.
+  if (!SELF_UPDATE_ENABLED) return Promise.resolve();
   init();
   if (typeof window === 'undefined' || state.installedVersionCode === null) return Promise.resolve();
   if (inFlight) return inFlight;
@@ -259,6 +262,7 @@ export function snoozeUpdate(): void {
 }
 
 export function startUpdate(): void {
+  if (!SELF_UPDATE_ENABLED) return;
   const feed = state.feed;
   const bridge = nativeUpdater();
 

@@ -6,6 +6,15 @@
 //   node scripts/android-release.mjs --no-frontend           reuse the existing out/ export
 //   node scripts/android-release.mjs --from-commit <sha>     build a CLEAN checkout of <sha> (below)
 //   STUDY_FEED_PREFIX=study/public node scripts/android-release.mjs   poll another update feed (CI public builds)
+//   node scripts/android-release.mjs --play --from-commit <sha>   Google Play bundle (.aab); use scripts/build-play.mjs
+//
+// `--play` (normally via scripts/build-play.mjs, which also pins the public server): builds a signed
+// Android App Bundle instead of an APK, with STUDY_STORE=play / NEXT_PUBLIC_STORE=play baked in — no
+// in-app updater, no update UI, no feed fetch, and the release manifest drops REQUEST_INSTALL_PACKAGES,
+// the update file provider and USE_EXACT_ALARM (gen/android/app/src/play/AndroidManifest.xml). It fails
+// when the signing env is missing, checks the bundle's manifest and signature, and archives
+// android-dist/study-<version>-<sha>-play.aab. `--target` takes a comma list here (default aarch64).
+// The versionCode uses the same minutes-since-2026 scheme as the APK, so it only ever grows.
 //
 // What it does that a bare `tauri android build` does not (modelled on the whiteboard's script):
 // - loads the release signing env from $SYLLABI_RELEASE_ENV (default ~/.android/syllabi-release.env,
@@ -58,6 +67,12 @@ const target = option('--target', 'aarch64');
 const debug = flag('--debug');
 const skipFrontend = flag('--no-frontend');
 const fromCommit = option('--from-commit', '');
+const play = flag('--play');
+
+if (play && debug) {
+  console.error('[android-release] --play builds the release bundle only; drop --debug');
+  process.exit(1);
+}
 const archiveDir = resolve(option('--archive-dir', join(appDir, 'android-dist')));
 
 const git = (cwd, ...gitArgs) => {
@@ -80,7 +95,9 @@ if (fromCommit) {
   const mainRoot = dirname(resolve(appDir, git(appDir, 'rev-parse', '--git-common-dir')));
   const thisRoot = git(appDir, 'rev-parse', '--show-toplevel');
   const appRel = relative(thisRoot, appDir);
-  const worktree = join(mainRoot, 'trees', 'study-android-release');
+  // The Play build has its own worktree and cargo target dir, so it never removes or races an APK
+  // release running from another checkout.
+  const worktree = join(mainRoot, 'trees', play ? 'study-android-play' : 'study-android-release');
 
   if (existsSync(worktree)) {
     log(`removing stale worktree ${worktree}`);
@@ -180,10 +197,11 @@ if (fromCommit) {
           // The gitignored .env.release.local lives only in THIS checkout, so resolve the server here
           // and pin it; otherwise the clean worktree finds no file and ships a demo-mode APK.
           STUDY_BUILD_API: resolveReleaseApiBaseUrl(appDir),
+          ...(play ? { STUDY_STORE: 'play', NEXT_PUBLIC_STORE: 'play' } : {}),
           // Same for the usage-counts key (also from .env.release.local).
           ...resolveReleaseAnalyticsEnv(appDir),
           // A target dir of its OWN: build-script outputs record absolute paths into the worktree.
-          CARGO_TARGET_DIR: join(appDir, 'src-tauri', 'target-release-clean'),
+          CARGO_TARGET_DIR: join(appDir, 'src-tauri', play ? 'target-play-clean' : 'target-release-clean'),
         },
       },
     );
@@ -225,6 +243,9 @@ if (!debug) {
 
       if (match) env[match[1]] = match[2];
     }
+  } else if (play) {
+    console.error(`[android-release] FAILED — ${envFile} not found; Google Play needs a bundle signed with the upload key`);
+    process.exit(1);
   } else {
     console.warn(`[android-release] ${envFile} not found — the APK will be UNSIGNED`);
   }
@@ -235,6 +256,17 @@ if (!debug) {
   env.CARGO_PROFILE_RELEASE_LTO = 'thin';
   env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS = '16';
 }
+
+if (play) {
+  // Google Play build: read by the page (lib/platform/store.ts via android-export), the native shell
+  // (option_env! in src-tauri/src/lib.rs) and gradle (the play manifest overlay, BuildConfig.SELF_UPDATE).
+  env.STUDY_STORE = 'play';
+  env.NEXT_PUBLIC_STORE = 'play';
+}
+
+const bundleRoot = join(appDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'bundle');
+
+if (play) rmSync(bundleRoot, { recursive: true, force: true });
 
 const apkRoot = join(appDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'apk');
 const abiDir = { aarch64: 'arm64', armv7: 'arm', i686: 'x86', x86_64: 'x86_64' }[target] ?? target;
@@ -279,7 +311,9 @@ const configOverride = { bundle: { android: { versionCode } } };
 
 if (skipFrontend) configOverride.build = { beforeBuildCommand: '' };
 
-const tauriArgs = ['android', 'build', '--apk', '--split-per-abi', '--target', target, '--config', JSON.stringify(configOverride)];
+const tauriArgs = play
+  ? ['android', 'build', '--aab', '--target', ...target.split(','), '--config', JSON.stringify(configOverride)]
+  : ['android', 'build', '--apk', '--split-per-abi', '--target', target, '--config', JSON.stringify(configOverride)];
 
 if (debug) tauriArgs.push('--debug');
 
@@ -305,6 +339,52 @@ if (!scan.ok) {
 }
 
 log(`baked API ${apiBaseUrl} — verified in out/`);
+
+/* ------------------------------------------------------------------ Play bundle: check + archive */
+
+if (play) {
+  const findAab = (dir) =>
+    existsSync(dir)
+      ? readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+          entry.isDirectory() ? findAab(join(dir, entry.name)) : entry.name.endsWith('.aab') ? [join(dir, entry.name)] : [],
+        )
+      : [];
+  const bundles = findAab(bundleRoot);
+
+  if (bundles.length !== 1) {
+    console.error(`[android-release] FAILED — expected one .aab under ${bundleRoot}, found ${bundles.length}; NOTHING archived`);
+    process.exit(1);
+  }
+
+  const aab = bundles[0];
+  // The bundle's manifest is a protobuf; its strings are enough to see which permissions it asks for.
+  const manifest = spawnSync('unzip', ['-p', aab, 'base/manifest/AndroidManifest.xml'], { maxBuffer: 64 * 1024 * 1024 });
+  const text = manifest.status === 0 ? manifest.stdout.toString('latin1') : '';
+  const permissions = [...new Set(text.match(/android\.permission\.[A-Z_]+/g) ?? [])].sort();
+  const forbidden = ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.USE_EXACT_ALARM'].filter((name) =>
+    permissions.includes(name),
+  );
+
+  if (!text || forbidden.length || text.includes('UpdateFileProvider')) {
+    console.error(`[android-release] FAILED — the bundle's manifest still self-updates: ${forbidden.join(', ') || 'UpdateFileProvider / unreadable'}; NOTHING archived`);
+    process.exit(1);
+  }
+
+  const signed = spawnSync(join(env.JAVA_HOME, 'bin', 'jarsigner'), ['-verify', aab], { encoding: 'utf8' });
+
+  if (signed.status !== 0 || !/jar verified/.test(signed.stdout)) {
+    console.error(`[android-release] FAILED — ${aab} is not signed: ${(signed.stdout + signed.stderr).trim().split('\n').pop()}; NOTHING archived`);
+    process.exit(1);
+  }
+
+  mkdirSync(archiveDir, { recursive: true });
+  const archived = join(archiveDir, `study-${version}-${sha}${dirty}-play.aab`);
+
+  copyFileSync(aab, archived);
+  log(`permission names in the manifest (requested or guarding a library component) ${permissions.join(' ')}`);
+  log(`archive ${archived}  ${(statSync(archived).size / 1048576).toFixed(1)} MB  (HEAD ${sha}${dirty}, versionCode ${versionCode}, stamp "${buildStamp}", API ${apiBaseUrl}, signed)`);
+  process.exit(0);
+}
 
 /* ------------------------------------------------------------------ archive */
 

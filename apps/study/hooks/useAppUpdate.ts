@@ -6,15 +6,17 @@ import {
   getUpdateSnapshot,
   subscribeUpdates,
 } from '@/lib/platform/app-update';
+import { SELF_UPDATE_ENABLED } from '@/lib/platform/store';
 import { CHECK_INTERVAL_MS, RESUME_CHECK_GAP_MS } from '@/lib/platform/update-check';
 
 export function useAppUpdate() {
   return useSyncExternalStore(subscribeUpdates, getUpdateSnapshot, getServerUpdateSnapshot);
 }
 
-/** Mounted once (AppShell): checks on launch, on resume and every 6 h while the app is open. */
+/** Mounted once (AppShell): checks on launch, on resume and every 6 h while the app is open. Never in the Play build. */
 export function useUpdateWatcher() {
   useEffect(() => {
+    if (!SELF_UPDATE_ENABLED) return;
     void checkForUpdates({ ifOlderThan: 0 });
 
     const onVisible = () => {

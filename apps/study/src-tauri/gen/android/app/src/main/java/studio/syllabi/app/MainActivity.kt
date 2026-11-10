@@ -24,8 +24,9 @@ class MainActivity : TauriActivity() {
   // Re-hides the bars after they came back without a swipe (see installInsetsGuard).
   private val reHideBars = Runnable { if (hasWindowFocus()) enterImmersiveMode() }
 
-  // In-app update (download, verify, system installer) — `window.StudyUpdater` in the page.
-  private val updater = AppUpdater(this)
+  // In-app update (download, verify, system installer) — `window.StudyUpdater` in the page. Not in the
+  // Google Play build (BuildConfig.SELF_UPDATE false): Play updates the app.
+  private val updater: AppUpdater? = if (BuildConfig.SELF_UPDATE) AppUpdater(this) else null
 
   // Android share target (Gallery / Files / Quick Share → Study) — `window.StudyShare` in the page.
   private val shareReceiver = ShareReceiver(this)
@@ -115,7 +116,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     enterImmersiveMode()
-    updater.onResume()
+    updater?.onResume()
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -285,7 +286,7 @@ class MainActivity : TauriActivity() {
 
   override fun onDestroy() {
     boardWebView = null
-    updater.detach()
+    updater?.detach()
     shareReceiver.detach()
     inkRecognizer.detach()
     window.decorView.removeCallbacks(reHideBars)
@@ -308,7 +309,7 @@ class MainActivity : TauriActivity() {
     super.onWebViewCreate(webView)
     boardWebView = webView
     // Before wry's first loadUrl, so the interface exists on the first page.
-    updater.attach(webView)
+    updater?.attach(webView)
     shareReceiver.attach(webView)
     inkRecognizer.attach(webView)
     fileExporter.attach(webView)
