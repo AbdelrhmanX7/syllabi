@@ -11,7 +11,7 @@ import { refreshPageLists, updatePageInLists } from '@/lib/offline/jobs';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { boardHasContent, claimDescribeSlot, wantsAutoDescribe } from '@/lib/notebooks/page-meta';
 
-/** Fired with the fresh Page after AI described it (an open notebook picks up new tags → math tools). */
+/** Fired with the fresh Page after AI described it (an open notebook picks up its new name and tags). */
 export const PAGE_DESCRIBED_EVENT = 'study:page-described';
 
 /** How long a cover picture usually takes before the lists are worth reloading. */

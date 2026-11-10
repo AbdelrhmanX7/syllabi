@@ -33,7 +33,6 @@ import dynamic from 'next/dynamic';
 import { ClaudeFeedback } from '@/components/notebook/ClaudeFeedback';
 import { RulerOverlay } from '@/components/notebook/RulerOverlay';
 import { useRulerPresets, usePutRulerPreset } from '@/lib/api/hooks';
-import { MathSymbolBar } from '@/components/notebook/MathSymbolBar';
 import { ActionButton, BOARD_CHIP, BOARD_CHIP_OVERRIDE } from '@/components/ui/primitives';
 import { BOARD_DRAW_EVENT, boardGraphInput, clearBoardDraw, peekBoardDraw } from '@/features/conceptmaps/lib/boardDraw';
 import { recordPhoneImage } from '@/features/conceptmaps/lib/pageImages';
@@ -55,6 +54,7 @@ import { syncPageRenders } from '@/lib/notebooks/page-renders';
 import { markSyncedVersionDirty, readSyncedVersion, writeSyncedVersion } from '@/lib/notebooks/pages-cache';
 import { pdfAssetIdsOf, queuePdfAssetUpload, restorePagePdfAsset } from '@/lib/notebooks/pdf-assets-sync';
 import { LiveSession, presenceLine } from '@/lib/notebooks/live';
+import { createLeaveGate, leaveBoard, type LeaveGate } from '@/lib/notebooks/leave-board';
 import { fetchBoardVersion, fetchLatestBoard, openLiveNotebook, openLiveStream, pushLiveOps } from '@/lib/notebooks/live-api';
 import { applyOps, ensureDocIds, itemsOnlyFor } from '@/lib/notebooks/live-merge';
 import { getPage } from '@/lib/api/endpoints';
@@ -159,9 +159,7 @@ export interface NotebookBoardProps {
    * and everyone else's come in live; never a "keep mine / keep theirs" choice. See lib/notebooks/live.ts.
    */
   live?: boolean;
-  /** Show the math symbol bar (Notebook details → Math tools). */
-  mathTools?: boolean;
-  /** A host chip at the start of the board's second row, before the math bar (e.g. «Details»). */
+  /** A host chip at the start of the board's second row (e.g. «Details»). */
   secondRowStart?: ReactNode;
 }
 
@@ -274,7 +272,6 @@ export function NotebookBoard({
   buildMergeOverlaysRef,
   onPdfFileImported,
   live = false,
-  mathTools = false,
   secondRowStart,
 }: NotebookBoardProps) {
   // The title only seeds a brand-new document; a rename must not re-open (and so remount) the board.
@@ -302,9 +299,6 @@ export function NotebookBoard({
   // «Typed note» on the board: back to Claude's text after the board has ink.
   const [forceSheet, setForceSheet] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  // The math symbol bar's last tap, until the editor has placed it (a fresh object per tap).
-  const [pendingMath, setPendingMath] = useState<{ tex: string } | null>(null);
-  const handleMathInserted = useCallback(() => setPendingMath(null), []);
   const [rulerOn, setRulerOn] = useState(false);
   // Ruler presets (Claude or the student saved them for a board page): the editor's live viewport lets the ruler
   // pin its 0 end to a paper position; `viewportTick` re-renders the overlay when it moves.
@@ -766,23 +760,47 @@ export function NotebookBoard({
   // My own other devices are not "someone else here".
   const presence = liveMode ? presenceLine(people, { clientId: clientIdRef.current, userId: parseJwt(readSessionToken() ?? '')?._id ?? null }) : null;
 
-  const handleBack = useCallback(async () => {
-    try {
-      await flushRef.current?.();
-    } catch {
-      // the editor's own autosave already has the latest page
-    }
-    if (uploadTimerRef.current !== null) {
-      window.clearTimeout(uploadTimerRef.current);
-      uploadTimerRef.current = null;
-    }
-    if (liveMode) await liveSessionRef.current?.flushNow().catch(() => undefined);
-    else if (dirtyRef.current) await runUpload();
-    // Leaving: the page images go up now, not after the quiet wait (the renderer outlives the editor).
-    const synced = readSyncedVersion(pageId);
+  // One leave per open page. A leave still waiting when the board closes (or moves to another page) never
+  // navigates: a late «back» from the old notebook must not close the next one.
+  const leaveGateRef = useRef<LeaveGate>(createLeaveGate());
 
-    if (synced && !synced.dirty && renderTimerRef.current !== null) renderNow(synced.version);
-    onBack();
+  useEffect(() => {
+    const gate = createLeaveGate();
+
+    leaveGateRef.current = gate;
+
+    return () => gate.dispose();
+  }, [pageId]);
+
+  const handleBack = useCallback(async () => {
+    // The editor saved the page on this tablet just before calling this (that is what keeps the ink), so
+    // the screen changes now and the server copy goes up after: one tap leaves at once on any link.
+    const live = liveMode ? liveSessionRef.current : null;
+    const uploadAfter = !liveMode && dirtyRef.current;
+
+    await leaveBoard({
+      gate: leaveGateRef.current,
+      // A live page's last strokes go before its session closes with the board (capped, never a long wait).
+      mustFinish: live ? () => live.flushNow() : undefined,
+      navigate: () => {
+        if (uploadTimerRef.current !== null) {
+          window.clearTimeout(uploadTimerRef.current);
+          uploadTimerRef.current = null;
+        }
+        onBack();
+      },
+      // Leaving: the page images go up now, not after the quiet wait (the renderer outlives the editor).
+      afterLeave: () => {
+        if (uploadAfter) {
+          return runUpload().then((outcome) => {
+            if (outcome?.ok) renderNow(outcome.version);
+          });
+        }
+        const synced = readSyncedVersion(pageId);
+
+        if (synced && !synced.dirty && renderTimerRef.current !== null) renderNow(synced.version);
+      },
+    });
   }, [liveMode, onBack, pageId, renderNow, runUpload]);
 
   const resolveKeepMine = useCallback(async () => {
@@ -916,8 +934,6 @@ export function NotebookBoard({
         viewportRef={viewportRef}
         onViewportChange={onViewportChange}
         onViewportZoomChange={setBoardZoom}
-        pendingMath={pendingMath}
-        onPendingMathHandled={handleMathInserted}
         onPendingConceptMapHandled={handleConceptMapDrawn}
         onPendingImageImportHandled={handleImageInserted}
         onPendingPdfImportHandled={handlePdfInserted}
@@ -925,16 +941,13 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
-      {/* Second row, under the board's top chips: the host's chip, then the math symbol bar. */}
-      {!readOnly && !focusMode && (secondRowStart || mathTools) && (
+      {/* Second row, under the board's top chips: the host's chip. */}
+      {!readOnly && !focusMode && secondRowStart && (
         <div
           className={`pointer-events-none absolute inset-x-3 top-[6.75rem] z-20 flex items-start gap-2 pb-1 md:top-[3.75rem] ${boardTheme === 'dark' ? 'dark' : ''}`}
           data-board-compact='true'
         >
-          {secondRowStart && <div className='pointer-events-auto shrink-0'>{secondRowStart}</div>}
-          {mathTools && (
-            <MathSymbolBar className='min-w-0 flex-1 md:max-w-max md:flex-initial' onInsert={(symbol) => setPendingMath({ tex: symbol.tex })} />
-          )}
+          <div className='pointer-events-auto shrink-0'>{secondRowStart}</div>
         </div>
       )}
       {rulerOn && !readOnly && (

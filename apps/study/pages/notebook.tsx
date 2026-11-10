@@ -18,7 +18,6 @@ import { track } from '@/lib/analytics';
 import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { PAGE_DESCRIBED_EVENT, rememberPdfName } from '@/lib/notebooks/auto-describe';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
-import { mathToolsOn } from '@/lib/notebooks/page-meta';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { isLocalPageId, pageRedirect } from '@/lib/offline/local-pages';
 import { useStudyBoardAi } from '@/features/tutor';
@@ -53,14 +52,14 @@ export default function NotebookPage() {
     lecture,
   });
   const [missing, setMissing] = useState(false);
-  // Notebook details sheet (`&details=1` opens it, e.g. from a link); `&math=1` shows the math bar.
+  // Notebook details sheet (`&details=1` opens it, e.g. from a link).
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (router.query.details === '1') setDetailsOpen(true);
   }, [router.query.details]);
 
-  // AI described this notebook after a sync: new name / tags (math tools on Auto follow the tags).
+  // AI described this notebook after a sync: new name / tags.
   useEffect(() => {
     const onDescribed = (event: Event) => {
       const fresh = (event as CustomEvent<Page>).detail;
@@ -166,11 +165,13 @@ export default function NotebookPage() {
   }, [classId, pageId, redirectTo]);
 
   const handleBack = useCallback(() => {
-    if (page?.shared) void router.push('/shared/');
-    else if (page?.classId) void router.push(`/class/?id=${encodeURIComponent(page.classId)}`);
+    // Only from the notebook still on screen: a late call from one already left must not close the next.
+    if (!page || new URLSearchParams(window.location.search).get('id') !== page.id) return;
+    if (page.shared) void router.push('/shared/');
+    else if (page.classId) void router.push(`/class/?id=${encodeURIComponent(page.classId)}`);
     else if (window.history.length > 1) router.back();
     else void router.push('/');
-  }, [page?.classId, page?.shared, router]);
+  }, [page, router]);
 
   // A PDF imported into a note that still has its generated name renames it after the file (a name
   // someone typed is never touched). Local first so the pill updates at once; the backend follows.
@@ -222,14 +223,13 @@ export default function NotebookPage() {
               <ActionButton
                 aria-label='Notebook details'
                 className={BOARD_CHIP_OVERRIDE}
-                title='Notebook details: name, tags, cover, math tools'
+                title='Notebook details: name, tags, cover'
                 onClick={() => setDetailsOpen(true)}
               >
                 <SlidersHorizontal className='h-3.5 w-3.5' /> <span data-chip-label>Details</span>
               </ActionButton>
             )
           }
-          mathTools={router.query.math === '1' || mathToolsOn(page.mathTools, page.tags)}
           pageId={page.id}
           pendingImage={inboxImage}
           pendingPdf={inboxPdf}

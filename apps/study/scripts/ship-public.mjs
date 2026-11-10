@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 // Ship a tested build to everyone, with one version number everywhere.
 //
-//   node scripts/ship-public.mjs --notes "What's new, in plain words" [--type patch|minor|major] [--skip-web]
+//   node scripts/ship-public.mjs --notes "What's new, in plain words" [--type patch|minor|major | --version X.Y.Z]
+//                                [--skip-web] [--dry-run]
+//
+//   --type     bump kind (default patch). --version sets an exact X.Y.Z instead (must be above the current
+//              version); the two are mutually exclusive. --dry-run checks everything and prints the target
+//              version and tag, then stops without changing, committing, building or publishing anything.
 //
 // Two channels:
 //   test    every change: `android-release.mjs` + `publish-android.mjs` (default feed `study`). Only the
@@ -34,9 +39,11 @@ const option = (name, fallback) => {
 
   return index >= 0 && args[index + 1] !== undefined ? args[index + 1] : fallback;
 };
-const type = option('--type', 'patch');
+const typeArg = option('--type', undefined);
+const exactVersion = option('--version', undefined);
 const notes = option('--notes', '').trim();
 const skipWeb = args.includes('--skip-web');
+const dryRun = args.includes('--dry-run');
 
 const log = (message) => console.log(`[ship-public] ${message}`);
 const fail = (message) => {
@@ -51,17 +58,49 @@ const run = (command, commandArgs, env = {}) => {
   if (result.status !== 0) fail(`${command} ${commandArgs[0] ?? ''} failed (exit ${result.status})`);
 };
 
-if (!['patch', 'minor', 'major'].includes(type)) fail('--type must be patch, minor or major');
+if (args.includes('--type') && typeArg === undefined) fail('--type needs a value: patch, minor or major');
+if (args.includes('--version') && exactVersion === undefined) fail('--version needs a value, e.g. --version 0.2.5');
+if (typeArg !== undefined && exactVersion !== undefined) fail('--type and --version are mutually exclusive');
+if (typeArg !== undefined && !['patch', 'minor', 'major'].includes(typeArg)) fail('--type must be patch, minor or major');
 if (!notes) fail('--notes is required: say what changed, in plain words');
-if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'master') fail('run it on master');
-if (git('status', '--porcelain', '--untracked-files=no')) fail('the working tree has uncommitted changes');
+
+const bumpArgs = exactVersion !== undefined ? ['--version', exactVersion] : ['--type', typeArg ?? 'patch'];
+const bumpVersion = (extra = []) => {
+  const result = spawnSync('node', [join(appDir, 'scripts', 'bump-version.mjs'), ...bumpArgs, ...extra], {
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) fail(result.stderr.trim() || 'bump-version failed');
+
+  return result.stdout.trim();
+};
+// Validate the target (semver, above the current version) before touching git.
+const target = bumpVersion(['--dry-run']);
+
+if (dryRun) log(`dry run: target version ${target}, tag v${target}`);
+
+// In a dry run, report the release checks instead of stopping at the first one.
+const check = (problem, message) => {
+  if (!problem) return;
+  if (dryRun) log(`would stop: ${message}`);
+  else fail(message);
+};
+
+check(git('rev-parse', '--abbrev-ref', 'HEAD') !== 'master', 'run it on master');
+check(git('status', '--porcelain', '--untracked-files=no'), 'the working tree has uncommitted changes');
 git('fetch', '-q', 'origin', 'master');
-if (git('rev-parse', 'HEAD') !== git('rev-parse', 'origin/master')) fail('master is not in sync with origin/master');
+check(git('rev-parse', 'HEAD') !== git('rev-parse', 'origin/master'), 'master is not in sync with origin/master');
+check(git('tag', '--list', `v${target}`), `tag v${target} already exists`);
 
 const previousTag = git('describe', '--tags', '--abbrev=0', '--match', 'v*');
 
+if (dryRun) {
+  log(`dry run: would release ${previousTag} → v${target}${skipWeb ? ' (no web deploy)' : ''}; nothing changed`);
+  process.exit(0);
+}
+
 /* 1. version */
-const version = execFileSync('node', [join(appDir, 'scripts', 'bump-version.mjs'), type], { encoding: 'utf8' }).trim();
+const version = bumpVersion();
 const tag = `v${version}`;
 
 git('add', 'apps/study/package.json', 'apps/study/src-tauri/tauri.conf.json', 'apps/study/src-tauri/Cargo.toml', 'apps/study/src-tauri/Cargo.lock');

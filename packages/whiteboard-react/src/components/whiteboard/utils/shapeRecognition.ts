@@ -15,8 +15,8 @@
  *   1. Resample the stroke to equal arc-length steps (raw digitizer samples bunch where the pen slows).
  *   2. Open vs closed: the end must come back near the start (an overshoot past the start is trimmed),
  *      and a closed loop must turn through roughly ONE revolution (a spiral or a scribble does not).
- *   3. Open → a square-root sign (`radicalSign.ts`: tick, stem and a LONG vinculum), else a straight
- *      line: least-squares line fit, every point within a few % of the length, no doubling back.
+ *   3. Open → a square-root sign (`radicalSign.ts`: tick, stem and a LONG vinculum), else a bracket,
+ *      brace, integral sign or one-stroke arrow (`mathSymbols.ts`), else a straight line: least-squares line fit, every point within a few % of the length, no doubling back.
  *      Angle snaps to 0/45/90°.
  *   4. Closed → two independent fits:
  *        polygon  Ramer–Douglas–Peucker corners, near-straight joints merged, and EVERY edge must be
@@ -27,6 +27,8 @@
  *      axes nearly match; both snap to the screen axes within a few degrees.
  */
 
+import { MATH_SYMBOL_KINDS, mathSymbolScenePoints, normalizeMathSymbolParams, recognizeMathSymbol, stretchMathSymbol } from './mathSymbols';
+import type { MathSymbolKind, MathSymbolShape } from './mathSymbols';
 import { normalizeRadicalParams, radicalScenePoints, recognizeRadical } from './radicalSign';
 import type { RadicalShape } from './radicalSign';
 
@@ -36,7 +38,12 @@ export interface Vec {
 }
 
 /** `smooth`: not a shape at all — a freehand stroke smoothed on hold (`utils/smoothStroke`). */
-export type ShapeKind = 'line' | 'triangle' | 'rectangle' | 'polygon' | 'ellipse' | 'circle' | 'radical' | 'smooth';
+export type ShapeKind = 'line' | 'triangle' | 'rectangle' | 'polygon' | 'ellipse' | 'circle' | 'radical' | MathSymbolKind | 'smooth';
+
+/** True for the clean math symbols (`utils/mathSymbols`): brackets, braces, integral, arrow. */
+export function isMathSymbolKind(kind: string | null | undefined): kind is MathSymbolKind {
+  return (MATH_SYMBOL_KINDS as readonly string[]).includes(kind ?? '');
+}
 
 /** A straight-edged shape: an open polyline (line) or a closed polygon (vertices in drawing order). */
 export interface PolyGeometry {
@@ -66,6 +73,8 @@ export type RecognizedShape =
   | { kind: 'ellipse' | 'circle'; geometry: EllipseGeometry }
   /** A square-root sign (`utils/radicalSign`): `geometry` is its polyline, `radical` its parameters. */
   | { kind: 'radical'; geometry: PolyGeometry; radical: RadicalShape }
+  /** A clean math symbol (`utils/mathSymbols`): `geometry` is its polyline, `symbol` its parameters. */
+  | { kind: MathSymbolKind; geometry: PolyGeometry; symbol: MathSymbolShape }
   /** A freehand stroke smoothed on hold: fixed once made (no hold-drag resize). */
   | { kind: 'smooth'; geometry: PolyGeometry };
 
@@ -786,6 +795,10 @@ export function recognizeShape(input: Vec[], options: RecognizeOptions): Recogni
 
     if (radical) return radicalShape(radical);
 
+    const symbol = recognizeMathSymbol(points, { minSize: options.minSize });
+
+    if (symbol) return mathSymbolShape(symbol);
+
     return recognizeLine(points, options.minSize);
   }
 
@@ -831,6 +844,44 @@ export function recognizeShape(input: Vec[], options: RecognizeOptions): Recogni
 /** A {@link RecognizedShape} for a radical: its scene polyline plus the parameters that regenerate it. */
 export function radicalShape(radical: RadicalShape): Extract<RecognizedShape, { kind: 'radical' }> {
   return { kind: 'radical', radical, geometry: { type: 'poly', closed: false, points: radicalScenePoints(radical) } };
+}
+
+/** A {@link RecognizedShape} for a math symbol: its scene polyline plus the parameters that regenerate it. */
+export function mathSymbolShape(symbol: MathSymbolShape): Extract<RecognizedShape, { symbol: MathSymbolShape }> {
+  return { kind: symbol.params.kind, symbol, geometry: { type: 'poly', closed: false, points: mathSymbolScenePoints(symbol) } };
+}
+
+/**
+ * The post-snap drag for a math symbol: the end the pen finished at follows it, the other end stays —
+ * a bracket / brace / integral only grows or shrinks in height, an arrow's tip (or tail, when it was
+ * drawn head-first) follows the pen. Regenerated from the params, never scaled.
+ */
+function adjustMathSymbol(snapped: Extract<RecognizedShape, { symbol: MathSymbolShape }>, holdPoint: Vec, pen: Vec): RecognizedShape {
+  const { anchor, params } = snapped.symbol;
+  const dx = pen.x - holdPoint.x;
+  const dy = pen.y - holdPoint.y;
+
+  if (params.kind === 'arrow') {
+    const tip = { x: anchor.x + params.length * Math.cos(params.angle), y: anchor.y + params.length * Math.sin(params.angle) };
+
+    if (dist(holdPoint, tip) <= dist(holdPoint, anchor)) {
+      return mathSymbolShape({ anchor, params: stretchMathSymbol(params, { x: tip.x + dx - anchor.x, y: tip.y + dy - anchor.y }) });
+    }
+
+    const tail = { x: anchor.x + dx, y: anchor.y + dy };
+
+    return mathSymbolShape({ anchor: tail, params: stretchMathSymbol(params, { x: tip.x - tail.x, y: tip.y - tail.y }) });
+  }
+
+  const bottom = anchor.y + params.height;
+
+  if (Math.abs(holdPoint.y - bottom) <= Math.abs(holdPoint.y - anchor.y)) {
+    return mathSymbolShape({ anchor, params: normalizeMathSymbolParams({ ...params, height: params.height + dy }) });
+  }
+
+  const next = normalizeMathSymbolParams({ ...params, height: params.height - dy });
+
+  return mathSymbolShape({ anchor: { x: anchor.x, y: bottom - (next as { height: number }).height }, params: next });
 }
 
 /** Pivot a shape transforms around while the pen keeps moving after the snap. */
@@ -879,6 +930,8 @@ export function adjustSnappedShape(snapped: RecognizedShape, holdPoint: Vec, pen
 
     return radicalShape({ anchor, params: normalizeRadicalParams({ ...params, bar: params.bar + (pen.x - holdPoint.x) }) });
   }
+
+  if ('symbol' in snapped) return adjustMathSymbol(snapped, holdPoint, pen);
 
   if (snapped.kind === 'line') {
     const [start, end] = snapped.geometry.points;

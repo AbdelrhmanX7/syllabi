@@ -1,26 +1,47 @@
-
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NotebookPen, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { ScrollShadow } from "@repo/ui";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   ActionButton,
   EmptyState,
   ErrorNote,
+  FilterChip,
   LoadingRows,
   SectionTitle,
-  Surface,
 } from "@/components/ui/primitives";
 import { notebookHref } from "@/features/lecturenotes/hooks";
 import { createNotePage } from "@/lib/offline/jobs";
-import { NoteList } from "@/components/notes/NoteList";
+import { NoteGrid } from "@/components/notes/NoteGrid";
 import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
+import { tagsInUse, withTag } from "@/lib/notebooks/page-meta";
 import { rememberPages } from "@/lib/notebooks/pages-cache";
+
+/** The tag picked in the filter strip, remembered on this device. */
+const TAG_KEY = "study_notes_tag";
+
+function readTag(): string | null {
+  try {
+    return window.localStorage.getItem(TAG_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTag(tag: string | null): void {
+  try {
+    if (tag) window.localStorage.setItem(TAG_KEY, tag);
+    else window.localStorage.removeItem(TAG_KEY);
+  } catch {
+    // Storage blocked (private window): the filter just isn't remembered.
+  }
+}
 
 const ImportNotebookButton = dynamic(
   () => import("@/features/inbox").then((mod) => mod.ImportNotebookButton),
@@ -45,6 +66,20 @@ export default function NotesPage() {
   const own =
     pages.data?.filter((page) => !page.classId && page.kind === "note") ?? [];
   const inClasses = pages.data?.filter((page) => page.classId) ?? [];
+  const tags = useMemo(() => tagsInUse(pages.data ?? []), [pages.data]);
+
+  // Read after mount: the page is prerendered, so reading storage while rendering would mismatch.
+  const [savedTag, setSavedTag] = useState<string | null>(null);
+
+  useEffect(() => setSavedTag(readTag()), []);
+  // A remembered tag no notebook has any more falls back to All, so the page never looks empty.
+  const tag = savedTag && tags.includes(savedTag) ? savedTag : null;
+  const pickTag = (next: string | null) => {
+    setSavedTag(next);
+    saveTag(next);
+  };
+  const ownShown = withTag(own, tag);
+  const classShown = withTag(inClasses, tag);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -92,7 +127,31 @@ export default function NotesPage() {
       {pages.isLoading && !pages.data && <LoadingRows rows={4} />}
 
       {pages.data && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
+          {tags.length > 0 && (
+            <ScrollShadow hideScrollBar orientation="horizontal">
+              {/* Padding inside the scroller: the chips' lip and press travel must not be cut. */}
+              <div
+                aria-label="Filter by tag"
+                className="flex w-max gap-2 px-0.5 pb-1.5 pt-0.5"
+                role="group"
+              >
+                <FilterChip active={!tag} onClick={() => pickTag(null)}>
+                  All
+                </FilterChip>
+                {tags.map((name) => (
+                  <FilterChip
+                    key={name}
+                    active={tag === name}
+                    onClick={() => pickTag(name)}
+                  >
+                    {name}
+                  </FilterChip>
+                ))}
+              </div>
+            </ScrollShadow>
+          )}
+
           {own.length === 0 ? (
             <EmptyState
               hint="Write anything here: ideas, lists, notes for a club. Coming from Samsung Notes, GoodNotes or OneNote? Export a note as a PDF there, then tap Import pages."
@@ -100,26 +159,29 @@ export default function NotesPage() {
               title="No notes yet"
             />
           ) : (
-            <Surface className="p-4">
-              <SectionTitle count={own.length}>My notes</SectionTitle>
-              <NoteList pages={own} />
-            </Surface>
+            ownShown.length > 0 && (
+              <section>
+                <SectionTitle count={ownShown.length}>My notes</SectionTitle>
+                <NoteGrid pages={ownShown} />
+              </section>
+            )
           )}
 
-          {inClasses.length > 0 && (
-            <Surface className="p-4">
-              <SectionTitle count={inClasses.length}>
+          {classShown.length > 0 && (
+            <section>
+              <SectionTitle count={classShown.length}>
                 Class notebooks
               </SectionTitle>
-              <NoteList
-                labelFor={(page) => classNames.get(page.classId as string) ?? "Class"}
-                pages={inClasses}
+              <NoteGrid
+                labelFor={(page) =>
+                  classNames.get(page.classId as string) ?? "Class"
+                }
+                pages={classShown}
               />
-            </Surface>
+            </section>
           )}
         </div>
       )}
-
     </>
   );
 }

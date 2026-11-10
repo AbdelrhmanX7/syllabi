@@ -7,12 +7,13 @@ import type { Page } from '../api/types';
 import { isAutoNoteTitle } from './note-title';
 import {
   boardHasContent,
-  isMathTag,
-  mathToolsOn,
+  cardTags,
   normalizeTag,
   normalizeTags,
   noteRowLine,
+  tagsInUse,
   wantsAutoDescribe,
+  withTag,
 } from './page-meta';
 
 const page = (over: Partial<Page> = {}): Page => ({
@@ -29,15 +30,6 @@ const page = (over: Partial<Page> = {}): Page => ({
 });
 
 describe('notebook details helpers', () => {
-  test('math tags and the Auto / On / Off switch', () => {
-    assert.ok(isMathTag('Linear Algebra'));
-    assert.ok(!isMathTag('history'));
-    assert.equal(mathToolsOn('auto', ['calculus']), true);
-    assert.equal(mathToolsOn('auto', ['art']), false);
-    assert.equal(mathToolsOn('off', ['calculus']), false);
-    assert.equal(mathToolsOn('on', []), true);
-  });
-
   test('tags are cleaned like the server does', () => {
     assert.equal(normalizeTag('  #Physics  '), 'physics');
     assert.deepEqual(normalizeTags(['A', 'a', '', 'b', 'c', 'd', 'e', 'f', 'g']), ['a', 'b', 'c', 'd', 'e', 'f']);
@@ -110,5 +102,25 @@ describe('demo mode describe', () => {
 
     assert.equal(p.mathTools, 'auto');
     assert.equal(p.metaAiVersion, null);
+  });
+});
+
+describe('notes grid tags', () => {
+  test('tagsInUse: most used first, ties alphabetical, no repeats from one notebook', () => {
+    const pages = [{ tags: ['math', 'exam'] }, { tags: ['bio', 'exam', 'exam'] }, { tags: ['bio', 'exam'] }, {}];
+
+    assert.deepEqual(tagsInUse(pages), ['exam', 'bio', 'math']);
+  });
+
+  test('withTag keeps notebooks with the tag; null keeps all', () => {
+    const pages = [{ id: 'a', tags: ['math'] }, { id: 'b', tags: [] }, { id: 'c' }];
+
+    assert.deepEqual(withTag(pages, 'math').map((p) => p.id), ['a']);
+    assert.equal(withTag(pages, null).length, 3);
+  });
+
+  test('cardTags: three tags then a count', () => {
+    assert.deepEqual(cardTags(['a', 'b', 'c', 'd', 'e']), { shown: ['a', 'b', 'c'], more: 2 });
+    assert.deepEqual(cardTags(undefined), { shown: [], more: 0 });
   });
 });

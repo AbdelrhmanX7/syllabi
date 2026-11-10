@@ -92,8 +92,9 @@ function forgetCoverUrl(url: string): void {
   for (const [key, entry] of stableUrls) if (entry.url === url) stableUrls.delete(key);
 }
 
-const SIZE = { sm: 'h-9 w-9', lg: 'h-20 w-20' } as const;
-const ICON_SIZE = { sm: 'h-4 w-4', lg: 'h-8 w-8' } as const;
+// `card`: full width at one fixed shape, so a grid of covers lines up whatever the picture's size.
+const SIZE = { sm: 'h-9 w-9 rounded-sm', lg: 'h-20 w-20 rounded-sm', card: 'aspect-[3/2] w-full rounded-md' } as const;
+const ICON_SIZE = { sm: 'h-4 w-4', lg: 'h-8 w-8', card: 'h-10 w-10' } as const;
 
 /**
  * A notebook's cover: the AI picture, or a brand-colour tile with its icon. No cover yet → the plain
@@ -109,7 +110,7 @@ export function NoteCover({ page, size = 'sm' }: { page: Pick<Page, 'id' | 'cove
       // eslint-disable-next-line @next/next/no-img-element -- static export: a signed link, no image optimizer
       <img
         alt=''
-        className={cn('border-st-line shrink-0 rounded-sm border object-cover', SIZE[size])}
+        className={cn('border-st-line block shrink-0 border object-cover', SIZE[size])}
         decoding='async'
         loading='lazy'
         src={url}
@@ -124,7 +125,7 @@ export function NoteCover({ page, size = 'sm' }: { page: Pick<Page, 'id' | 'cove
 
   if (!cover) {
     return (
-      <span className={cn('border-st-line bg-st-raised text-st-muted flex shrink-0 items-center justify-center rounded-sm border', SIZE[size])}>
+      <span className={cn('border-st-line bg-st-raised text-st-muted flex shrink-0 items-center justify-center border', SIZE[size])}>
         <NotebookPen className={ICON_SIZE[size]} />
       </span>
     );
@@ -136,7 +137,7 @@ export function NoteCover({ page, size = 'sm' }: { page: Pick<Page, 'id' | 'cove
   return (
     <span
       aria-hidden
-      className={cn('flex shrink-0 items-center justify-center rounded-sm', SIZE[size])}
+      className={cn('flex shrink-0 items-center justify-center', SIZE[size])}
       style={{ backgroundColor: tone.fill, color: tone.ink }}
     >
       <Icon className={ICON_SIZE[size]} />

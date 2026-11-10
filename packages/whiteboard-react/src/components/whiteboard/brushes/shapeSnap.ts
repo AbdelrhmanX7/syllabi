@@ -4,12 +4,14 @@ import type { Canvas, FabricObject, Point, TPointerEvent } from 'fabric';
 
 import type { LineShape } from '../types';
 import { isHoverWithoutContact } from '../utils/hoverContact';
+import { recognizeMathSymbol } from '../utils/mathSymbols';
 import { recognizeRadical } from '../utils/radicalSign';
-import { adjustSnappedShape, radicalShape, recognizeShape } from '../utils/shapeRecognition';
+import { adjustSnappedShape, isMathSymbolKind, mathSymbolShape, radicalShape, recognizeShape } from '../utils/shapeRecognition';
 import type { RecognizedShape, ShapeGeometry, ShapeKind, Vec } from '../utils/shapeRecognition';
 import { sampleShapeOutline } from '../utils/shapeSampling';
 import { smoothStroke } from '../utils/smoothStroke';
 import { CalligraphyBrush, NIB_WIDTH_SCALE } from './CalligraphyBrush';
+import { applyMathSymbolControls, createMathSymbolPolyline, MATH_SYMBOL_PROP } from './mathSymbolObject';
 import { applyRadicalControls, createRadicalPolyline, RADICAL_PARAMS_PROP } from './radicalObject';
 import type { LowLatencyPencilBrush, StrokeInterceptor } from './LowLatencyPencilBrush';
 import { SoftMarkerBrush, softMarkerBlur } from './SoftMarkerBrush';
@@ -39,6 +41,8 @@ import { SoftMarkerBrush, softMarkerBlur } from './SoftMarkerBrush';
  *   smooth (any other stroke)   Polyline / Polygon of the smoothed stroke — the normal scale + rotate box
  *   radical (√)                 Polyline + its params — bar-end and depth handles that REGENERATE the
  *                               sign (`radicalObject.ts`); never scaled, never swept with a nib
+ *   paren / bracket / brace /   Polyline + its params (`mathSymbolObject.ts`), the same way: one handle
+ *   integral / arrow            (bottom end, or an arrow's tip) that regenerates the symbol
  * Every eraser already handles all three classes (`eraserHitTest`), and `canvas.toJSON` keeps the
  * marker prop through the class `customProperties` registered here.
  *
@@ -71,6 +75,11 @@ const SNAP_CUE_HALO_PX = 10;
  * quick "v" with a connector stroke stays ink.
  */
 export const RADICAL_LIFT_MIN_BAR_RATIO = 0.85;
+/*
+ * The math symbols (brackets, braces, a one-stroke arrow) are also recognised at pen-lift, with their
+ * stricter `strict` thresholds — writing «(x + 1)» must not need a pause either. The integral sign is
+ * hold-only (a one-stroke "f" body looks the same until its crossbar is drawn).
+ */
 
 /** The marker prop persisted on every committed snapped shape: its {@link ShapeKind}. */
 export const SNAPPED_SHAPE_PROP = 'wbShape';
@@ -233,6 +242,13 @@ export class ShapeSnapController implements StrokeInterceptor {
       if (radical) {
         shape = radicalShape(radical);
         style = this.styleFor(brush);
+      } else {
+        const symbol = recognizeMathSymbol(brush.liveStrokePoints, { minSize: SHAPE_MIN_SCREEN_PX / brush.canvas.getZoom(), strict: true });
+
+        if (symbol) {
+          shape = mathSymbolShape(symbol);
+          style = this.styleFor(brush);
+        }
       }
     }
 
@@ -351,8 +367,8 @@ export class ShapeSnapController implements StrokeInterceptor {
     this.holdPoint = this.lastPen ?? this.anchor;
     this.adjusting = false;
     this.style = this.styleFor(brush);
-    // A radical stays a stretchable stroked line with every brush; the nib sweep would freeze it.
-    if (shape.kind === 'radical') this.style.nib = null;
+    // A radical / math symbol stays a stretchable stroked line with every brush; a nib sweep would freeze it.
+    if (shape.kind === 'radical' || isMathSymbolKind(shape.kind)) this.style.nib = null;
     this.cueStartedAt = now();
 
     try {
@@ -534,6 +550,15 @@ export function createSnappedShapeObject(shape: Exclude<RecognizedShape, { kind:
     return radical;
   }
 
+  if ('symbol' in shape) {
+    const symbol = createMathSymbolPolyline(shape.symbol, style);
+
+    (symbol as SnappedObject)[SNAPPED_SHAPE_PROP] = shape.kind;
+    applySnappedShapeControls(symbol);
+
+    return symbol;
+  }
+
   if (style.nib) {
     const swept = createSnappedBrushObject(shape, style, style.nib);
 
@@ -625,6 +650,12 @@ export function applySnappedShapeControls(object: FabricObject): void {
     return;
   }
 
+  if (isMathSymbolKind(kind)) {
+    applyMathSymbolControls(object);
+
+    return;
+  }
+
   object.set({
     cornerSize: 16,
     touchCornerSize: 44,
@@ -671,10 +702,12 @@ export function registerSnappedShapePersistence(): void {
     }
   }
 
-  // A radical's params regenerate it when stretched; without them it reloads as a frozen polyline.
-  const polyline = Polyline.customProperties ?? [];
+  // A radical's / math symbol's params regenerate it when stretched; without them it reloads frozen.
+  for (const prop of [RADICAL_PARAMS_PROP, MATH_SYMBOL_PROP]) {
+    const polyline = Polyline.customProperties ?? [];
 
-  if (!polyline.includes(RADICAL_PARAMS_PROP)) Polyline.customProperties = [...polyline, RADICAL_PARAMS_PROP];
+    if (!polyline.includes(prop)) Polyline.customProperties = [...polyline, prop];
+  }
 }
 
 /**

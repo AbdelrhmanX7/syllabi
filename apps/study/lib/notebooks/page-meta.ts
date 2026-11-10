@@ -1,6 +1,6 @@
-// Notebook details: AI-made name, description, tags and cover, plus the math tools switch.
+// Notebook details: AI-made name, description, tags and cover.
 // The lists mirror the server's (apps/server/src/services/study/page-meta.ts): change both together.
-import type { MathToolsMode, MetaEdited, Page, PageCoverColor } from '@/lib/api/types';
+import type { MetaEdited, Page, PageCoverColor } from '@/lib/api/types';
 
 export const META_DESCRIPTION_MAX = 300;
 export const META_TAGS_MAX = 6;
@@ -9,56 +9,6 @@ export const META_TAG_MAX_CHARS = 24;
 export const META_REDESCRIBE_VERSIONS = 5;
 /** At most one automatic describe per notebook in this window. */
 export const META_DESCRIBE_GAP_MS = 10 * 60 * 1000;
-
-/** Tags that mean "formulas live here": with math tools on Auto, any of these shows the math symbol bar. */
-export const MATH_TAGS = [
-  'math',
-  'maths',
-  'mathematics',
-  'calculus',
-  'precalculus',
-  'pre-calculus',
-  'algebra',
-  'linear algebra',
-  'geometry',
-  'trigonometry',
-  'trig',
-  'statistics',
-  'stats',
-  'probability',
-  'physics',
-  'mechanics',
-  'differential equations',
-  'equations',
-  'discrete math',
-  'number theory',
-  'chemistry',
-  'econometrics',
-  'integrals',
-  'derivatives',
-  'matrices',
-  'vectors',
-] as const;
-const MATH_TAG_SET = new Set<string>(MATH_TAGS);
-
-export function isMathTag(tag: string): boolean {
-  const value = tag.trim().toLowerCase();
-
-  if (!value) return false;
-  if (MATH_TAG_SET.has(value)) return true;
-
-  return value.split(/[\s/-]+/).some((word) => MATH_TAG_SET.has(word));
-}
-
-export const hasMathTag = (tags: readonly string[] | null | undefined) => (tags ?? []).some(isMathTag);
-
-/** Whether the board shows the math symbol bar. */
-export function mathToolsOn(mode: MathToolsMode | null | undefined, tags: readonly string[] | null | undefined): boolean {
-  if (mode === 'on') return true;
-  if (mode === 'off') return false;
-
-  return hasMathTag(tags);
-}
 
 /** One tag the way the server stores it: lowercase, trimmed, no leading '#', ≤ 24 chars. */
 export function normalizeTag(raw: string): string {
@@ -166,4 +116,25 @@ export function boardHasContent(
   return pages.some(
     (page) => Boolean(page.pdfAssetId || page.pdfImageUrl) || /"objects"\s*:\s*\[\s*\{/.test(page.canvasJSON ?? ''),
   );
+}
+
+/** Every tag on these notebooks, most used first (ties alphabetical, so the filter strip keeps its order). */
+export function tagsInUse(pages: readonly Pick<Page, 'tags'>[]): string[] {
+  const counts = new Map<string, number>();
+
+  for (const page of pages) for (const tag of new Set(page.tags ?? [])) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag]) => tag);
+}
+
+/** Notebooks carrying `tag`; no tag = all of them. */
+export function withTag<T extends Pick<Page, 'tags'>>(pages: readonly T[], tag: string | null): T[] {
+  return tag ? pages.filter((page) => (page.tags ?? []).includes(tag)) : [...pages];
+}
+
+/** At most `max` tags to show on a card, plus how many more are hidden. */
+export function cardTags(tags: readonly string[] | null | undefined, max = 3): { shown: string[]; more: number } {
+  const all = tags ?? [];
+
+  return { shown: all.slice(0, max), more: Math.max(0, all.length - max) };
 }

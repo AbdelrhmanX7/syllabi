@@ -1,7 +1,7 @@
-import type { MathToolsMode, MetaField, Page } from '@/lib/api/types';
+import type { MetaField, Page } from '@/lib/api/types';
 
 import { useState } from 'react';
-import { Chip, Tab, Tabs } from '@repo/ui';
+import { Chip } from '@repo/ui';
 import { Plus, Sparkles } from 'lucide-react';
 
 import { NoteCover } from '@/components/notes/NoteCover';
@@ -11,20 +11,14 @@ import { Sheet } from '@/features/inbox/components/Sheet';
 import { describePage, patchPage } from '@/lib/api/endpoints';
 import { describeError } from '@/lib/api/errors';
 import { adoptDescribed } from '@/lib/notebooks/auto-describe';
-import { editedOf, mathToolsOn, META_DESCRIPTION_MAX, META_TAGS_MAX, normalizeTag } from '@/lib/notebooks/page-meta';
+import { editedOf, META_DESCRIPTION_MAX, META_TAGS_MAX, normalizeTag } from '@/lib/notebooks/page-meta';
 import { rememberPages } from '@/lib/notebooks/pages-cache';
 import { updatePageInLists } from '@/lib/offline/jobs';
-
-const MATH_MODES: { key: MathToolsMode; label: string }[] = [
-  { key: 'auto', label: 'Auto' },
-  { key: 'on', label: 'On' },
-  { key: 'off', label: 'Off' },
-];
 
 type Busy = null | 'save' | 'redo' | 'cover' | 'remove' | MetaField;
 
 /**
- * Notebook details: name, description, tags, cover and math tools. AI fills them in; anything the
+ * Notebook details: name, description, tags and cover. AI fills them in; anything the
  * owner changes here stays his (AI never touches it again) until he taps «Let AI pick» on it.
  */
 export function NotebookDetailsSheet({
@@ -41,7 +35,6 @@ export function NotebookDetailsSheet({
   const [description, setDescription] = useState(page.description ?? '');
   const [tags, setTags] = useState<string[]>(page.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
-  const [mathTools, setMathTools] = useState<MathToolsMode>(page.mathTools ?? 'auto');
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -100,9 +93,8 @@ export function NotebookDetailsSheet({
     title: title.trim() !== current.title && title.trim().length > 0,
     description: description.trim() !== (current.description ?? ''),
     tags: JSON.stringify(tags) !== JSON.stringify(current.tags ?? []),
-    mathTools: mathTools !== (current.mathTools ?? 'auto'),
   };
-  const dirty = changed.title || changed.description || changed.tags || changed.mathTools;
+  const dirty = changed.title || changed.description || changed.tags;
 
   const save = () =>
     run('save', async () => {
@@ -110,7 +102,6 @@ export function NotebookDetailsSheet({
         ...(changed.title ? { title: title.trim() } : {}),
         ...(changed.description ? { description: description.trim() || null } : {}),
         ...(changed.tags ? { tags } : {}),
-        ...(changed.mathTools ? { mathTools } : {}),
       });
 
       adopt(next);
@@ -145,8 +136,6 @@ export function NotebookDetailsSheet({
       {field && aiPickLink(field)}
     </div>
   );
-
-  const mathOn = mathToolsOn(mathTools, tags);
 
   return (
     <>
@@ -266,32 +255,6 @@ export function NotebookDetailsSheet({
                     </ActionButton>
                   </div>
                 )}
-              </div>
-
-              <div className='flex flex-col gap-1.5'>
-                <span className='text-st-fg text-sm font-semibold'>Math tools</span>
-                <div className='flex flex-wrap items-center gap-3 pb-1'>
-                  <Tabs
-                    aria-label='Math tools'
-                    selectedKey={mathTools}
-                    size='sm'
-                    variant='light'
-                    onSelectionChange={(key) => setMathTools(key as MathToolsMode)}
-                  >
-                    {MATH_MODES.map((mode) => (
-                      <Tab key={mode.key} title={mode.label} />
-                    ))}
-                  </Tabs>
-                  <span className='text-st-muted text-xs'>
-                    {mathTools === 'auto'
-                      ? mathOn
-                        ? 'On, because the tags look like math'
-                        : 'Turns on when the tags look like math'
-                      : mathOn
-                        ? 'A bar of math symbols to tap onto the page'
-                        : 'No math bar on the page'}
-                  </span>
-                </div>
               </div>
             </>
           )}

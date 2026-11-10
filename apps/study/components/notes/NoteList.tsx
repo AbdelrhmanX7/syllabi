@@ -1,33 +1,24 @@
 import type { Page } from '@/lib/api/types';
 
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SlidersHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
-import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
 import { NoteCover } from '@/components/notes/NoteCover';
-import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
-import { ActionButton, ErrorNote } from '@/components/ui/primitives';
+import { useNoteActions } from '@/components/notes/useNoteActions';
+import { ActionButton } from '@/components/ui/primitives';
 import { notebookHref } from '@/features/lecturenotes/hooks';
-import { describeError } from '@/lib/api/errors';
 import { formatRelative } from '@/lib/format';
 import { noteRowLine } from '@/lib/notebooks/page-meta';
-import { deleteNotePage } from '@/lib/offline/jobs';
 
-/** One-line notebook rows: cover, name, tags + when; details and delete (confirmed in a modal). */
+/**
+ * Compact one-line notebook rows (inside a class page's panel): cover, name, tags + when; details and
+ * delete (confirmed in a modal). The Notes page uses the cover grid (NoteGrid) instead.
+ */
 export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page: Page) => string | undefined }) {
-  const queryClient = useQueryClient();
-  const [toDelete, setToDelete] = useState<Page | null>(null);
-  const [details, setDetails] = useState<Page | null>(null);
-  const remove = useMutation({
-    mutationFn: (page: Page) => deleteNotePage(page.id),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['study', 'pages'] }),
-  });
+  const { openDetails, askDelete, overlays } = useNoteActions();
 
   return (
     <>
-      {remove.error && <ErrorNote message={describeError(remove.error)} />}
       <ul className='flex flex-col gap-1'>
         {pages.map((page) => {
           const label = labelFor?.(page);
@@ -53,7 +44,7 @@ export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page:
                   className='h-10 w-10 shrink-0 px-0'
                   title='Notebook details'
                   variant='ghost'
-                  onClick={() => setDetails(page)}
+                  onClick={() => openDetails(page)}
                 >
                   <SlidersHorizontal className='text-st-muted h-4 w-4' />
                 </ActionButton>
@@ -63,7 +54,7 @@ export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page:
                 className='h-10 w-10 shrink-0 px-0'
                 title='Delete notebook'
                 variant='ghost'
-                onClick={() => setToDelete(page)}
+                onClick={() => askDelete(page)}
               >
                 <Trash2 className='text-st-muted h-4 w-4' />
               </ActionButton>
@@ -72,22 +63,7 @@ export function NoteList({ pages, labelFor }: { pages: Page[]; labelFor?: (page:
         })}
       </ul>
 
-      {details && <NotebookDetailsSheet page={details} onClose={() => setDetails(null)} />}
-
-      {toDelete && (
-        <ConfirmSheet
-          danger
-          confirmLabel='Delete notebook'
-          title='Delete this notebook?'
-          onClose={() => setToDelete(null)}
-          onConfirm={() => remove.mutate(toDelete)}
-        >
-          <p>
-            «<span className='text-st-fg font-semibold'>{toDelete.title}</span>» and all its pages and writing will be
-            deleted on every device. This can’t be undone.
-          </p>
-        </ConfirmSheet>
-      )}
+      {overlays}
     </>
   );
 }

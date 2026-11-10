@@ -144,7 +144,7 @@ const OUTLINE_HALO_PX = 4;
  * angle — see `InteractiveObject._renderControls`. Map the polyline into that frame and stroke a
  * translucent accent halo along it, a few px wider than the sign's own stroke.
  */
-function drawRadicalOutline(this: Polyline, ctx: CanvasRenderingContext2D, options: { translateX: number; translateY: number }): void {
+export function drawRadicalOutline(this: Polyline, ctx: CanvasRenderingContext2D, options: { translateX: number; translateY: number }): void {
   const matrix = util.multiplyTransformMatrices(this.getViewportTransform(), this.calcTransformMatrix());
   const angle = util.degreesToRadians(this.group ? util.qrDecompose(matrix).angle : this.angle);
   const cos = Math.cos(-angle);
@@ -171,9 +171,8 @@ function drawRadicalOutline(this: Polyline, ctx: CanvasRenderingContext2D, optio
   ctx.restore();
 }
 
-const HANDLE = { sizeX: 18, sizeY: 18, touchSizeX: 44, touchSizeY: 44 } as const;
+export const HANDLE = { sizeX: 18, sizeY: 18, touchSizeX: 44, touchSizeY: 44 } as const;
 
-/** The radical's two stretch handles, and nothing that would scale or skew it. Idempotent. */
 /**
  * Safety net: Fabric 7 runs `findControl` on every hovered object and reads `controls[key]` for each
  * `oCoords` key. If anything ever swaps an object's controls without `setCoords()`, that read is
@@ -197,6 +196,7 @@ function installFindControlGuard(): void {
 
 installFindControlGuard();
 
+/** The radical's two stretch handles, and nothing that would scale or skew it. Idempotent. */
 export function applyRadicalControls(object: FabricObject): void {
   if (!isRadicalObject(object)) return;
 
