@@ -13,13 +13,15 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveReleaseApiBaseUrl, scanExportForLeaks } from './lib/release-api.mjs';
+import { resolveReleaseAnalyticsEnv, resolveReleaseApiBaseUrl, scanExportForLeaks } from './lib/release-api.mjs';
 
 const require = createRequire(import.meta.url);
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const apiBaseUrl = resolveReleaseApiBaseUrl(appDir);
+const analyticsEnv = resolveReleaseAnalyticsEnv(appDir);
 
 console.log(`[android-export] Baking NEXT_PUBLIC_API = ${apiBaseUrl}`);
+console.log(`[android-export] Usage counts ${analyticsEnv.NEXT_PUBLIC_POSTHOG_KEY ? 'on' : 'off (no key)'}`);
 
 // Fonts the shared UI stylesheet references (packages/ui/fonts → public/font), same as `predev`.
 execSync('sh ../../packages/ui/scripts/copy-fonts.sh', { cwd: appDir, stdio: 'inherit' });
@@ -35,6 +37,7 @@ execSync(`node "${nextBin}" build --webpack`, {
     ...process.env,
     ANDROID_BUILD: '1',
     NEXT_PUBLIC_API: apiBaseUrl,
+    ...analyticsEnv,
     NODE_ENV: 'production',
   },
 });

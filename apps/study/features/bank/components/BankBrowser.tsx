@@ -10,6 +10,7 @@ import { SOURCE_LABEL, applyFilters, sourcesOf, topicsOf } from '../lib/filters'
 import { QuestionCard } from './QuestionCard';
 
 import { ActionButton, FilterChip } from '@/components/ui/primitives';
+import { track } from '@/lib/analytics';
 
 /**
  * The bank browser: chip filters (class / topic / source / due / result), a search box, and the
@@ -234,7 +235,11 @@ export function BankBrowser({
         ) : (
           <>
             {onPractice && active && visible.length > 0 ? (
-              <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => onPractice(visible)}>
+              <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => {
+                  track('practice_started', { kind: 'questions', mode: 'filtered', count: visible.length });
+                  onPractice(visible);
+                }}
+              >
                 <Play className='h-4 w-4' /> Practice these {visible.length}
               </ActionButton>
             ) : null}
@@ -322,6 +327,7 @@ export function BankBrowser({
             disabled={!pickedList.length}
             variant='primary'
             onClick={() => {
+              track('practice_started', { kind: 'questions', mode: 'picked', count: pickedList.length });
               onPractice(pickedList);
               stopPicking();
             }}

@@ -10,6 +10,7 @@ import { getLectureQueue, useLectureQueueStatus } from './lib/queueInstance';
 import { formatClock } from './lib/transcript';
 
 import { useStudyBoardAi } from '@/features/tutor';
+import { errorReason, track } from '@/lib/analytics';
 
 export interface LectureRecorderProps {
   classId: string;
@@ -66,6 +67,7 @@ export function LectureRecorder({ classId, title, onDone, onCancel, onPageCreate
     const { setStrokeClock } = await import('./lib/strokeClock');
 
     if (recorder) {
+      track('lecture_recorded', { duration_ms: Math.round(recorder.clock.elapsedMs()) });
       await recorder.stop();
       await Promise.allSettled(Array.from(pendingWritesRef.current));
     }
@@ -128,8 +130,12 @@ export function LectureRecorder({ classId, title, onDone, onCancel, onPageCreate
         return;
       }
       setPhase({ kind: 'live', lecture, page });
+      track('lecture_recording_started');
     } catch (error) {
-      stream?.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((t) => t.stop());
+      track('lecture_recording_failed', {
+        reason: error instanceof DOMException && error.name === 'NotAllowedError' ? 'mic_denied' : errorReason(error),
+      });
       const message =
         error instanceof DOMException && error.name === 'NotAllowedError'
           ? 'Microphone access was denied. Allow it in Android settings and try again.'

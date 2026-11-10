@@ -26,6 +26,7 @@ import { useClasses } from '@/lib/api/hooks';
 import { describeError } from '@/lib/api/errors';
 import { useAiEnabled } from '@/hooks/useAiEnabled';
 import { IfOnline } from '@/components/ui/NeedsInternet';
+import { track } from '@/lib/analytics';
 
 export { FLASHCARD_TAG, isFlashcard } from './lib/deck';
 
@@ -98,7 +99,9 @@ export default function FlashcardsHome({
   const study = (cards: Question[], title: string, all: boolean) => {
     const queue = orderSession(cards, { all });
 
-    if (queue.length) setView({ kind: 'session', cards: queue, title });
+    if (!queue.length) return;
+    track('practice_started', { kind: 'flashcards', mode: all ? 'all' : 'due', filtered: Boolean(filter), count: queue.length });
+    setView({ kind: 'session', cards: queue, title });
   };
 
   const sheets = (
@@ -248,7 +251,9 @@ export default function FlashcardsHome({
               const cards = orderSession(pickedCards, { all: true });
 
               stopPicking();
-              if (cards.length) setView({ kind: 'session', cards, title: 'Picked cards' });
+              if (!cards.length) return;
+              track('practice_started', { kind: 'flashcards', mode: 'picked', count: cards.length });
+              setView({ kind: 'session', cards, title: 'Picked cards' });
             }}
           >
             <Play className='h-4 w-4' /> Study {pickedCards.length || ''}

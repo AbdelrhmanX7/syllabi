@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/router';
 
+import { reset as resetAnalytics, track } from '@/lib/analytics';
 import { STUDY_USER_KEY, useAuthCookie } from '@/lib/auth';
 import { forgetOfflineOwner } from '@/lib/offline/owner';
 import { clearPersistedQueries } from '@/lib/offline/persist';
@@ -15,6 +16,8 @@ export function useSignOut() {
   const { removeAuthToken } = useAuthCookie();
 
   return async () => {
+    track('signed_out');
+    resetAnalytics();
     await removeAuthToken();
     try {
       localStorage.removeItem(STUDY_USER_KEY);

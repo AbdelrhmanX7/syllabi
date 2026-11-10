@@ -24,6 +24,24 @@ export function resolveReleaseApiBaseUrl(appDir = process.cwd()) {
   return match ? match[1].trim() : '';
 }
 
+/**
+ * The usage-counts project a release build bakes in (`NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST`):
+ * from the process environment, else the same-named lines of `.env.release.local`, same as
+ * `STUDY_BUILD_API`. Empty key → the build sends nothing. Returned as env entries to pin.
+ */
+export function resolveReleaseAnalyticsEnv(appDir = process.cwd()) {
+  const file = join(appDir, '.env.release.local');
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const read = (name) => {
+    if (process.env[name] !== undefined) return process.env[name].trim();
+    const match = text.match(new RegExp(`^\\s*${name}\\s*=\\s*"?([^"\\s#]*)"?`, 'm'));
+
+    return match ? match[1].trim() : '';
+  };
+
+  return { NEXT_PUBLIC_POSTHOG_KEY: read('NEXT_PUBLIC_POSTHOG_KEY'), NEXT_PUBLIC_POSTHOG_HOST: read('NEXT_PUBLIC_POSTHOG_HOST') };
+}
+
 // A private-range host on the backend's dev port — the shape of a leaked `.env.local`.
 // Deliberately NOT every private IP: the camera settings legitimately ship LAN placeholders such
 // as `http://192.168.1.90:8080` (lib/camera-settings.ts, lib/ccapi-server.ts), and lib/auth.ts
@@ -47,6 +65,8 @@ export function devEnvValues(appDir, intended) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
       const match = line.match(/^\s*NEXT_PUBLIC_[A-Z0-9_]+\s*=\s*"?([^"\s#]+)"?/);
 
+      // The usage-counts host is a public service, not a dev backend.
+      if (/^\s*NEXT_PUBLIC_POSTHOG_/.test(line)) continue;
       if (match && /:\/\/|:\d{2,5}\b/.test(match[1]) && match[1] !== intended) values.add(match[1]);
     }
   }

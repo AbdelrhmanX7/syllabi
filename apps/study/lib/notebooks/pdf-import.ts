@@ -8,6 +8,7 @@ import { importPdfFile } from '@repo/whiteboard-react';
 
 import { topAlignedViewportOffsetY } from './import-pages';
 
+import { errorReason, megabyteBucket, pageBucket, track } from '@/lib/analytics';
 import { fetchBlobFromUrl } from '@/lib/api/upload';
 
 /**
@@ -40,9 +41,38 @@ export async function buildPdfNotebookDocument({
   storage,
   onProgress,
 }: BuildPdfNotebookInput): Promise<WhiteboardDocument> {
-  const blob = source ?? (fileUrl ? await fetchBlobFromUrl(fileUrl) : null);
+  const startedAt = Date.now();
+  // Counts only: page and size buckets plus how long it took — never the file name or contents.
+  const origin = source ? 'device' : 'download';
+  let mb: string | undefined;
 
-  if (!blob) throw new Error('No PDF to import.');
+  track('pdf_import_started', { origin });
+  try {
+    const blob = source ?? (fileUrl ? await fetchBlobFromUrl(fileUrl) : null);
+
+    if (!blob) throw new Error('No PDF to import.');
+    mb = megabyteBucket(blob.size);
+    const doc = await buildFromBlob(blob, { pageId, title, fileName, storage, onProgress });
+
+    track('pdf_import_finished', {
+      origin,
+      ok: true,
+      mb,
+      pages: pageBucket(doc.pages.length),
+      duration_ms: Date.now() - startedAt,
+    });
+
+    return doc;
+  } catch (error) {
+    track('pdf_import_finished', { origin, ok: false, mb, reason: errorReason(error), duration_ms: Date.now() - startedAt });
+    throw error;
+  }
+}
+
+async function buildFromBlob(
+  blob: Blob,
+  { pageId, title, fileName, storage, onProgress }: Omit<BuildPdfNotebookInput, 'fileUrl' | 'file'>,
+): Promise<WhiteboardDocument> {
   const file =
     blob instanceof File && blob.name === fileName
       ? blob

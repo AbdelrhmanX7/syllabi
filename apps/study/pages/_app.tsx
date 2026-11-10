@@ -10,9 +10,10 @@ import { useRouter } from 'next/router';
 import { AppShell } from '@/components/layout/AppShell';
 import { RemindersAgent } from '@/components/layout/RemindersAgent';
 import { AppLinkRouter } from '@/features/auth/components/AppLinkRouter';
+import { installAnalytics, trackPageview } from '@/lib/analytics';
 import { installStudyTransport } from '@/lib/api/client';
 import { retryUnlessAiQuota } from '@/lib/api/errors';
-import { useAuthInit } from '@/lib/auth';
+import { readSessionUserId, useAuthInit } from '@/lib/auth';
 import { installPdfAssetMigrationHelper } from '@/lib/notebooks/pdf-assets-migrate';
 import { OfflineRoot } from '@/lib/offline/OfflineRoot';
 import { applyPersistDefaults } from '@/lib/offline/persist';
@@ -77,6 +78,21 @@ export default function App({ Component, pageProps }: AppProps) {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  // Usage counts (lib/analytics): a no-op without a project key; the client loads after first paint.
+  useEffect(() => installAnalytics({ userId: readSessionUserId() }), []);
+  useEffect(() => {
+    // The route pattern only (`/item`), never the query string: ids and sign-in tokens stay out.
+    const route = (url: string) => url.split(/[?#]/)[0].replace(/(.)\/$/, '$1') || '/';
+    const onRoute = (url: string, { shallow }: { shallow: boolean }) => {
+      if (!shallow) trackPageview(route(url));
+    };
+
+    trackPageview(route(window.location.pathname));
+    router.events.on('routeChangeComplete', onRoute);
+
+    return () => router.events.off('routeChangeComplete', onRoute);
+  }, [router.events]);
 
   // Android static export: a hard load of a path that has no HTML file falls back to index.html.
   // Routes here are query-param based (`/item/?id=`) so this only matters for a stale deep link.

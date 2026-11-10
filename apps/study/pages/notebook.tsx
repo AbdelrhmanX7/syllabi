@@ -11,6 +11,7 @@ import { PlacePhoneImageChip } from '@/features/inbox';
 import { recordPhoneImage } from '@/features/conceptmaps/lib/pageImages';
 import { useNotebookConceptMaps } from '@/features/conceptmaps/notes/NotebookConceptMaps';
 import { AttachToLectureButton, lectureNoteSeed, usePageLecture } from '@/features/lecturenotes';
+import { track } from '@/lib/analytics';
 import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
@@ -62,6 +63,11 @@ export default function NotebookPage() {
 
   // A note made offline that the server has since created: its board lives under the server id now.
   const redirectTo = isLocalPageId(pageId) ? pageRedirect(pageId) : null;
+
+  useEffect(() => {
+    if (pageId && !redirectTo) track('notebook_opened', { offline_page: isLocalPageId(pageId), from_inbox: Boolean(inboxItemId) });
+    // Once per page opened, not on every query change.
+  }, [pageId, redirectTo]);
 
   useEffect(() => {
     if (!redirectTo) return;
