@@ -53,6 +53,12 @@ export default function Privacy() {
         You can change or delete your data in the app, and delete your account in Settings → Account. Deleting your
         account removes your account, your study data and your files from the server.
       </p>
+      <h2 id='delete-account'>Delete your Syllabi account</h2>
+      <p>
+        In the Syllabi app: open Settings → Account and tap Delete account. If you no longer have the app, email
+        abdelrhman.slim26@gmail.com from your account email and ask us to delete it. We delete your account, notes,
+        files and study data within 30 days. Nothing is kept after that, except what the law requires.
+      </p>
       <h2>Contact</h2>
       <p>
         Questions about privacy: email abdelrhman.slim26@gmail.com, open an issue at <a href={`${REPO}/issues`}>github.com/AbdelrhmanX7/syllabi</a>, or
