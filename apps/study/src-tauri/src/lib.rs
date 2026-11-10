@@ -38,6 +38,12 @@ const UPDATE_FEED_URL: &str = match option_env!("STUDY_UPDATE_FEED_URL") {
 /// `invoke('update_feed')` → the feed JSON as published; the page validates it (lib/platform/update-check.ts).
 #[tauri::command]
 async fn update_feed() -> Result<serde_json::Value, String> {
+    // Google Play build (scripts/build-play.mjs sets STUDY_STORE=play): Play updates the app, so the
+    // feed is never read. The page does not ask either (lib/platform/store.ts).
+    if matches!(option_env!("STUDY_STORE"), Some("play")) {
+        return Err("updates come from Google Play".into());
+    }
+
     tauri::async_runtime::spawn_blocking(|| {
         let bust = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

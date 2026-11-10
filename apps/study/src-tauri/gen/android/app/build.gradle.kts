@@ -13,6 +13,8 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val playStore = System.getenv("STUDY_STORE") == "play"
+
 android {
     compileSdk = 36
     namespace = "studio.syllabi.app"
@@ -23,6 +25,15 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        // Read by MainActivity: false = Google Play build, no in-app updater.
+        buildConfigField("boolean", "SELF_UPDATE", (!playStore).toString())
+    }
+    // Google Play build (STUDY_STORE=play, set by scripts/build-play.mjs): the release manifest gets the
+    // src/play overlay, which removes the installer permission, the update file provider and
+    // USE_EXACT_ALARM. Every other build (the sideloaded APK) keeps self-update. A build-type source
+    // set, not a product flavor: RustPlugin's abi flavors and the tauri CLI's task names stay as they are.
+    if (playStore) {
+        sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
     }
     // Release signing from environment variables, never from a committed file. The SAME keystore and
     // env file loaded by scripts/android-release.mjs (default ~/.android/syllabi-release.env, mode 600):

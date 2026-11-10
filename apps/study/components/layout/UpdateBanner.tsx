@@ -5,6 +5,7 @@ import { Download, X } from 'lucide-react';
 import { ActionButton, Surface } from '@/components/ui/primitives';
 import { useAppUpdate } from '@/hooks/useAppUpdate';
 import { canInstallInApp, snoozeUpdate, startUpdate } from '@/lib/platform/app-update';
+import { SELF_UPDATE_ENABLED } from '@/lib/platform/store';
 
 const MB = 1024 * 1024;
 
@@ -62,6 +63,10 @@ export function UpdateProgress({ state }: { state: UpdateState }) {
 
 /** Non-blocking corner card: "Update available — Study <version> (build <sha>)". */
 export function UpdateBanner() {
+  return SELF_UPDATE_ENABLED ? <SelfUpdateBanner /> : null;
+}
+
+function SelfUpdateBanner() {
   const state = useAppUpdate();
 
   if (!state.available || (state.snoozed && state.phase === 'idle')) return null;
