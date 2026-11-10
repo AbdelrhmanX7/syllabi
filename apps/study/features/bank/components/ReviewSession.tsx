@@ -1,7 +1,7 @@
 import type { AttemptOutcome } from './SolveView';
 import type { Question, StudyClass } from '@/lib/api/types';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw, Trophy } from 'lucide-react';
 
 import { listQuestions, reviewNext } from '../api';
@@ -9,6 +9,8 @@ import { useLoad } from '../hooks/useLoad';
 import { addToTally, emptyTally, formatClock } from '../lib/verdict';
 
 import { SolveView } from './SolveView';
+
+import { track } from '@/lib/analytics';
 
 /**
  * «Review now»: `GET /review/next` one question at a time; after each verdict the panel already
@@ -51,6 +53,15 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20, pic
   const sessionTitle = picked?.length ? 'Practice' : topic ? `Drill · ${topic}` : 'Review';
   const current = questions[index] ?? null;
   const classById = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
+  const startedAt = useRef(Date.now());
+  // A picked/filtered set is counted where it was chosen (BankBrowser); due reviews and topic drills here.
+  const mode = picked?.length ? 'list' : topic ? 'topic' : 'due';
+
+  useEffect(() => {
+    if (!queue.data) return;
+    startedAt.current = Date.now();
+    if (mode !== 'list') track('practice_started', { kind: 'questions', mode, count: queue.data.length });
+  }, [queue.data]);
 
   const onAttempted = useCallback((outcome: AttemptOutcome) => {
     setTally((t) => addToTally(t, outcome.result, outcome.timeMs));
@@ -59,8 +70,19 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20, pic
 
   const advance = () => {
     setAnswered(false);
-    if (index + 1 >= questions.length) setFinished(true);
-    else setIndex(index + 1);
+    if (index + 1 >= questions.length) {
+      setFinished(true);
+      track('practice_finished', {
+        kind: 'questions',
+        mode,
+        count: questions.length,
+        answered: tally.total,
+        right: tally.right,
+        partial: tally.partial,
+        wrong: tally.wrong,
+        duration_ms: Date.now() - startedAt.current,
+      });
+    } else setIndex(index + 1);
   };
 
   const restart = () => {

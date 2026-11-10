@@ -42,7 +42,7 @@ import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveReleaseApiBaseUrl, scanExportForLeaks } from './lib/release-api.mjs';
+import { resolveReleaseAnalyticsEnv, resolveReleaseApiBaseUrl, scanExportForLeaks } from './lib/release-api.mjs';
 
 const require = createRequire(import.meta.url);
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -180,6 +180,8 @@ if (fromCommit) {
           // The gitignored .env.release.local lives only in THIS checkout, so resolve the server here
           // and pin it; otherwise the clean worktree finds no file and ships a demo-mode APK.
           STUDY_BUILD_API: resolveReleaseApiBaseUrl(appDir),
+          // Same for the usage-counts key (also from .env.release.local).
+          ...resolveReleaseAnalyticsEnv(appDir),
           // A target dir of its OWN: build-script outputs record absolute paths into the worktree.
           CARGO_TARGET_DIR: join(appDir, 'src-tauri', 'target-release-clean'),
         },

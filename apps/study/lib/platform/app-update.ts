@@ -13,6 +13,8 @@
 import type { ReleaseFeed, Snooze } from './update-check';
 
 import { BUILD_STAMP } from './runtime';
+
+import { track } from '@/lib/analytics';
 import {
   DOWNLOAD_PAGE_URL,
   isCheckDue,
@@ -160,6 +162,7 @@ function onNativeEvent(event: Event): void {
       setState({ phase: detail.state, installError: null });
       break;
     case 'error':
+      track('update_failed');
       setState({ phase: 'error', installError: detail.message || 'The update failed.' });
       break;
   }
@@ -225,13 +228,17 @@ export function checkForUpdates(options: { ifOlderThan?: number } = {}): Promise
       const now = Date.now();
 
       writeStorage(LAST_CHECKED_KEY, String(now));
+      const next = recompute(feed);
+
+      track('update_checked', { manual: gap === undefined, result: !feed ? 'invalid' : next.available ? 'available' : 'up_to_date' });
       setState({
-        ...recompute(feed),
+        ...next,
         checking: false,
         lastChecked: now,
         checkError: feed ? null : 'The update feed is not valid.',
       });
     } catch (error) {
+      track('update_checked', { manual: gap === undefined, result: 'failed' });
       setState({ checking: false, checkError: error instanceof Error ? error.message : String(error) });
     } finally {
       inFlight = null;
@@ -266,6 +273,7 @@ export function startUpdate(): void {
   if (state.phase === 'downloading' || state.phase === 'verifying') return;
 
   setState({ phase: 'downloading', received: 0, total: feed.size, installError: null });
+  track('update_started', { to_version: feed.version });
   try {
     if (!bridge.start(feed.url, feed.sha256, String(feed.versionCode))) {
       setState({ phase: 'error', installError: 'The update could not start.' });

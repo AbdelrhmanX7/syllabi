@@ -14,6 +14,7 @@ import { startInboxLive } from './lib/live';
 import { inboxReducer, initialInboxState, latestCreatedAt, newArrivals, unreadCount } from './lib/reducer';
 
 import { useBackendSettings } from '@/hooks/useBackendSettings';
+import { track } from '@/lib/analytics';
 
 const SEEN_KEY = 'study_inbox_seen_at';
 
@@ -227,7 +228,10 @@ export function useInboxWatcher(enabled: boolean): void {
 
         dispatchInbox({ type: 'arrived', items });
         // Before the first listing every item looks new — that is a load, not an arrival.
-        if (fresh.length && snapshot.loaded) toastArrival(fresh);
+        if (fresh.length && snapshot.loaded) {
+          toastArrival(fresh);
+          track('inbox_item_received', { count: fresh.length, kinds: Array.from(new Set(fresh.map((item) => item.kind))).sort().join(',') });
+        }
       },
       onMode: setMode,
     });

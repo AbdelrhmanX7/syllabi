@@ -25,6 +25,7 @@ import { UpdateProgress } from '@/components/layout/UpdateBanner';
 import { NotebookPaperSection } from '@/components/settings/NotebookPaperSection';
 import { InkAutoColorSection } from '@/components/settings/InkAutoColorSection';
 import { PerfLogSection } from '@/components/settings/PerfLogSection';
+import { UsageSection } from '@/components/settings/UsageSection';
 import { RemindersSection } from '@/components/settings/RemindersSection';
 import { SoundsSection } from '@/components/settings/SoundsSection';
 import { WebUpdatesSection } from '@/components/settings/WebUpdatesSection';
@@ -48,6 +49,7 @@ import {
 import { useAppUpdate } from '@/hooks/useAppUpdate';
 import { useBackendSettings, useResolvedMode } from '@/hooks/useBackendSettings';
 import { useSession } from '@/hooks/useSession';
+import { errorReason, track } from '@/lib/analytics';
 import { LIVE_ROUTES } from '@/lib/api/client';
 import {
   createMcpKey,
@@ -107,10 +109,13 @@ function CanvasSection() {
         // token lasts through that day here.
         expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
       }),
+    onMutate: () => track('canvas_connect_started', { reconnect: Boolean(status.data?.connected) }),
     onSuccess: () => {
+      track('canvas_connect_succeeded');
       setToken('');
       void refresh();
     },
+    onError: (error) => track('canvas_connect_failed', { reason: errorReason(error) }),
   });
   const sync = useMutation({ mutationFn: startCanvasSync, onSuccess: () => void refresh() });
   const disconnect = useMutation({ mutationFn: deleteCanvasConnection, onSuccess: () => void refresh() });
@@ -667,6 +672,7 @@ export default function SettingsPage() {
             people running their own server set it in their own copy. The switch only shows in local development. */}
         {process.env.NODE_ENV !== 'production' && <BackendSection />}
         <UpdatesSection />
+        <UsageSection />
         <PerfLogSection />
       </div>
     </>

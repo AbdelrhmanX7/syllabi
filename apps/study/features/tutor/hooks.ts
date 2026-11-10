@@ -24,6 +24,7 @@ import {
 } from './lib/conversations';
 import { EMPTY_STREAM, reduceAskFrame } from './lib/stream';
 
+import { track } from '@/lib/analytics';
 import { describeError } from '@/lib/api/errors';
 import { useStudyQueriesEnabled } from '@/lib/api/hooks';
 
@@ -110,6 +111,10 @@ export function useAsk() {
 
       streamRef.current = EMPTY_STREAM;
       setState({ status: 'streaming', pending, stream: EMPTY_STREAM, error: null });
+      // Never the question text: the mode and whether it continues a chat.
+      const sentAt = Date.now();
+
+      track('tutor_message_sent', { mode, new_conversation: !conversationId, with_context: Boolean(context) });
 
       const body: AskRequest = {
         ...(classId ? { classId } : {}),
@@ -133,6 +138,7 @@ export function useAsk() {
         );
       } catch (error) {
         if (controller.signal.aborted) return null;
+        track('tutor_reply_failed', { mode, duration_ms: Date.now() - sentAt });
         setState((current) => ({ ...current, status: 'error', error: describeError(error) }));
 
         return null;
@@ -144,6 +150,7 @@ export function useAsk() {
       const final = streamRef.current;
 
       if (final.error) {
+        track('tutor_reply_failed', { mode, duration_ms: Date.now() - sentAt });
         setState((current) => ({ ...current, status: 'error', error: final.error }));
 
         return null;

@@ -14,6 +14,7 @@ import { useRouter } from 'next/router';
 import { isLegacyAuthStatus, LEGACY_AUTH_CONFIG, normalizeAuthConfig, resolveAuthServer, signInSwitch } from './lib/auth-url';
 
 import { useBackendSettings } from '@/hooks/useBackendSettings';
+import { identify, track } from '@/lib/analytics';
 import { api, STUDY_USER_KEY, useAuthCookie } from '@/lib/auth';
 import { getStoredMockMode, getStudyBackendBaseUrl, saveBackendUrlOverride, saveMockMode } from '@/lib/backend-settings';
 
@@ -198,6 +199,9 @@ export function useStoreSession() {
       }
       setAuthToken(session.token);
       api.defaults.headers.common['Authorization'] = `Bearer ${session.token}`;
+      // The account id only: no name or email.
+      identify(session.user._id);
+      track('signed_in');
       // A different account may have signed in: nothing cached belongs to it.
       queryClient.clear();
       if (options.navigate !== false) await router.replace(safeNextPath(router.query.next));

@@ -7,6 +7,8 @@ import { ChunkUploadQueue, createMemoryChunkStore } from './chunkQueue';
 import { createIdbChunkStore } from './idbChunkStore';
 import { uploadPageDoc } from './pageContent';
 
+import { errorReason, track } from '@/lib/analytics';
+
 let queue: ChunkUploadQueue | null = null;
 
 /** The app-wide lecture upload queue. Pumps on creation (leftovers from a crash) and on `online`. */
@@ -20,7 +22,13 @@ export function getLectureQueue(): ChunkUploadQueue {
     },
     uploadPage: (session) => uploadPageDoc(session.pageId as string, session.pageVersion),
     finish: async (lectureId, chunks, durationSec) => {
-      await finishLecture(lectureId, chunks, durationSec);
+      try {
+        await finishLecture(lectureId, chunks, durationSec);
+        track('lecture_uploaded', { chunks, duration_s: durationSec });
+      } catch (error) {
+        track('lecture_upload_failed', { reason: errorReason(error) });
+        throw error;
+      }
     },
   });
   if (typeof window !== 'undefined') {

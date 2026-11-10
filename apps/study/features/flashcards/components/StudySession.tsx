@@ -10,6 +10,7 @@ import { EMPTY_TALLY, GRADES, gradeForKey, recallPercent, tallyAdd } from '../li
 
 import { ActionButton, Badge, ErrorNote } from '@/components/ui/primitives';
 import { Markdown } from '@/features/bank/components/Markdown';
+import { track } from '@/lib/analytics';
 import { describeError } from '@/lib/api/errors';
 
 const GRADE_VARIANT: Record<Grade, 'secondary' | 'primary' | 'soft'> = {
@@ -118,7 +119,23 @@ export function StudySession({
     return () => window.removeEventListener('keydown', onKey);
   }, [done, flip, flipped, grade]);
 
+  const startedAt = useRef(Date.now());
+
+  useEffect(() => {
+    if (!done) return;
+    track('practice_finished', {
+      kind: 'flashcards',
+      count: queue.length,
+      again: tally.again,
+      hard: tally.hard,
+      good: tally.good,
+      easy: tally.easy,
+      duration_ms: Date.now() - startedAt.current,
+    });
+  }, [done]);
+
   const restart = () => {
+    startedAt.current = Date.now();
     const ids = missed.current;
 
     setQueue((current) => current.filter((item) => ids.has(item.id)));
