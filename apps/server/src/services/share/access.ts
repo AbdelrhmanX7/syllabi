@@ -25,6 +25,12 @@ export interface NamedCaller extends Caller {
 export const displayName = (a: { name?: string | null; email?: string | null } | null | undefined) =>
   a?.name?.trim() || a?.email?.split("@")[0] || "Someone";
 
+/**
+ * Only the first word of the account's name, for anyone who came by link (a stranger to the owner).
+ * Never falls back to the email: its first part often is the person's full name or school id.
+ */
+export const firstName = (a: { name?: string | null } | null | undefined) => a?.name?.trim().split(/\s+/)[0]?.slice(0, 40) || "Someone";
+
 /** The signed-in account as a Caller (null when the account is gone). */
 export async function loadCaller(adminId: unknown): Promise<NamedCaller | null> {
   if (!adminId || !Types.ObjectId.isValid(String(adminId))) return null;

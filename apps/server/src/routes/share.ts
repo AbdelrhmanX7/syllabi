@@ -19,6 +19,11 @@
  *   GET    /share/view/:idOrToken/pdf-assets/:assetId  a shared notebook's PDF background
  *                                     -> {assetId, url, expiresAt} (same access as the view)
  *   POST   /share/fork/:idOrToken     deep copy into my account                 -> {resourceType, resourceId, topic, classId}
+ *   GET    /share/preview/:token      NO account needed: title, kind, owner first name (routes/share-public.ts)
+ *
+ * The link ("Anyone with the link can get a copy"): a 43-char token, on/off with `link` in POST / PATCH.
+ * Off = the token is gone, so the view, the copy and the preview all 404; copies already made stay.
+ * Someone who came by link only ever sees the owner's first name.
  *
  * Strangers get 404 (never "exists but not yours"). Adding people needs a verified email (it sends
  * mail) and is rate limited per account; views and forks are rate limited too.
@@ -34,7 +39,7 @@ import { EMAIL_NOT_VERIFIED } from "@/auth/verified";
 import { appLink } from "@/auth/config";
 import { sendMailInBackground, shareInviteMail } from "@/auth/mail";
 import { generateRawToken } from "@/auth/tokens";
-import { bindEmailGrants, Caller, callerGrant, displayName, grantedToFilter, resolveShared, SHARE_ID_RE } from "@/services/share/access";
+import { bindEmailGrants, Caller, callerGrant, displayName, firstName, grantedToFilter, resolveShared, SHARE_ID_RE } from "@/services/share/access";
 import { forkResource, loadOwned, resourceEditedBy, resourceTitle, resourceUpdatedAt, snapshot, TOPIC_MAX } from "@/services/share/resources";
 import { logger } from "@/services/logger.service";
 import { sendAssetUrl, validAssetId } from "@/services/study/pdf-assets";
@@ -294,6 +299,9 @@ router.delete(
   })
 );
 
+/** Through the link, whoever last edited it shows by first name only, like the owner. */
+const linkSafe = (e: { name: string; at: string | null } | null, via: string) => (e && via === "link" ? { ...e, name: firstName(e) } : e);
+
 // ─── recipient routes ───────────────────────────────────────────────────────────────────
 
 router.get(
@@ -358,13 +366,13 @@ router.get(
         id: String(share._id),
         resourceType: share.resourceType,
         title: resourceTitle(resource),
-        ownerName: displayName(owner),
+        ownerName: via === "link" ? firstName(owner) : displayName(owner),
         isOwner: via === "owner",
         role,
         // Editors write through the study routes with these ids (the page, class or map).
         ...(role === "editor" ? { resourceId: String(share.resourceId), topic: share.topic ?? null } : {}),
         updatedAt: (await resourceUpdatedAt(resource)) ?? share.updatedAt,
-        editedBy: await resourceEditedBy(resource),
+        editedBy: linkSafe(await resourceEditedBy(resource), via),
       },
       content: await snapshot(resource),
     });
@@ -394,7 +402,7 @@ router.post(
     await bindEmailGrants(caller);
     const found = await resolveShared(req.params.idOrToken, caller, "read");
     if (!found) return fail(res, 404, "NOT_FOUND", "This link doesn't work any more, or it wasn't shared with this account.");
-    const { share, resource } = found;
+    const { share, resource, via } = found;
     const owner = await Admin.findById(share.ownerId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
     const title = resourceTitle(resource);
     const copy = await forkResource(resource, caller.userId);
@@ -403,7 +411,7 @@ router.post(
       resourceType: share.resourceType,
       resourceId: copy.resourceId,
       topic: copy.topic,
-      forkedFrom: { shareId: share._id, ownerName: displayName(owner), title, resourceType: share.resourceType, resourceId: share.resourceId },
+      forkedFrom: { shareId: share._id, ownerName: via === "link" ? firstName(owner) : displayName(owner), title, resourceType: share.resourceType, resourceId: share.resourceId },
     });
     res.status(201).json({
       resourceType: share.resourceType,

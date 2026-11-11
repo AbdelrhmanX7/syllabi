@@ -57,7 +57,8 @@ function authKind(path: string, allowCallback: boolean): string | null {
  * Where a link that opened the APK should go inside the app, or null to ignore it:
  * - `https://app.syllabi.studio/auth/magic/?token=X` → `/auth/magic/?token=X` (same for verify / reset);
  * - `studio.syllabi.app://auth#token=…` (Google's return) → `/auth/callback/#token=…`;
- * - `studio.syllabi.app://auth/magic?token=X` → `/auth/magic/?token=X`.
+ * - `studio.syllabi.app://auth/magic?token=X` → `/auth/magic/?token=X`;
+ * - `https://app.syllabi.studio/shared/?id=X` (a share link) → `/shared/?id=X`.
  * The custom scheme is split by hand: older Android WebViews parse `scheme://host` URLs of unknown
  * schemes with an empty host, so `new URL().host` can't be trusted there.
  */
@@ -93,6 +94,7 @@ export function deepLinkToAppPath(raw: unknown): string | null {
     return null;
   }
   if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== APP_LINK_HOST) return null;
+  if (/^\/shared\/?$/.test(url.pathname)) return `/shared/${url.search}`;
   const kind = authKind(url.pathname, false);
 
   return kind ? `/auth/${kind}/${url.search}${url.hash}` : null;

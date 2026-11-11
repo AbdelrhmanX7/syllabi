@@ -3,7 +3,6 @@
  * Everything that knows how a resource type is stored lives here, so sharing a new type means one
  * more entry. Editors write through the study routes (services/share/edit.ts).
  */
-import { boardBookmarks, BoardBookmark } from "@/services/study/page-bookmarks";
 import { Types } from "mongoose";
 import { StudyPage, IStudyPage } from "@/models/study/page";
 import { StudyQuestion, IStudyQuestion } from "@/models/study/question";
@@ -189,8 +188,30 @@ export function forkedOcrAiVersion(p: Pick<IStudyPage, "ocrAiVersion" | "version
 }
 
 /**
+ * A board JSON with every page's `bookmark` taken out (the owner's own marks, like a card's bookmark and
+ * note). Unreadable JSON is copied as it is: it has no bookmarks anyone could list.
+ */
+export function withoutBookmarks(body: Buffer): Buffer {
+  let doc: { pages?: unknown[] };
+  try {
+    doc = JSON.parse(body.toString("utf8"));
+  } catch {
+    return body;
+  }
+  const marked = (p: unknown) => Boolean(p && typeof p === "object" && "bookmark" in p);
+  if (!doc || !Array.isArray(doc.pages) || !doc.pages.some(marked)) return body;
+  doc.pages = doc.pages.map((p) => {
+    if (!marked(p)) return p;
+    const { bookmark: _drop, ...rest } = p as Record<string, unknown>;
+    return rest;
+  });
+  return Buffer.from(JSON.stringify(doc));
+}
+
+/**
  * Deep copy into `userId`'s account: new ids, the notebook's board JSON (and the PDF backgrounds it
  * references) copied to the caller's own storage prefix (deleting the owner's account never breaks the copy), fresh progress on questions.
+ * Never copied: page bookmarks, a card's bookmark / handwritten note / stats / schedule, a map's scores.
  * Question images stay references to their public URL. Returns the new resource.
  */
 export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Promise<{ resourceId: Types.ObjectId; topic: string | null; classId: Types.ObjectId | null }> {
@@ -199,10 +220,9 @@ export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Pr
       const id = new Types.ObjectId();
       let contentKey: string | null = null;
       let version = 0;
-      let bookmarks: BoardBookmark[] | undefined;
       if (r.page.contentKey) {
-        const body = await getStudyObject(r.page.contentKey);
-        bookmarks = boardBookmarks(body);
+        // The owner's page bookmarks are theirs: the copy starts with none.
+        const body = withoutBookmarks(await getStudyObject(r.page.contentKey));
         version = 1;
         contentKey = pageContentKey(String(userId), String(id), version);
         await putStudyObject(contentKey, body, "application/json");
@@ -220,7 +240,7 @@ export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Pr
         ocrText: r.page.ocrText ?? null,
         ocrUpdatedAt: r.page.ocrText ? new Date() : null,
         ocrAiVersion: forkedOcrAiVersion(r.page, version),
-        bookmarks,
+        bookmarks: [],
       });
       return { resourceId: id, topic: null, classId: null };
     }

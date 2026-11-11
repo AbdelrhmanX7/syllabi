@@ -77,8 +77,8 @@ function RolePicker({
 
 /**
  * Share one notebook / deck / question set / concept map: add people by email (chips, a Can view /
- * Can edit picker, then Share), a view-only link (signed-in accounts only), the current people with
- * their access and Remove, and Stop sharing. Removing someone, lowering their access and stopping all
+ * Can edit picker, then Share), a link anyone can open to get their own copy, the current people with
+ * their access and Remove, and Stop sharing. Removing someone, lowering their access, turning the link off and stopping all
  * confirm first. Flat rows only (this is a scroll box).
  */
 export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: () => void }) {
@@ -91,6 +91,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
   const [lowering, setLowering] = useState<SharePerson | null>(null);
   const [newRole, setNewRole] = useState<ShareRole>('viewer');
   const [stopping, setStopping] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const noun = RESOURCE_NOUN[target.resourceType];
   const busy = update.isPending || stop.isPending;
   const people = share?.people ?? [];
@@ -141,8 +142,10 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
     );
   };
 
-  const toggleLink = (on: boolean) =>
+  const setLink = (on: boolean) =>
     update.mutate({ current: share, link: on }, { onError: (e) => addToast({ title: errorText(e), color: 'danger' }) });
+  // Turning the link on is one tap; turning it off kills the link, so it confirms first.
+  const toggleLink = (on: boolean) => (on ? setLink(true) : setUnlinking(true));
 
   const copyLink = async () => {
     if (!share?.link) return;
@@ -163,7 +166,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </div>
           ) : undefined
         }
-        subtitle='Choose who can view or edit. The link is view only.'
+        subtitle='Add people, or share a link anyone can copy.'
         title={`Share “${target.title}”`}
         onClose={onClose}
       >
@@ -261,10 +264,15 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             <div className='flex items-center gap-3'>
               <Link2 className='text-st-muted h-4 w-4 shrink-0' />
               <div className='min-w-0 flex-1'>
-                <p className='text-st-fg text-sm font-semibold'>Share with a link</p>
-                <p className='text-st-muted truncate text-xs'>Anyone signed in who has it can view</p>
+                <p className='text-st-fg text-sm font-semibold'>Anyone with the link can get a copy</p>
+                <p className='text-st-muted text-xs'>They get their own copy to change. Yours stays the same.</p>
               </div>
-              <Toggle checked={Boolean(share?.link)} disabled={busy || isLoading} label='Share with a link' onChange={toggleLink} />
+              <Toggle
+                checked={Boolean(share?.link)}
+                disabled={busy || isLoading}
+                label='Anyone with the link can get a copy'
+                onChange={toggleLink}
+              />
             </div>
             {share?.link && (
               <div className='flex items-center gap-3'>
@@ -276,7 +284,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
                   onFocus={(event) => event.currentTarget.select()}
                 />
                 <ActionButton className='shrink-0' onClick={() => void copyLink()}>
-                  <Copy className='h-4 w-4' /> Copy
+                  <Copy className='h-4 w-4' /> Copy link
                 </ActionButton>
               </div>
             )}
@@ -314,6 +322,17 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
           }
         >
           They can still open this {noun}, but can no longer change it. Their earlier changes stay.
+        </ConfirmSheet>
+      )}
+      {unlinking && share && (
+        <ConfirmSheet
+          danger
+          confirmLabel='Turn off link'
+          title='Turn off the link?'
+          onClose={() => setUnlinking(false)}
+          onConfirm={() => setLink(false)}
+        >
+          The link stops working, so nobody new can get a copy. People who already made a copy keep it.
         </ConfirmSheet>
       )}
       {stopping && share && (

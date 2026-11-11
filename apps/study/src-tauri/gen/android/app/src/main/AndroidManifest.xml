@@ -73,6 +73,7 @@
                 <data android:pathPrefix="/auth/magic" />
                 <data android:pathPrefix="/auth/verify" />
                 <data android:pathPrefix="/auth/reset" />
+                <data android:pathPrefix="/shared" />
                 
             </intent-filter>
             <intent-filter >

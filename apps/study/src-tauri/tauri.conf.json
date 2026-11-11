@@ -38,7 +38,7 @@
         {
           "scheme": ["https"],
           "host": "app.syllabi.studio",
-          "pathPrefix": ["/auth/magic", "/auth/verify", "/auth/reset"],
+          "pathPrefix": ["/auth/magic", "/auth/verify", "/auth/reset", "/shared"],
           "appLink": true
         },
         { "scheme": ["studio.syllabi.app"], "host": "auth", "appLink": false }

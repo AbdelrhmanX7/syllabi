@@ -135,6 +135,15 @@ test('deepLinkToAppPath: emailed https links go to the matching in-app page, tok
   assert.equal(deepLinkToAppPath('https://APP.syllabi.studio/auth/reset/?token=x'), '/auth/reset/?token=x');
 });
 
+test('deepLinkToAppPath: a share link opens the shared page in the app', () => {
+  const token = 'abcDEF0123456789_-abcDEF0123456789_-abcDEF0';
+
+  assert.equal(deepLinkToAppPath(`https://app.syllabi.studio/shared/?id=${token}`), `/shared/?id=${token}`);
+  assert.equal(deepLinkToAppPath(`https://app.syllabi.studio/shared?id=${token}`), `/shared/?id=${token}`);
+  assert.equal(deepLinkToAppPath('https://evil.example.com/shared/?id=x'), null);
+  assert.equal(deepLinkToAppPath('https://app.syllabi.studio/shared/extra?id=x'), null);
+});
+
 test('deepLinkToAppPath: the Google return (custom scheme) goes to the callback page with its fragment', () => {
   assert.equal(deepLinkToAppPath(`${APK_AUTH_DEEP_LINK}#token=h.p.s`), '/auth/callback/#token=h.p.s');
   assert.equal(deepLinkToAppPath('studio.syllabi.app://auth/#error=access_denied'), '/auth/callback/#error=access_denied');

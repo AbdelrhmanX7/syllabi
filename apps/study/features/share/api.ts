@@ -4,6 +4,9 @@ import type { Question } from '@/lib/api/types';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { linkPreviewUrl, readLinkPreview, type LinkPreview } from './link';
+
+import { authServer } from '@/features/auth/api';
 import { studyDelete, studyGet, studyPatch, studyPost } from '@/lib/api/http';
 import { useStudyQueriesEnabled } from '@/lib/api/hooks';
 
@@ -37,6 +40,48 @@ export const listSharedWithMe = () => studyGet<{ items: SharedWithMeItem[] }>('/
 export const listForks = () => studyGet<{ items: ForkRecord[] }>('/share/forks');
 export const viewShared = (idOrToken: string) => studyGet<SharedView>(`/share/view/${enc(idOrToken)}`);
 export const forkShared = (idOrToken: string) => studyPost<ForkResult>(`/share/fork/${enc(idOrToken)}`);
+
+/**
+ * What a share link holds, with no account: title, kind, owner's first name. A plain fetch (the study
+ * transport refuses to send anything signed out) to the configured server, or the official one in demo
+ * mode, since that is where links come from. AbortController, not AbortSignal.timeout (Chrome 103+).
+ */
+export async function getLinkPreview(token: string): Promise<LinkPreview> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const res = await fetch(linkPreviewUrl(authServer(), token), { signal: controller.signal, credentials: 'omit' });
+    const body: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const message = body && typeof body === 'object' ? (body as { message?: unknown }).message : null;
+
+      throw new Error(res.status === 429 ? 'Too many tries. Wait a few minutes, then try again.' : typeof message === 'string' && message ? message : 'This link doesn’t work any more. Ask for a new one.');
+    }
+    const preview = readLinkPreview(body);
+
+    if (!preview) throw new Error('This link doesn’t work any more. Ask for a new one.');
+
+    return preview;
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw new Error('Can’t reach the server. Check your connection and try again.');
+    if (e instanceof TypeError) throw new Error('Can’t reach the server. Check your connection and try again.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function useLinkPreview(token: string) {
+  return useQuery({
+    queryKey: ['share', 'preview', token] as const,
+    queryFn: () => getLinkPreview(token),
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: 60_000,
+  });
+}
 
 export const shareKeys = {
   mine: (t: Pick<ShareTarget, 'resourceType' | 'resourceId' | 'topic'>) =>

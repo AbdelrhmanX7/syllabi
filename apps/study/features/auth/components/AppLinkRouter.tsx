@@ -40,6 +40,7 @@ function claim(link: string): boolean {
 /**
  * Android app only: a sign-in link that opened the app (an emailed magic / verify / reset link, or the
  * return from Google in the browser) goes to the app's own page for it, which finishes the sign-in.
+ * A share link (app.syllabi.studio/shared/?id=…) opens the shared page.
  * Renders nothing.
  */
 export function AppLinkRouter() {

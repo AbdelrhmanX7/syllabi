@@ -5,17 +5,19 @@ import type { ShareResourceType, SharedWithMeItem } from './types';
 import type { LucideIcon } from 'lucide-react';
 
 import { addToast } from '@repo/ui';
-import { ChevronRight, Copy, GalleryVerticalEnd, ListChecks, Network, NotebookPen, Pencil, Users } from 'lucide-react';
+import { ChevronRight, Copy, GalleryVerticalEnd, Link2, ListChecks, Network, NotebookPen, Pencil, Plus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-import { forkHref, useFork, useSharedView, useSharedWithMe } from './api';
+import { forkHref, useFork, useLinkPreview, useSharedView, useSharedWithMe } from './api';
+import { isLinkToken, loginHref } from './link';
 import { SharedContent } from './components/SharedViews';
 import { RESOURCE_LABEL, RESOURCE_NOUN, ROLE_LABEL } from './types';
 
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton, EmptyState, ErrorNote, LinkButton, LoadingRows } from '@/components/ui/primitives';
 import { useStudyQueriesEnabled } from '@/lib/api/hooks';
+import { isValidAdminToken, readSessionToken } from '@/lib/auth';
 
 export { ShareButton, ForkedFromNote } from './components/ShareButton';
 export type { ShareTarget, ShareResourceType } from './types';
@@ -103,6 +105,8 @@ function SharedViewer({ id }: { id: string }) {
   const fork = useFork();
 
   if (isLoading) return <LoadingRows rows={5} />;
+  // Demo mode opening a real link: the demo doesn't know it, so show what the link holds instead.
+  if (error && isLinkToken(id) && !isValidAdminToken(readSessionToken())) return <LinkLanding token={id} />;
   if (error || !data) {
     return (
       <>
@@ -118,6 +122,8 @@ function SharedViewer({ id }: { id: string }) {
   }
   const { share } = data;
   const canEdit = share.role === 'editor' && !share.isOwner && Boolean(share.resourceId);
+  // Opened by link: the button says what it does for them («Add to my Syllabi» = their own copy).
+  const byLink = isLinkToken(id) && !share.isOwner;
   const makeCopy = () =>
     fork.mutate(id, {
       onSuccess: (result) => {
@@ -142,17 +148,73 @@ function SharedViewer({ id }: { id: string }) {
               variant={canEdit && share.resourceType === 'notebook' ? 'secondary' : 'primary'}
               onClick={makeCopy}
             >
-              <Copy className='h-4 w-4' /> Make a copy
+              {byLink ? (
+                <>
+                  <Plus className='h-4 w-4' /> Add to my Syllabi
+                </>
+              ) : (
+                <>
+                  <Copy className='h-4 w-4' /> Make a copy
+                </>
+              )}
             </ActionButton>
           </div>
         }
         back='/shared/'
         subtitle={`${share.isOwner ? 'Yours' : `${share.ownerName}’s`} ${RESOURCE_NOUN[share.resourceType]} · ${
-          canEdit ? ROLE_LABEL.editor : 'View only'
+          canEdit ? ROLE_LABEL.editor : byLink ? 'Add it to get your own copy to change' : 'View only'
         } · ${share.editedBy ? `edited by ${share.editedBy.name}` : 'updated'} ${shortWhen(share.updatedAt)}`}
         title={share.title}
       />
       <SharedContent idOrToken={id} view={data} />
+    </>
+  );
+}
+
+/**
+ * A share link opened by someone who isn't signed in: what it is (title, kind, the owner's first name,
+ * nothing more) and the way in. The copy is made on the server in their account, so it needs one:
+ * «Create a free account to add it» (or sign in) comes straight back here, where «Add to my Syllabi»
+ * makes the copy.
+ */
+function LinkLanding({ token }: { token: string }) {
+  const { data, isLoading, error, refetch } = useLinkPreview(token);
+
+  if (isLoading) return <LoadingRows rows={3} />;
+  if (error || !data) {
+    const message = errorText(error);
+    const network = /reach the server|Too many/.test(message);
+
+    return (
+      <>
+        <PageHeader title='Shared link' />
+        {network ? (
+          <ErrorNote message={message} onRetry={() => void refetch()} />
+        ) : (
+          <EmptyState hint='Ask the person who sent it for a new link.' icon={Link2} title='This link doesn’t work any more' />
+        )}
+      </>
+    );
+  }
+  const Icon = ICON[data.resourceType];
+
+  return (
+    <>
+      <PageHeader eyebrow={`${data.ownerName} shared a ${RESOURCE_NOUN[data.resourceType]}`} title={data.title} />
+      <div className='flex flex-col gap-4'>
+        <div className='flex items-center gap-3'>
+          <Icon className='text-st-accent h-6 w-6 shrink-0' strokeWidth={1.75} />
+          <p className='text-st-fg min-w-0 flex-1 text-sm'>
+            Add it to get your own copy. Change it however you like; {data.ownerName}’s stays the same.
+          </p>
+        </div>
+        <div className='flex flex-wrap gap-3'>
+          <LinkButton href={loginHref(token, 'create')} variant='primary'>
+            <Plus className='h-4 w-4' /> Create a free account to add it
+          </LinkButton>
+          <LinkButton href={loginHref(token, 'signin')}>I have an account</LinkButton>
+        </div>
+      </div>
     </>
   );
 }
@@ -181,7 +243,7 @@ function SignInPrompt({ id }: { id: string }) {
 export default function SharedHome({ id }: { id: string }) {
   const enabled = useStudyQueriesEnabled();
 
-  if (!enabled) return <SignInPrompt id={id} />;
+  if (!enabled) return isLinkToken(id) ? <LinkLanding token={id} /> : <SignInPrompt id={id} />;
 
   return id ? <SharedViewer id={id} /> : <SharedList />;
 }
