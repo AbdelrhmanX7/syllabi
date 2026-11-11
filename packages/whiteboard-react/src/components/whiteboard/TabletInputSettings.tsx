@@ -121,6 +121,13 @@ const TabletInputSettings: React.FC<TabletInputSettingsProps> = ({ settings, pen
     [onChange, settings],
   );
 
+  const handleMathSymbolSnapChange = useCallback(
+    (mathSymbolSnap: boolean) => {
+      onChange({ ...settings, mathSymbolSnap });
+    },
+    [onChange, settings],
+  );
+
   const handleSmartInkContrastChange = useCallback(
     (smartInkContrast: boolean) => {
       onChange({ ...settings, smartInkContrast });
@@ -368,6 +375,23 @@ const TabletInputSettings: React.FC<TabletInputSettingsProps> = ({ settings, pen
             isSelected={settings.shapeSnapOnHold !== false}
             size='sm'
             onValueChange={handleShapeSnapOnHoldChange}
+          />
+        </div>
+
+        <Divider />
+
+        <div className='flex items-start justify-between gap-3'>
+          <div className='space-y-1'>
+            <p className='text-foreground text-xs font-medium'>{t('tablet.mathSymbolSnap')}</p>
+            <p className='text-default-400 text-[11px] leading-5'>
+              {t('tablet.mathSymbolSnapHint')}
+            </p>
+          </div>
+          <Switch
+            aria-label={t('tablet.mathSymbolSnap')}
+            isSelected={settings.mathSymbolSnap === true}
+            size='sm'
+            onValueChange={handleMathSymbolSnapChange}
           />
         </div>
 

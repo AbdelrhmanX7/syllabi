@@ -9,7 +9,8 @@ import { compactCanvasJson } from '../utils/canvasJson';
 import type { MathSymbolParams } from '../utils/mathSymbols';
 import { adjustSnappedShape, mathSymbolShape, recognizeShape } from '../utils/shapeRecognition';
 import { isMathSymbolObject, MATH_SYMBOL_PROP, setMathSymbolParams } from './mathSymbolObject';
-import { applySnappedShapeControls, createSnappedShapeObject, registerSnappedShapePersistence, SNAPPED_SHAPE_PROP } from './shapeSnap';
+import type { LowLatencyPencilBrush } from './LowLatencyPencilBrush';
+import { applySnappedShapeControls, createSnappedShapeObject, registerSnappedShapePersistence, ShapeSnapController, SNAPPED_SHAPE_PROP } from './shapeSnap';
 
 const STYLE = { color: '#2563eb', width: 3, opacity: 0.8, blur: 0, nib: null };
 
@@ -166,7 +167,7 @@ describe('math symbol object', () => {
     }
     dense.push(drawn[3]);
 
-    const snapped = recognizeShape(dense, { minSize: 20 });
+    const snapped = recognizeShape(dense, { minSize: 20, mathSymbols: true });
 
     assert.equal(snapped.kind, 'bracket');
 
@@ -179,5 +180,82 @@ describe('math symbol object', () => {
     assert.ok(Math.abs(p.height - 150) < 3, `height ${p.height}`);
     assert.equal(p.arm, (snapped as { symbol: { params: { arm: number } } }).symbol.params.arm);
     assert.ok(Math.abs(adjusted.symbol.anchor.y - 100) < 3);
+  });
+});
+
+/** Densify a polyline the way a pen's samples would. */
+function densify(path: { x: number; y: number }[], step = 0.04): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+
+  for (let i = 1; i < path.length; i += 1) {
+    for (let t = 0; t < 1; t += step) out.push({ x: path[i - 1].x + (path[i].x - path[i - 1].x) * t, y: path[i - 1].y + (path[i].y - path[i - 1].y) * t });
+  }
+  out.push(path[path.length - 1]);
+
+  return out;
+}
+
+const BRACKET_STROKE = densify([
+  { x: 125, y: 100 },
+  { x: 100, y: 100 },
+  { x: 100, y: 200 },
+  { x: 125, y: 200 },
+]);
+const RADICAL_STROKE = densify(
+  [
+    { x: 150, y: 160 },
+    { x: 165, y: 150 },
+    { x: 180, y: 200 },
+    { x: 200, y: 100 },
+    { x: 360, y: 100 },
+  ],
+  0.05,
+);
+
+/** Lift a whole stroke through the controller (no hold): what lands on the canvas, if anything. */
+function liftThroughController(points: { x: number; y: number }[], mathSymbolSnap: boolean | undefined): FabricObject[] {
+  const added: FabricObject[] = [];
+  const noop = () => {};
+  const canvas = { getZoom: () => 1, add: (o: FabricObject) => added.push(o), requestRenderAll: noop, clearContext: noop, contextTop: null };
+  const brush = { canvas, color: '#2563eb', width: 3, liveStrokePoints: points.map((p) => new Point(p.x, p.y)) } as unknown as LowLatencyPencilBrush;
+  const controller = new ShapeSnapController({
+    isEnabled: () => true,
+    getOpacity: () => 1,
+    ...(mathSymbolSnap === undefined ? {} : { isMathSymbolSnapEnabled: () => mathSymbolSnap }),
+  });
+
+  controller.strokeStart(brush, new Point(points[0].x, points[0].y));
+  controller.strokeFinalize(brush);
+  controller.cancel();
+
+  return added;
+}
+
+describe('«Clean up math symbols» setting', () => {
+  it('is off by default: a drawn bracket stays ink on a hold and on a lift', () => {
+    assert.notEqual(recognizeShape(BRACKET_STROKE, { minSize: 20 }).kind, 'bracket');
+    assert.notEqual(recognizeShape(BRACKET_STROKE, { minSize: 20, mathSymbols: false }).kind, 'bracket');
+    assert.equal(liftThroughController(BRACKET_STROKE, undefined).length, 0);
+    assert.equal(liftThroughController(BRACKET_STROKE, false).length, 0);
+  });
+
+  it('when on, the same bracket snaps on a hold and on a lift', () => {
+    assert.equal(recognizeShape(BRACKET_STROKE, { minSize: 20, mathSymbols: true }).kind, 'bracket');
+
+    const added = liftThroughController(BRACKET_STROKE, true);
+
+    assert.equal(added.length, 1);
+    assert.ok(isMathSymbolObject(added[0]));
+  });
+
+  it('the square root snaps whatever the setting', () => {
+    for (const on of [undefined, false, true]) {
+      assert.equal(recognizeShape(RADICAL_STROKE, { minSize: 20, mathSymbols: on }).kind, 'radical', `hold, setting ${on}`);
+
+      const added = liftThroughController(RADICAL_STROKE, on);
+
+      assert.equal(added.length, 1, `lift, setting ${on}`);
+      assert.equal((added[0] as FabricObject & { [SNAPPED_SHAPE_PROP]?: string })[SNAPPED_SHAPE_PROP], 'radical');
+    }
   });
 });

@@ -242,6 +242,13 @@ export interface TabletInputSettings {
    * Default ON. Optional for the same reason as `shapeSnapOnHold`; absent reads as ON.
    */
   smartInkContrast?: boolean;
+  /**
+   * Clean up hand-drawn math symbols: a bracket ( ) [ ] { }, integral sign or one-stroke arrow snaps
+   * to a neat, stretchable symbol (on a hold and on a plain lift). The square root is not part of
+   * this — it always snaps. Default OFF; absent reads as OFF. Symbols already snapped keep loading
+   * and stretching whatever the setting.
+   */
+  mathSymbolSnap?: boolean;
 }
 
 export const DEFAULT_TABLET_INPUT_SETTINGS: TabletInputSettings = {
@@ -290,6 +297,7 @@ export const DEFAULT_TABLET_INPUT_SETTINGS: TabletInputSettings = {
   penCaptureEnabled: false,
   shapeSnapOnHold: true,
   smartInkContrast: false,
+  mathSymbolSnap: false,
 };
 
 export interface WhiteboardPage {

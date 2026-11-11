@@ -955,6 +955,10 @@ function normalizeTabletInputSettings(value: Partial<TabletInputSettings> | null
       typeof value?.smartInkContrast === 'boolean'
         ? value.smartInkContrast
         : DEFAULT_TABLET_INPUT_SETTINGS.smartInkContrast,
+    mathSymbolSnap:
+      typeof value?.mathSymbolSnap === 'boolean'
+        ? value.mathSymbolSnap
+        : DEFAULT_TABLET_INPUT_SETTINGS.mathSymbolSnap,
   };
 }
 

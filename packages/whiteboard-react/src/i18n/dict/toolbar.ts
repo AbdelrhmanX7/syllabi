@@ -90,6 +90,8 @@ export const TOOLBAR_STRINGS = {
   'tablet.shapeSnap': 'Turn drawings into shapes on long press',
   'tablet.shapeSnapHint':
     'Draw a rough line, triangle, rectangle or circle and hold the pen still for a moment before lifting — it snaps to a clean shape. Move the pen before lifting to resize or rotate it, then adjust later with the select tool.',
+  'tablet.mathSymbolSnap': 'Clean up math symbols',
+  'tablet.mathSymbolSnapHint': 'Brackets, integral and arrows you draw snap neat.',
   'tablet.smartContrast': 'Smart contrast',
   'tablet.smartContrastHint':
     'If the chosen colour vanishes against the background — light yellow on white paper, say — the stroke is drawn in a darker shade of the same colour, and in a lighter one on a dark background. The colour chosen in the palette does not change. Pen, brush, marker and script only; the highlighter stays as it is.',

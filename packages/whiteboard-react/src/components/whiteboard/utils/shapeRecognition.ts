@@ -81,6 +81,11 @@ export type RecognizedShape =
 export interface RecognizeOptions {
   /** Smallest bounding-box diagonal (scene units) that may become a shape. Below it → none. */
   minSize: number;
+  /**
+   * Also recognise the clean math symbols (brackets, braces, integral, arrow). Off unless set: the
+   * owner's «Clean up math symbols» pen setting. The square root is recognised either way.
+   */
+  mathSymbols?: boolean;
 }
 
 /** Every tunable in one place; exported so the tests document what each one guards. */
@@ -795,7 +800,7 @@ export function recognizeShape(input: Vec[], options: RecognizeOptions): Recogni
 
     if (radical) return radicalShape(radical);
 
-    const symbol = recognizeMathSymbol(points, { minSize: options.minSize });
+    const symbol = options.mathSymbols === true ? recognizeMathSymbol(points, { minSize: options.minSize }) : null;
 
     if (symbol) return mathSymbolShape(symbol);
 

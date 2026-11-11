@@ -875,6 +875,8 @@ export function useWhiteboardCanvas({
 
         return 'free';
       },
+      // «Clean up math symbols» (pen settings): off by default; the square root snaps regardless.
+      isMathSymbolSnapEnabled: () => tabletInputSettingsRef.current.mathSymbolSnap === true,
       isDashed: () => isPenFamilyTool(effectiveToolRef.current) && strokeSettingsRef.current.dashed === true,
       // A closed shape drawn with the pen takes the remembered background (the brush's swept outline is
       // already a filled mark, and the highlighter never fills).

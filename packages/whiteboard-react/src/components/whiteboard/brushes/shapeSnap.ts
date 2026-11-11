@@ -105,6 +105,11 @@ export interface ShapeSnapHost {
   getOpacity(): number;
   /** The pen's line mode: `hold` snaps to a line on a pause, `always` makes every stroke a line. */
   getLineShape?(): LineShape;
+  /**
+   * The «Clean up math symbols» setting: brackets, braces, integral and arrow may snap. Absent/false →
+   * those recognisers never run (hold or lift). The square root and the other shapes are unaffected.
+   */
+  isMathSymbolSnapEnabled?(): boolean;
   /** The active pen draws dashed. */
   isDashed?(): boolean;
   /** Last touches on the committed shape before it is added (e.g. the remembered background). */
@@ -243,7 +248,10 @@ export class ShapeSnapController implements StrokeInterceptor {
         shape = radicalShape(radical);
         style = this.styleFor(brush);
       } else {
-        const symbol = recognizeMathSymbol(brush.liveStrokePoints, { minSize: SHAPE_MIN_SCREEN_PX / brush.canvas.getZoom(), strict: true });
+        const symbol =
+          this.host.isMathSymbolSnapEnabled?.() === true
+            ? recognizeMathSymbol(brush.liveStrokePoints, { minSize: SHAPE_MIN_SCREEN_PX / brush.canvas.getZoom(), strict: true })
+            : null;
 
         if (symbol) {
           shape = mathSymbolShape(symbol);
@@ -351,7 +359,10 @@ export class ShapeSnapController implements StrokeInterceptor {
     }
 
     const points = brush.liveStrokePoints.map(toVec);
-    let shape = recognizeShape(points, { minSize: SHAPE_MIN_SCREEN_PX / canvas.getZoom() });
+    let shape = recognizeShape(points, {
+      minSize: SHAPE_MIN_SCREEN_PX / canvas.getZoom(),
+      mathSymbols: this.host.isMathSymbolSnapEnabled?.() === true,
+    });
 
     // Not a shape: smooth the stroke instead (a curve, a contour, a freehand outline).
     if (shape.kind === 'none') {
