@@ -272,6 +272,12 @@ export type { ColorSwatchProps, ColorSwatchSize, SwatchOption, SwatchPickerProps
 export { DatePicker, TimePicker, DateTimePicker } from './components/DatePicker';
 export type { DatePickerProps, TimePickerProps, DateTimePickerProps } from './components/DatePicker';
 
+// Tag / TagInput — the designed topic label (flat soft-blue pill) and the field that edits a list of them.
+export { Tag } from './components/Tag';
+export type { TagProps } from './components/Tag';
+export { TagInput } from './components/TagInput';
+export type { TagInputProps } from './components/TagInput';
+
 // Icon — hand-drawn registry + lucide wrapper + animation props.
 export { Icon, ICON_REGISTRY } from './components/Icon';
 export type { IconProps, IconHoverAnimation, IconTrigger, RegisteredIconName } from './components/Icon';

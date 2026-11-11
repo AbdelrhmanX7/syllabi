@@ -159,8 +159,8 @@ export interface NotebookBoardProps {
    * and everyone else's come in live; never a "keep mine / keep theirs" choice. See lib/notebooks/live.ts.
    */
   live?: boolean;
-  /** A host chip at the start of the board's second row (e.g. «Details»). */
-  secondRowStart?: ReactNode;
+  /** Replaces the name chip in the board's top bar (e.g. the notebook-details button). */
+  titleSlot?: ReactNode;
 }
 
 const newClientId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -272,7 +272,7 @@ export function NotebookBoard({
   buildMergeOverlaysRef,
   onPdfFileImported,
   live = false,
-  secondRowStart,
+  titleSlot,
 }: NotebookBoardProps) {
   // The title only seeds a brand-new document; a rename must not re-open (and so remount) the board.
   const titleRef = useRef(title);
@@ -912,6 +912,7 @@ export function NotebookBoard({
         focusMode={focusMode}
         freeZoom={freeZoom}
         hideChrome={hideChrome}
+        titleSlot={titleSlot}
         hideQuickPenTrigger={hidePenShortcuts}
         initialPenTool='brush'
         locale='en'
@@ -941,15 +942,6 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
-      {/* Second row, under the board's top chips: the host's chip. */}
-      {!readOnly && !focusMode && secondRowStart && (
-        <div
-          className={`pointer-events-none absolute inset-x-3 top-[6.75rem] z-20 flex items-start gap-2 pb-1 md:top-[3.75rem] ${boardTheme === 'dark' ? 'dark' : ''}`}
-          data-board-compact='true'
-        >
-          <div className='pointer-events-auto shrink-0'>{secondRowStart}</div>
-        </div>
-      )}
       {rulerOn && !readOnly && (
         <RulerOverlay
           edgesRef={rulerEdgesRef}

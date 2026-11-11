@@ -1642,9 +1642,19 @@ export function useWhiteboardCanvas({
     // Belt and braces for the touch-only panels: when Fabric is already drawing from this contact but the
     // drawing-pointer ref was never set for it (a routing edge on the ViewSonic's IR pen), the lone primary
     // touch contact IS the stroke. The single-contact guard keeps a resting palm out, exactly as before.
+    //
+    // NEVER while a pen is drawing, and never on a pen-routed device: there the stroke is the pen's, and a
+    // lone touch is the tip or the gripping fingers read by the capacitive layer as the S Pen lands, about
+    // 9–10 px off the pen's own position. Taking it for the stroke appended one of its samples per frame
+    // into the pen's line for the first few frames: the zig-zag "earthquake" crown at the start of a letter
+    // (owner's «B», 2026-11-10: two samples, both 7 px straight up after smoothing). An ignored contact is
+    // never the stroke either.
     const isLoneTouchStroke =
       event.pointerType === 'touch' &&
       event.isPrimary &&
+      activePenPointersRef.current.size === 0 &&
+      !isRoutedAsPenDevice() &&
+      !ignoredTouchPointerIdsRef.current.has(event.pointerId) &&
       touchDrawingPointerIdRef.current === null &&
       activeTouchPointersRef.current.size <= 1 &&
       rawTouchContactsRef.current.size <= 1;
@@ -1727,7 +1737,7 @@ export function useWhiteboardCanvas({
     notePressure();
 
     return verdict;
-  }, []);
+  }, [isRoutedAsPenDevice]);
 
   const applyPenTiltOffset = useCallback(
     (event: PointerEvent) => {

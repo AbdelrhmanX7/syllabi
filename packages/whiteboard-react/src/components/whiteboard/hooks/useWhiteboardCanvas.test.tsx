@@ -1254,6 +1254,127 @@ test('in-contact frames append every coalesced sample and keep the stroke open',
   }
 });
 
+// THE "EARTHQUAKE" CROWN (owner's tablet, 2026-11-10). As the S Pen lands, the glass also reads a
+// capacitive touch for a few frames — the tip itself or the gripping fingers — about 9–10 px above the
+// pen's own position. That stray touch is primary and alone on the glass, so the lone-touch fallback
+// (meant for touch-only panels whose pen IS a touch) took it for the drawing contact and appended its
+// coalesced samples into the pen's stroke: one sample per frame, 9.5 px up, for the first 2–3 frames.
+// The saved stroke (a «B» bowl) had exactly two such samples, both (0, −7) after smoothing, and the
+// brush drew them as a zig-zag crown.
+/** A touch pointermove whose getCoalescedEvents() replays `samples` (the last one is the frame). */
+function fireTouchFrame(target: HTMLElement, pointerId: number, samples: Array<{ clientX: number; clientY: number }>): void {
+  const frame = samples[samples.length - 1];
+  const event = new window.MouseEvent('pointermove', {
+    bubbles: true,
+    cancelable: true,
+    clientX: frame.clientX,
+    clientY: frame.clientY,
+    buttons: 1,
+  });
+  const coalesced = samples.map((s) => ({ ...s, buttons: 1, pressure: 0.5, pointerId, pointerType: 'touch', isPrimary: true }));
+
+  Object.assign(event, {
+    pointerId,
+    pointerType: 'touch',
+    width: 1,
+    height: 1,
+    pressure: 0.5,
+    tiltX: 0,
+    tiltY: 0,
+    twist: 0,
+    isPrimary: true,
+    getCoalescedEvents: () => coalesced,
+    getPredictedEvents: () => [],
+  });
+
+  const actGlobals = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const wasActEnvironment = actGlobals.IS_REACT_ACT_ENVIRONMENT;
+
+  actGlobals.IS_REACT_ACT_ENVIRONMENT = false;
+
+  try {
+    target.dispatchEvent(event);
+  } finally {
+    actGlobals.IS_REACT_ACT_ENVIRONMENT = wasActEnvironment;
+  }
+}
+
+test('a stray touch beside a landing pen never puts its samples into the pen stroke', async () => {
+  const harness = await mountWhiteboard();
+
+  try {
+    const canvas = openPenTwinStroke(harness);
+    const appended = spyAppendedSamples(canvas);
+    const pointsBefore = (canvas.freeDrawingBrush as unknown as { _points: unknown[] })._points.length;
+
+    // Without a pointerdown of its own (it landed before the hook saw it, or its down was absorbed)...
+    fireTouchFrame(harness.container, 31, [
+      { clientX: 101, clientY: 90.5 },
+      { clientX: 102, clientY: 90.5 },
+    ]);
+    // ...and with one: the pen is down, so the touch is ignored — its moves must be too.
+    firePointer(harness.container, 'pointerdown', { pointerId: 32, clientX: 103, clientY: 90.5 });
+    fireTouchFrame(harness.container, 32, [
+      { clientX: 103, clientY: 90.5 },
+      { clientX: 104, clientY: 90.5 },
+    ]);
+
+    // Fabric's own channel: the stray contact's touchmove (the pen twin is identifier 0) stays out too.
+    fireTouch(
+      canvas.upperCanvasEl,
+      'touchmove',
+      [{ identifier: 1, clientX: 104, clientY: 90.5, radiusX: 1, radiusY: 1 }],
+      [
+        { identifier: 0, clientX: 100, clientY: 100, radiusX: 1, radiusY: 1 },
+        { identifier: 1, clientX: 104, clientY: 90.5, radiusX: 1, radiusY: 1 },
+      ],
+    );
+
+    assert.equal(appended(), 0, "a stray touch's samples were appended to the pen's stroke (the zig-zag crown)");
+    assert.equal(
+      (canvas.freeDrawingBrush as unknown as { _points: unknown[] })._points.length,
+      pointsBefore,
+      'the pen stroke grew from a touch',
+    );
+
+    // The pen's own frames still go in.
+    firePenFrame(harness.container, 7, [
+      { clientX: 106, clientY: 100, buttons: 1, pressure: 0.4 },
+      { clientX: 108, clientY: 100, buttons: 1, pressure: 0.4 },
+    ]);
+
+    assert.equal(appended(), 1, "the pen's own coalesced samples were dropped");
+
+    firePen(harness.container, 'pointerup', { pointerId: 7, clientX: 108, clientY: 100, buttons: 0 });
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+test('a touch-only panel still feeds its lone touch stroke the sub-frame samples', async () => {
+  forgetPenDevice();
+
+  const harness = await mountWhiteboard();
+
+  try {
+    // Fabric is drawing, no pen was ever seen, and the drawing-pointer ref was never set (the routing
+    // edge the fallback exists for): the lone primary touch IS the stroke.
+    const canvas = openFabricStroke(harness);
+    const appended = spyAppendedSamples(canvas);
+
+    fireTouchFrame(harness.container, 1, [
+      { clientX: 150, clientY: 130 },
+      { clientX: 156, clientY: 134 },
+    ]);
+
+    assert.equal(appended(), 1, "the touch panel's own coalesced samples were dropped");
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
 // A digitizer that reports pressure 0 while the tip is landing — or never reports pressure at all —
 // must not have its stroke closed on the first frame. Pressure 0 means "lifted" only after this
 // contact has reported real pressure.

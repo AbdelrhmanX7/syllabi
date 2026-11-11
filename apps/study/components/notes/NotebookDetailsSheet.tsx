@@ -1,11 +1,12 @@
 import type { MetaField, Page } from '@/lib/api/types';
 
 import { useState } from 'react';
-import { Chip } from '@repo/ui';
-import { Plus, Sparkles } from 'lucide-react';
+import { TagInput } from '@repo/ui';
+import { Sparkles } from 'lucide-react';
 
 import { NoteCover } from '@/components/notes/NoteCover';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { ShaderGlow } from '@/components/ui/ShaderGlow';
 import { ActionButton, ErrorNote, INPUT_CLASS } from '@/components/ui/primitives';
 import { Sheet } from '@/features/inbox/components/Sheet';
 import { describePage, patchPage } from '@/lib/api/endpoints';
@@ -82,17 +83,14 @@ export function NotebookDetailsSheet({
       return next;
     });
 
-  const addTag = () => {
-    const value = normalizeTag(tagDraft);
-
-    if (value && !tags.includes(value) && tags.length < META_TAGS_MAX) setTags([...tags, value]);
-    setTagDraft('');
-  };
+  /** A tag typed but not «entered» still counts: Save adds it instead of dropping it. */
+  const draftTag = normalizeTag(tagDraft);
+  const finalTags = draftTag && !tags.includes(draftTag) && tags.length < META_TAGS_MAX ? [...tags, draftTag] : tags;
 
   const changed = {
     title: title.trim() !== current.title && title.trim().length > 0,
     description: description.trim() !== (current.description ?? ''),
-    tags: JSON.stringify(tags) !== JSON.stringify(current.tags ?? []),
+    tags: JSON.stringify(finalTags) !== JSON.stringify(current.tags ?? []),
   };
   const dirty = changed.title || changed.description || changed.tags;
 
@@ -101,7 +99,7 @@ export function NotebookDetailsSheet({
       const next = await patchPage(current.id, {
         ...(changed.title ? { title: title.trim() } : {}),
         ...(changed.description ? { description: description.trim() || null } : {}),
-        ...(changed.tags ? { tags } : {}),
+        ...(changed.tags ? { tags: finalTags } : {}),
       });
 
       adopt(next);
@@ -144,11 +142,17 @@ export function NotebookDetailsSheet({
           <div className='flex flex-wrap justify-end gap-3'>
             {supported && (
               <ActionButton
+                aria-busy={busy === 'redo' || undefined}
+                // isolate: the glow sits at z -1 inside the button, over its face and under the label.
+                // While the redo itself runs, the button keeps full strength (the busy glow is the point);
+                // disabled because something else is running, it fades as usual.
+                className={`relative isolate ${busy === 'redo' ? 'disabled:opacity-100' : ''}`}
                 disabled={busy !== null}
                 loading={busy === 'redo'}
                 title='AI looks at your pages again. Anything you changed yourself stays.'
                 onClick={() => void run('redo', async () => void (await describe({ force: true })))}
               >
+                <ShaderGlow busy={busy === 'redo'} />
                 <Sparkles className='h-4 w-4' /> Redo with AI
               </ActionButton>
             )}
@@ -225,36 +229,15 @@ export function NotebookDetailsSheet({
 
               <div className='flex flex-col gap-1.5'>
                 {label('Tags', 'tags', 'nb-tag')}
-                {tags.length > 0 && (
-                  <div className='flex flex-wrap gap-2 py-1'>
-                    {tags.map((tag) => (
-                      <Chip key={tag} isClosable size='sm' variant='flat' onClose={() => setTags(tags.filter((other) => other !== tag))}>
-                        {tag}
-                      </Chip>
-                    ))}
-                  </div>
-                )}
-                {tags.length < META_TAGS_MAX && (
-                  <div className='flex items-center gap-3 pb-1'>
-                    <input
-                      className={INPUT_CLASS}
-                      id='nb-tag'
-                      maxLength={24}
-                      placeholder='Add a tag'
-                      value={tagDraft}
-                      onChange={(event) => setTagDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          addTag();
-                        }
-                      }}
-                    />
-                    <ActionButton aria-label='Add tag' className='w-11 shrink-0 px-0' disabled={!normalizeTag(tagDraft)} onClick={addTag}>
-                      <Plus className='h-4 w-4' />
-                    </ActionButton>
-                  </div>
-                )}
+                <TagInput
+                  id='nb-tag'
+                  maxLength={24}
+                  maxTags={META_TAGS_MAX}
+                  normalize={normalizeTag}
+                  value={tags}
+                  onChange={setTags}
+                  onDraftChange={setTagDraft}
+                />
               </div>
             </>
           )}

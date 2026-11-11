@@ -31,11 +31,11 @@ Classes: `packages/ui/src/components/sizing.ts` (`CONTROL_HEIGHT`, `CONTROL_WIDT
 
 ### Radius — one ladder (owner rule: nothing «very rounded» next to «square»)
 Values: `packages/ui/src/styles/scrapbook.css` → `--radius-sm` 8 / `--radius-md` 12 / `--radius-lg` 16.
-Classes: `rounded-sm` (chips, badges, tags, inline code, small tiles/checkboxes), `rounded-md` (buttons,
+Classes: `rounded-sm` (chips, badges, inline code, small tiles/checkboxes), `rounded-md` (buttons,
 inputs, selects, list rows, segmented groups), `rounded-lg` (cards, panels, modals, sheets, popovers).
 `rounded-st` = md, `rounded-st-lg` = lg; Tailwind's `rounded`/`xl`/`2xl`/`3xl`/`sk*` are aliases onto the
 same three (apps/study/tailwind.config.ts; clay `sk*` in packages/ui/tailwind.preset.js). No arbitrary `rounded-[Npx]`. `rounded-full` ONLY on true circles (dots,
-round icon buttons), switch tracks and thin bars — never on a chip, badge, pill button or tab group.
+round icon buttons), switch tracks and thin bars, and the designed `Tag` / `TagInput` pill from @repo/ui (owner's Figma spec, 2026-11-10) — never on a chip, badge, pill button or tab group.
 
 - A new @repo/ui component with a `size` prop MUST read `sizing.ts`, never hard-code `h-11`.
 - Call sites pick `size`; they never pass height/padding/text classes to restyle a control.

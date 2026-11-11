@@ -5,9 +5,8 @@ import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-import { SlidersHorizontal } from 'lucide-react';
-
 import { NotebookBoard } from '@/components/notebook/NotebookBoard';
+import { NoteCover } from '@/components/notes/NoteCover';
 import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
 import { ActionButton, BOARD_CHIP_OVERRIDE, EmptyState, LinkButton } from '@/components/ui/primitives';
 import { PlacePhoneImageChip } from '@/features/inbox';
@@ -218,15 +217,19 @@ export default function NotebookPage() {
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
           live={Boolean(page.live)}
-          secondRowStart={
+          // The name opens Notebook details (name, description, tags, cover live there, not up here).
+          // Someone else's shared page has no details: the board shows its plain name.
+          titleSlot={
             sharedWithMe ? undefined : (
               <ActionButton
-                aria-label='Notebook details'
-                className={BOARD_CHIP_OVERRIDE}
-                title='Notebook details: name, tags, cover'
+                aria-label={`Notebook details: ${page.title || 'Notebook'}`}
+                // Narrower than a laptop the top-end chips need the room: the name gives way first.
+                className={`${BOARD_CHIP_OVERRIDE} min-w-0 max-w-[12rem] !pl-1.5 text-sm lg:max-w-[18rem]`}
+                title={page.title || 'Notebook'}
                 onClick={() => setDetailsOpen(true)}
               >
-                <SlidersHorizontal className='h-3.5 w-3.5' /> <span data-chip-label>Details</span>
+                <NoteCover page={page} size='xs' />
+                <span className='min-w-0 truncate'>{page.title || 'Notebook'}</span>
               </ActionButton>
             )
           }
@@ -255,7 +258,6 @@ export default function NotebookPage() {
                 />
               )}
               {page.classId && page.kind === 'note' && (
-                // A rename shows on the next open: changing the board's title prop re-opens the document.
                 <AttachToLectureButton classId={page.classId} page={page} />
               )}
               {sharedWithMe ? (

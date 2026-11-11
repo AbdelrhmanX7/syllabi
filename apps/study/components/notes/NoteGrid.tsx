@@ -2,11 +2,11 @@ import type { Page } from "@/lib/api/types";
 
 import {
   Button,
-  Chip,
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Tag,
 } from "@repo/ui";
 import { MoreVertical, SlidersHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -71,7 +71,7 @@ function NoteCard({
   const { shown, more } = cardTags(page.tags);
 
   return (
-    // No overflow-hidden here: it would cut the tag chips' lips and the menu button.
+    // No overflow-hidden here: it would cut the menu button.
     <Surface className="hover:bg-st-raised relative flex h-full flex-col gap-2 p-2 pb-3">
       <NoteCover page={page} size="card" />
       <div className="flex items-start gap-1">
@@ -125,24 +125,13 @@ function NoteCard({
         </Dropdown>
       </div>
       {shown.length > 0 && (
-        <div className="flex flex-wrap gap-x-1.5 gap-y-2 pl-1">
+        <div className="flex flex-wrap gap-1.5 pl-1">
           {shown.map((tag) => (
-            <Chip
-              key={tag}
-              className="max-w-full"
-              classNames={{ content: "truncate" }}
-              size="sm"
-              title={tag}
-              variant="flat"
-            >
+            <Tag key={tag} title={tag}>
               {tag}
-            </Chip>
+            </Tag>
           ))}
-          {more > 0 && (
-            <Chip size="sm" title={`${more} more`} variant="flat">
-              +{more}
-            </Chip>
-          )}
+          {more > 0 && <Tag title={`${more} more`}>+{more}</Tag>}
         </div>
       )}
     </Surface>

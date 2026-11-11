@@ -133,6 +133,9 @@
   --surface-2: rgb(var(--st-raised));
   --surface-3: #303c76;
   --default-soft: rgb(var(--st-raised));
+  /* Tag fill (@repo/ui Tag / flat primary): Study's own selected wash, so the accent text on it is 4.6:1
+     (scrapbook's #2d376e gave 4.2:1 against Study's #7b9bff). */
+  --primary-soft: rgb(var(--st-accent-soft));
   --line: rgb(var(--st-clay-edge));
   --line-strong: #6577c8;
   --line-soft: rgb(var(--st-line));

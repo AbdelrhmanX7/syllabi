@@ -93,8 +93,8 @@ function forgetCoverUrl(url: string): void {
 }
 
 // `card`: full width at one fixed shape, so a grid of covers lines up whatever the picture's size.
-const SIZE = { sm: 'h-9 w-9 rounded-sm', lg: 'h-20 w-20 rounded-sm', card: 'aspect-[3/2] w-full rounded-md' } as const;
-const ICON_SIZE = { sm: 'h-4 w-4', lg: 'h-8 w-8', card: 'h-10 w-10' } as const;
+const SIZE = { xs: 'h-6 w-6 rounded-sm', sm: 'h-9 w-9 rounded-sm', lg: 'h-20 w-20 rounded-sm', card: 'aspect-[3/2] w-full rounded-md' } as const;
+const ICON_SIZE = { xs: 'h-3.5 w-3.5', sm: 'h-4 w-4', lg: 'h-8 w-8', card: 'h-10 w-10' } as const;
 
 /**
  * A notebook's cover: the AI picture, or a brand-colour tile with its icon. No cover yet → the plain

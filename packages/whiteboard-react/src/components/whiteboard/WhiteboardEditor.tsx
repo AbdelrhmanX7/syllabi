@@ -389,6 +389,11 @@ export interface WhiteboardEditorProps {
    */
   hideChrome?: boolean;
   /**
+   * Replaces the title chip in the window chrome (between back and fullscreen) — e.g. a host button that
+   * shows the document's name and opens its details. Default: the stored document title, read-only.
+   */
+  titleSlot?: React.ReactNode;
+  /**
    * View-only: the board pans and zooms (the PDF still scrolls) but nothing can be drawn — the canvas
    * runs the pan tool and the drawing toolbar and board AI are not rendered. The host flips it to let
    * the teacher annotate. Default false.
@@ -1532,6 +1537,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   whiteboardId,
   onBack,
   hideChrome = false,
+  titleSlot,
   readOnly = false,
   embedded = false,
   onAiGeneratingChromeChange,
@@ -7988,11 +7994,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 </button>
               </Tooltip>
             )}
-            <div
-              className={`block h-9 max-w-[18rem] truncate rounded-xl border-2 border-[rgb(var(--st-clay-edge,205_209_224))] bg-[rgb(var(--st-surface,255_255_255))] px-3 text-ink leading-[32px] shadow-[0_4px_0_rgb(var(--st-clay-edge,205_209_224))] text-sm font-semibold ${isFullScrollToolbar ? 'min-w-0 !shrink' : ''}`}
-            >
-              {documentTitle}
-            </div>
+            {titleSlot !== undefined ? (
+              <div className={`flex max-w-[18rem] ${isFullScrollToolbar ? 'min-w-0 !shrink' : ''}`}>{titleSlot}</div>
+            ) : (
+              <div
+                className={`block h-9 max-w-[18rem] truncate rounded-xl border-2 border-[rgb(var(--st-clay-edge,205_209_224))] bg-[rgb(var(--st-surface,255_255_255))] px-3 text-ink leading-[32px] shadow-[0_4px_0_rgb(var(--st-clay-edge,205_209_224))] text-sm font-semibold ${isFullScrollToolbar ? 'min-w-0 !shrink' : ''}`}
+              >
+                {documentTitle}
+              </div>
+            )}
             <Tooltip
               content={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')}
               portalContainer={overlayPortalContainer}
