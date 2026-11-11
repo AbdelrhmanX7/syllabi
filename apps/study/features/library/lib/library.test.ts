@@ -3,7 +3,7 @@ import type { LibraryDoc } from '@/lib/api/types';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { filterDocs, groupByWeek, prepareNoteMarkdown } from './library';
+import { filterDocs, groupByWeek, libraryUploadProblem, prepareNoteMarkdown } from './library';
 
 const doc = (id: string, kind: LibraryDoc['kind'], week: number | null, title = id): LibraryDoc => ({
   id,
@@ -55,4 +55,15 @@ test('prepareNoteMarkdown unwraps <signed urls> and puts each image on its own l
   );
   assert.equal(prepareNoteMarkdown('# Title\n\nplain'), '# Title\n\nplain');
   assert.equal(prepareNoteMarkdown('Letter\n\n* * *\n\nHello\n\n---\n- item'), 'Letter\n\nHello\n\n- item');
+});
+
+test('libraryUploadProblem: PDFs only, not empty, under the limit', () => {
+  const mb = 1024 * 1024;
+
+  assert.equal(libraryUploadProblem({ name: 'slides.pdf', type: 'application/pdf', size: mb }, 60 * mb), null);
+  // Some Android pickers give no type: the name decides.
+  assert.equal(libraryUploadProblem({ name: 'Slides.PDF', type: '', size: mb }, 60 * mb), null);
+  assert.equal(libraryUploadProblem({ name: 'photo.jpg', type: 'image/jpeg', size: mb }, 60 * mb), 'Pick a PDF file.');
+  assert.equal(libraryUploadProblem({ name: 'a.pdf', type: 'application/pdf', size: 0 }, 60 * mb), 'That PDF is empty.');
+  assert.match(libraryUploadProblem({ name: 'a.pdf', type: 'application/pdf', size: 61 * mb }, 60 * mb) ?? '', /limit is 60 MB/);
 });

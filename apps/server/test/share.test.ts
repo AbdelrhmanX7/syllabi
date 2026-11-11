@@ -67,6 +67,7 @@ describe("sharing", () => {
     m.Admin = (await import("../src/models/admin")).Admin;
     Object.assign(m, await import("../src/models/study"));
     m.storage = await import("../src/services/study/storage");
+    m.ShareFork = (await import("../src/models/share")).ShareFork;
     for (const [key, verified] of [["owner", true], ["friend", true], ["stranger", true], ["squatter", false]] as const) {
       const email = `${key}@example.test`;
       // The squatter registered (unverified) with the friend's second address.
@@ -184,6 +185,29 @@ describe("sharing", () => {
     assert.equal(forks.body.items[0].resourceId, String(copy._id));
     assert.equal(forks.body.items[0].forkedFrom.ownerName, "Owner");
     assert.equal(forks.body.items[0].forkedFrom.title, "Cell notes");
+  });
+
+  test("a second copy from the same share opens the first one; two taps at once make one copy; a deleted copy is made again", async () => {
+    const pages = () => m.StudyPage.countDocuments({ userId: new mongoose.Types.ObjectId(users.friend.id) });
+    const forkRows = () => m.ShareFork.countDocuments({ userId: new mongoose.Types.ObjectId(users.friend.id), "forkedFrom.shareId": new mongoose.Types.ObjectId(notebookShare) });
+    const before = await pages();
+    const rowsBefore = await forkRows();
+    const again = await call("friend", "POST", `/share/fork/${notebookShare}`);
+    assert.equal(again.status, 200);
+    assert.equal(again.body.existing, true);
+    const first = (await call("friend", "GET", "/share/forks")).body.items[0].resourceId;
+    assert.equal(again.body.resourceId, first);
+    assert.equal(await pages(), before, "no new page");
+    assert.equal(await forkRows(), rowsBefore, "no new fork row");
+
+    // The copy is deleted: the next tap makes a new one, and two taps at once still make only one.
+    await m.StudyPage.updateOne({ _id: first }, { $set: { deletedAt: new Date() } });
+    const [a, b] = await Promise.all([call("friend", "POST", `/share/fork/${notebookShare}`), call("friend", "POST", `/share/fork/${notebookShare}`)]);
+    assert.equal(a.body.resourceId, b.body.resourceId);
+    assert.notEqual(a.body.resourceId, first);
+    assert.deepEqual([a.status, b.status].sort(), [201, 201], "both taps answered by the one copy made");
+    assert.equal(await m.StudyPage.countDocuments({ userId: new mongoose.Types.ObjectId(users.friend.id), deletedAt: null }), before);
+    assert.equal(await forkRows(), rowsBefore + 1);
   });
 
   test("decks and question sets: cards vs questions, no progress, fork copies into a class of the same name", async () => {

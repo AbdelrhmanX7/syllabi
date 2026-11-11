@@ -55,3 +55,14 @@ export function prepareNoteMarkdown(markdown: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+/** Why this file can't go into the Library, in plain words; null when it can. */
+export function libraryUploadProblem(file: { name: string; type: string; size: number }, maxBytes: number): string | null {
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+  if (!isPdf) return 'Pick a PDF file.';
+  if (file.size === 0) return 'That PDF is empty.';
+  if (file.size > maxBytes) return `That PDF is too big. The limit is ${Math.round(maxBytes / (1024 * 1024))} MB.`;
+
+  return null;
+}

@@ -104,6 +104,8 @@ export const pdfAssetKey = (userId: string, assetId: string) => {
   return `study/${userId}/pdf-assets/${assetId}.pdf`;
 };
 /** PDF asset PUTs (raw body, 60 MB) mount their own parser. */
+/** Library PDF upload (raw body, routes/study/library.routes.ts): skips the app-wide parsers. */
+export const STUDY_LIBRARY_UPLOAD_PATH = /^\/study\/classes\/[^/]+\/library\/?$/;
 export const STUDY_PDF_ASSET_PATH = /^\/study\/(?:pages\/[^/]+\/)?pdf-assets\/[^/]+\/?$/;
 
 /** Server-routed upload signature (local driver and STORAGE_PROXY): HMAC over key + expiry, keyed by JWT_SECRET. */

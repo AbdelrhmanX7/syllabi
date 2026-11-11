@@ -123,5 +123,7 @@ const ShareForkSchema = new Schema<IShareFork>(
 );
 
 ShareForkSchema.index({ userId: 1, resourceType: 1, resourceId: 1 });
+// "Already have a copy from this share?" (routes/share.ts). Not unique: rows from before that check exist.
+ShareForkSchema.index({ userId: 1, "forkedFrom.shareId": 1 });
 
 export const ShareFork = mongoose.model<IShareFork>("ShareFork", ShareForkSchema, "study_share_forks");

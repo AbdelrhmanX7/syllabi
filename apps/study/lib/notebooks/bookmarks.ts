@@ -2,6 +2,7 @@
 // each commit, apps/server services/study/page-bookmarks.ts) and the list of every bookmark across
 // notebooks for the Notes page. Unit-tested (bookmarks.test.ts).
 import type { Page, PageBookmarkRef } from '@/lib/api/types';
+import type { NotebookFrom } from './back';
 
 import { resolvePageLabels } from '@repo/whiteboard-core';
 
@@ -60,10 +61,16 @@ export function allBookmarks(pages: readonly Page[]): BookmarkEntry[] {
 }
 
 /** The notebook route opened on the bookmarked page. */
-export function bookmarkHref(page: Pick<Page, 'id' | 'classId'>, bookmark: Pick<PageBookmarkRef, 'boardPageId'>): string {
+export function bookmarkHref(
+  page: Pick<Page, 'id' | 'classId'>,
+  bookmark: Pick<PageBookmarkRef, 'boardPageId'>,
+  from?: NotebookFrom,
+): string {
   const params = new URLSearchParams({ id: page.id, page: bookmark.boardPageId });
 
   if (page.classId) params.set('classId', page.classId);
+  // Back on the notebook returns to the screen the bookmark was picked on (lib/notebooks/back.ts).
+  if (from) params.set('from', from);
 
   return `/notebook/?${params.toString()}`;
 }

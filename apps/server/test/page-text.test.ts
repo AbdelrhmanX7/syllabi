@@ -142,6 +142,38 @@ describe("page text (stubs)", () => {
     assert.equal(calls.saved, 0);
   });
 
+  nodeTest("reading the writing fails on a PDF page → the PDF text alone when it is long enough, else the error", async () => {
+    const pdfKey = "study/64b000000000000000000001/pdf-assets/asset-1.pdf";
+    const board = JSON.stringify({ pages: [{ canvasJSON: '{"objects":[{"type":"path"}]}', pdfAssetId: "asset-1", pdfPageIndex: 0 }] });
+    const long = "Photosynthesis turns light into sugar. ".repeat(10);
+    const setup = (printed: string, fail: "transcribe" | "images" = "transcribe") => {
+      const page = pageOf();
+      const f = fake(page, { board, [pdfKey]: Buffer.from("%PDF-") });
+      f.deps.pdfPagesText = async () => [printed];
+      if (fail === "transcribe") f.deps.transcribe = async () => Promise.reject(new Error("AI is down"));
+      else f.deps.pageImages = async () => Promise.reject(new Error("render failed"));
+      return { page, ...f };
+    };
+
+    for (const fail of ["transcribe", "images"] as const) {
+      const { page, deps, calls } = setup(long, fail);
+      const out = await textOf(page, deps);
+      assert.equal(out.kind, "text");
+      assert.equal((out as Any).text, `Printed text on the page:\n${long.trim()}`);
+      assert.equal(calls.saved, 0, "not saved: the writing is read again next time");
+      assert.equal(page.ocrAiVersion, null);
+    }
+
+    const short = setup("Page 4");
+    await assert.rejects(textOf(short.page, short.deps), /AI is down/);
+
+    const aborted = setup(long);
+    const ctl = new AbortController();
+    ctl.abort();
+    const plan = await planPageText(aborted.page, aborted.deps);
+    await assert.rejects(plan.read(spend, ctl.signal), /AI is down/);
+  });
+
   nodeTest("helpers", () => {
     assert.deepEqual(boardInfo(BLANK).inkPages, []);
     assert.deepEqual(boardInfo("not json").inkPages, []);

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 import {
   EMPTY_TALLY,
+  filterChipCounts,
   gradeForKey,
   gradeRating,
   gradeResult,
@@ -127,4 +128,11 @@ test('tally + recall percent', () => {
   for (const g of ['again', 'good', 'easy', 'hard'] as const) tally = tallyAdd(tally, g);
   assert.deepEqual(tally, { again: 1, hard: 1, good: 1, easy: 1 });
   assert.equal(recallPercent(tally), 50);
+});
+
+test('filterChipCounts: All keeps every card, Bookmarked counts the marked ones', () => {
+  const cards = [card({ id: 'a', bookmarked: true }), card({ id: 'b' }), card({ id: 'c' })];
+
+  assert.deepEqual(filterChipCounts(cards), { all: 3, bookmarked: 1 });
+  assert.deepEqual(filterChipCounts([]), { all: 0, bookmarked: 0 });
 });

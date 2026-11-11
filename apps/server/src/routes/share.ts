@@ -18,7 +18,8 @@
  *   GET    /share/view/:idOrToken     read-only snapshot (grant, owner or link)  -> {share, content}
  *   GET    /share/view/:idOrToken/pdf-assets/:assetId  a shared notebook's PDF background
  *                                     -> {assetId, url, expiresAt} (same access as the view)
- *   POST   /share/fork/:idOrToken     deep copy into my account                 -> {resourceType, resourceId, topic, classId}
+ *   POST   /share/fork/:idOrToken     deep copy into my account                 -> {resourceType, resourceId, topic, classId, existing}
+ *                                     (201 a new copy; 200 + existing: true = my copy from this share already, opened instead)
  *   GET    /share/preview/:token      NO account needed: title, kind, owner first name (routes/share-public.ts)
  *
  * The link ("Anyone with the link can get a copy"): a 43-char token, on/off with `link` in POST / PATCH.
@@ -403,23 +404,46 @@ router.post(
     const found = await resolveShared(req.params.idOrToken, caller, "read");
     if (!found) return fail(res, 404, "NOT_FOUND", "This link doesn't work any more, or it wasn't shared with this account.");
     const { share, resource, via } = found;
-    const owner = await Admin.findById(share.ownerId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
-    const title = resourceTitle(resource);
-    const copy = await forkResource(resource, caller.userId);
-    await ShareFork.create({
-      userId: caller.userId,
-      resourceType: share.resourceType,
-      resourceId: copy.resourceId,
-      topic: copy.topic,
-      forkedFrom: { shareId: share._id, ownerName: via === "link" ? firstName(owner) : displayName(owner), title, resourceType: share.resourceType, resourceId: share.resourceId },
-    });
-    res.status(201).json({
-      resourceType: share.resourceType,
-      resourceId: String(copy.resourceId),
-      topic: copy.topic,
-      classId: copy.classId ? String(copy.classId) : null,
-    });
+    // One copy per person per share: a second tap (or a second visit) opens the copy already made. Two
+    // taps at once share one run, so the check below can't race itself into two copies.
+    const key = `${caller.userId}:${share._id}`;
+    let run = forksInFlight.get(key);
+    if (!run) {
+      run = (async () => {
+        const existing = await existingFork(caller.userId, share._id);
+        if (existing) return { ...existing, existing: true };
+        const owner = await Admin.findById(share.ownerId, { name: 1, email: 1 }).lean<{ name?: string; email?: string }>();
+        const title = resourceTitle(resource);
+        const copy = await forkResource(resource, caller.userId);
+        await ShareFork.create({
+          userId: caller.userId,
+          resourceType: share.resourceType,
+          resourceId: copy.resourceId,
+          topic: copy.topic,
+          forkedFrom: { shareId: share._id, ownerName: via === "link" ? firstName(owner) : displayName(owner), title, resourceType: share.resourceType, resourceId: share.resourceId },
+        });
+        return { resourceType: share.resourceType, resourceId: String(copy.resourceId), topic: copy.topic, classId: copy.classId ? String(copy.classId) : null, existing: false };
+      })().finally(() => forksInFlight.delete(key));
+      forksInFlight.set(key, run);
+    }
+    const result = await run;
+    res.status(result.existing ? 200 : 201).json(result);
   })
 );
+
+/** Copies being made right now, by `userId:shareId` (a double tap waits for the first one). */
+const forksInFlight = new Map<string, Promise<{ resourceType: ShareResourceType; resourceId: string; topic: string | null; classId: string | null; existing: boolean }>>();
+
+/** The caller's copy from this share that still exists (newest first), as the fork route answers it; null when none is left. */
+async function existingFork(userId: Types.ObjectId, shareId: Types.ObjectId) {
+  const rows = await ShareFork.find({ userId, "forkedFrom.shareId": shareId }).sort({ createdAt: -1 }).limit(20).lean();
+  for (const f of rows) {
+    const copy = await loadOwned({ resourceType: f.resourceType, resourceId: f.resourceId, topic: f.topic ?? null }, userId);
+    if (!copy) continue; // they deleted it: look further back, else make a new one
+    const classId = copy.type === "deck" || copy.type === "questions" ? copy.cls._id : copy.type === "conceptMap" ? (copy.cls?._id ?? null) : null;
+    return { resourceType: f.resourceType, resourceId: String(f.resourceId), topic: f.topic ?? null, classId: classId ? String(classId) : null };
+  }
+  return null;
+}
 
 export default router;

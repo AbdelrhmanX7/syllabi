@@ -19,13 +19,15 @@ interface PenSizePickerProps {
   onChange: (widthPx: number) => void;
   /** Accessible name for the group. */
   label: string;
+  /** What the sizes are for: each chip is read as «0.5 mm pen» or «3 mm highlighter». */
+  tool?: 'pen' | 'highlighter';
 }
 
 /**
  * One chip per real pen size (0.3 mm, 0.5 mm…): a dot whose diameter keeps the sizes' true ratios,
  * the number under it. A width that is not one of the sizes (an older custom width) picks no chip.
  */
-function PenSizePickerComponent({ sizes, valuePx, onChange, label }: PenSizePickerProps) {
+function PenSizePickerComponent({ sizes, valuePx, onChange, label, tool = 'pen' }: PenSizePickerProps) {
   const { t } = useWbStrings();
   const picked = selectedSizeMm(valuePx, sizes);
   const dotPerMm = MAX_DOT_PX / Math.max(...sizes);
@@ -40,7 +42,7 @@ function PenSizePickerComponent({ sizes, valuePx, onChange, label }: PenSizePick
         return (
           <Button
             key={mm}
-            aria-label={t('stroke.sizeMmPen', { n: text })}
+            aria-label={t(tool === 'highlighter' ? 'stroke.sizeMmHighlighter' : 'stroke.sizeMmPen', { n: text })}
             aria-pressed={isSelected}
             className='h-auto min-h-11 min-w-0 flex-1 px-1 py-1'
             size='sm'

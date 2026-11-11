@@ -7,6 +7,8 @@ import { FileText, Image as ImageIcon, Library, NotebookPen, NotebookText, Searc
 import { useClassLibrary, useLibrarySearch } from '../hooks';
 import { filterDocs, groupByWeek } from '../lib/library';
 
+import { LibraryUploadButton } from './LibraryUploadButton';
+
 import { EmptyState, ErrorNote, FilterChip, INPUT_CLASS, LoadingRows, Surface } from '@/components/ui/primitives';
 import { useLectureNoteWeeks, WeekNotes } from '@/features/lecturenotes/components/NoteLinks';
 import { describeError } from '@/lib/api/errors';
@@ -140,7 +142,8 @@ export function LibraryPanel({ classId, onOpen }: LibraryPanelProps) {
   if (docs.length === 0)
     return (
       <EmptyState
-        hint='Nothing has been imported from the class folder for this class yet.'
+        action={<LibraryUploadButton classId={classId} variant='primary' />}
+        hint='Upload a PDF, like lecture slides or a handout, to write on it and make flashcards from it.'
         icon={Library}
         title='Library is empty'
       />
@@ -160,6 +163,7 @@ export function LibraryPanel({ classId, onOpen }: LibraryPanelProps) {
             onChange={(event) => setText(event.target.value)}
           />
         </label>
+        <LibraryUploadButton classId={classId} />
         <div className='flex flex-wrap gap-1.5'>
           {KINDS.filter((item) => item.id === 'all' || counts[item.id] > 0).map((item) => (
             <FilterChip

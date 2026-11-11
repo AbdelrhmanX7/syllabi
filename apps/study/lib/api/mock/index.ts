@@ -32,7 +32,7 @@ import { StudyApiError } from '../errors';
 // Today fields; imported from its mock module, not its index (which pulls in React).
 
 import { mapClassIdInPath, mapClassIds, toFixtureClassId } from './class-map';
-import { pcmMockRoute } from './pcm';
+import { mockUploadLibraryPdf, pcmMockRoute } from './pcm';
 import { loadMockSeed } from './seed';
 import { delay, streamFrames, streamText } from './sse';
 import { getMockBlobStore } from './store';
@@ -1529,6 +1529,16 @@ export function createMockTransport(): StudyTransport {
         getMockBlobStore().set(`mock://lectures/${chunk[1]}/chunk-${chunk[2]}`, blob);
 
         return { index: Number(chunk[2]), size: blob.size } as T;
+      }
+
+      // «Upload PDF» to a class Library: keep the file in this tab, never read it as text.
+      const libraryUpload = /^\/classes\/([^/]+)\/library$/.exec(mapClassIdInPath(rawPath, 'toFixture'));
+
+      if (libraryUpload && method === 'POST') {
+        const blob = typeof body === 'string' ? new Blob([body], { type: contentType }) : body;
+        const name = new URLSearchParams(rawQuery).get('name') ?? '';
+
+        return mockUploadLibraryPdf(libraryUpload[1], name, URL.createObjectURL(blob), blob.size) as T;
       }
 
       const text = typeof body === 'string' ? body : await body.text();

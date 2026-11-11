@@ -369,7 +369,9 @@ const SettingsToolButton: React.FC<{
   children: React.ReactNode;
   /** When active, paint the key in this colour (the pen key wears the pen's ink). */
   activeColor?: string;
-}> = ({ tool, activeTool, icon, isOpen, placement, overlayPortalContainer, onToolChange, onOpenChange, children, activeColor }) => {
+  /** Accessible name (the key is an icon only). */
+  label: string;
+}> = ({ tool, activeTool, icon, isOpen, placement, overlayPortalContainer, onToolChange, onOpenChange, children, activeColor, label }) => {
   const isActive = activeTool === tool;
   const handlePress = useCallback(() => {
     if (!isActive) {
@@ -385,6 +387,7 @@ const SettingsToolButton: React.FC<{
     <Popover isOpen={isOpen} placement={placement} portalContainer={overlayPortalContainer} onOpenChange={onOpenChange}>
       <PopoverTrigger>
         <Button
+          aria-label={label}
           className={`${ICON_BUTTON_BASE_CLASS} shrink-0`}
           color='default'
           isIconOnly
@@ -761,6 +764,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   </span>
                 }
                 isOpen={openToolSettings === 'pen'}
+                label={t(TOOL_LABELS[lastPenTool])}
                 overlayPortalContainer={overlayPortalContainer}
                 placement={popoverPlacement}
                 tool={lastPenTool}
@@ -821,6 +825,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 activeTool={activeTool}
                 icon={<Highlighter className='h-4 w-4' />}
                 isOpen={openToolSettings === 'highlighter'}
+                label={t(TOOL_LABELS.highlighter)}
                 overlayPortalContainer={overlayPortalContainer}
                 placement={popoverPlacement}
                 tool='highlighter'
@@ -841,6 +846,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     <PenSizePicker
                       label={t('stroke.highlighterSize')}
                       sizes={HIGHLIGHTER_SIZES_MM}
+                      tool='highlighter'
                       valuePx={highlighterWidthPx(strokeSettings)}
                       onChange={(highlighterWidth) => onStrokeSettingsChange({ ...strokeSettings, highlighterWidth })}
                     />
@@ -851,6 +857,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 activeTool={activeTool}
                 icon={<Eraser className='h-4 w-4' />}
                 isOpen={openToolSettings === 'eraser'}
+                label={t(TOOL_LABELS.eraser)}
                 overlayPortalContainer={overlayPortalContainer}
                 placement={popoverPlacement}
                 tool='eraser'

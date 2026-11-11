@@ -15,6 +15,8 @@ import {
 } from "@/models/study/library";
 import { examResultDto, libraryDetailDto, libraryListDto, retrieveLibrary } from "@/services/study/library";
 import { signedGetUrl } from "@/services/study/storage";
+import { looksLikePdf } from "@/services/study/pdf-assets";
+import { uploadLibraryPdf } from "@/services/study/library-upload";
 import { BlueprintError, resolveBlueprint, validateBlueprint } from "@/services/study/exam-blueprint";
 import type { ExamBlueprint } from "@/models/study/library";
 import { fail, isOid, uid, wrap } from "./study.controller";
@@ -50,6 +52,21 @@ export const listClassLibrary = wrap(async (req, res) => {
   }
   const docs = await StudyLibraryDoc.find(filter, { markdown: 0 }).sort({ week: 1, relPath: 1 }).lean<IStudyLibraryDoc[]>();
   res.json(docs.map(libraryListDto));
+});
+
+/**
+ * `POST /study/classes/:id/library?name=<file name>` — raw PDF body (the router's own parser, capped
+ * at PDF_ASSET_MAX_BYTES like a notebook PDF). 201 + the list row when added; 200 + the existing row
+ * when this exact file is already in the class Library.
+ */
+export const uploadClassLibraryPdf = wrap(async (req, res) => {
+  const body = req.body;
+  if (!Buffer.isBuffer(body) || body.length === 0) return fail(res, 400, "EMPTY_BODY", "Choose a PDF to upload");
+  if (!looksLikePdf(body)) return fail(res, 415, "NOT_A_PDF", "That file is not a PDF");
+  const cls = await ownClass(req, res);
+  if (!cls) return;
+  const { doc, created } = await uploadLibraryPdf(uid(req), cls, body, req.query.name);
+  res.status(created ? 201 : 200).json(libraryListDto(doc));
 });
 
 export const getLibraryDoc = wrap(async (req, res) => {

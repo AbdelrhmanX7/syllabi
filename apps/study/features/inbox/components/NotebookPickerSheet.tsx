@@ -17,6 +17,7 @@ import { createPage, listPages } from '@/lib/api/endpoints';
 import { describeError } from '@/lib/api/errors';
 import { studyKeys, useClasses } from '@/lib/api/hooks';
 import { formatRelative } from '@/lib/format';
+import { takesInboxItems } from '@/lib/notebooks/my-notes';
 import { rememberPages } from '@/lib/notebooks/pages-cache';
 
 const TITLE_MAX = 200;
@@ -57,9 +58,10 @@ export function NotebookPickerSheet({
   );
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    // Handwritten notes only: a PDF / lecture / solve page opens on its own screen, not `/notebook/`.
+    // Pages that open on `/notebook/` (notes, and PDF notebooks of their own such as a shared copy); a
+    // class item / Library PDF, a lecture or a solve page opens on its own screen.
     const rows = (pages.data ?? [])
-      .filter((page) => page.kind === 'note' && (!needle || page.title.toLowerCase().includes(needle)))
+      .filter((page) => takesInboxItems(page) && (!needle || page.title.toLowerCase().includes(needle)))
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
     const byClass = new Map<string, Page[]>();
 

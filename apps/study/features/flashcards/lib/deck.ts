@@ -144,3 +144,11 @@ export function recallPercent(tally: SessionTally): number {
 
   return total ? Math.round(((tally.good + tally.easy) / total) * 100) : 0;
 }
+
+/**
+ * The counts on the Flashcards filter chips. «All» is every card whatever is filtered (it is the way back
+ * to everything); «Bookmarked» is the bookmarked cards.
+ */
+export function filterChipCounts(cards: readonly Pick<Question, 'bookmarked'>[]): { all: number; bookmarked: number } {
+  return { all: cards.length, bookmarked: cards.filter((card) => card.bookmarked).length };
+}

@@ -264,3 +264,38 @@ test('full-scroll bottom: a flush bar, the page group pinned at the end outside 
     root.unmount();
   });
 });
+
+test('screen readers: pen, highlighter and eraser keys have names; highlighter sizes read as highlighter', async () => {
+  const { default: Toolbar } = await import('./Toolbar');
+  const { createRoot } = await import('react-dom/client');
+  const { act } = await import('react');
+
+  const container = document.createElement('div');
+
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  // The open popover measures itself.
+  (globalThis as unknown as { getComputedStyle: unknown }).getComputedStyle = window.getComputedStyle.bind(window);
+
+  await act(async () => {
+    root.render(React.createElement(Toolbar, { ...toolbarProps([]), activeTool: 'highlighter' as const, openToolSettings: 'highlighter' as const }));
+  });
+
+  assert.equal(buttonWithIcon(container, 'lucide-pencil')?.getAttribute('aria-label'), 'Pen');
+  assert.equal(buttonWithIcon(container, 'lucide-highlighter')?.getAttribute('aria-label'), 'Highlighter');
+  assert.equal(buttonWithIcon(container, 'lucide-eraser')?.getAttribute('aria-label'), 'Eraser');
+
+  // The open highlighter popover (portalled to the body): one chip per size, named for the highlighter.
+  const sizeNames = Array.from(document.body.querySelectorAll('[role="group"] button'))
+    .map((button) => button.getAttribute('aria-label') ?? '')
+    .filter((name) => / mm /.test(name));
+
+  assert.ok(sizeNames.includes('3 mm highlighter'), `got ${sizeNames.join(', ')}`);
+  assert.equal(sizeNames.some((name) => name.endsWith(' pen')), false);
+
+  await act(async () => {
+    root.unmount();
+  });
+  container.remove();
+});

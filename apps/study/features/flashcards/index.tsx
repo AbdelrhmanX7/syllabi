@@ -10,7 +10,7 @@ import { BookmarkButton } from './components/BookmarkButton';
 import { CardSheet } from './components/CardSheet';
 import { StudySession } from './components/StudySession';
 import { useFlashcards } from './hooks';
-import { groupDecks, isDue, orderSession } from './lib/deck';
+import { filterChipCounts, groupDecks, isDue, orderSession } from './lib/deck';
 
 import {
   ActionButton,
@@ -88,7 +88,8 @@ export default function FlashcardsHome({
     () => groupDecks(cardsQuery.data ?? [], classes.map((cls) => cls.id)),
     [cardsQuery.data, classes],
   );
-  const bookmarkedCount = useMemo(() => (cardsQuery.data ?? []).filter((card) => card.bookmarked).length, [cardsQuery.data]);
+  const chipCounts = useMemo(() => filterChipCounts(cardsQuery.data ?? []), [cardsQuery.data]);
+  const bookmarkedCount = chipCounts.bookmarked;
   const allDecks = useMemo(
     () =>
       bookmarkedOnly
@@ -192,7 +193,7 @@ export default function FlashcardsHome({
         <div className='flex flex-wrap gap-2 pb-1'>
           <FilterChip
             active={!filter}
-            count={bookmarkedOnly ? bookmarkedCount : (cardsQuery.data ?? []).length}
+            count={chipCounts.all}
             onClick={() => setFilter(null)}
           >
             All

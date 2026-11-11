@@ -40,7 +40,7 @@ import type {
 
 import type { RulerPreset } from '@/lib/ruler/preset';
 
-import { studyDelete, studyGet, studyPatch, studyPost, studyPut, studyPutRaw, studySse } from './http';
+import { studyDelete, studyGet, studyPatch, studyPost, studyPostRaw, studyPut, studyPutRaw, studySse } from './http';
 
 function qs(params: Record<string, string | number | boolean | null | undefined>): string {
   const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '');
@@ -351,6 +351,11 @@ export const aiFlashcards = (
 
 export const listClassLibrary = (classId: string, filter: { kind?: LibraryKind; week?: number | null } = {}) =>
   studyGet<LibraryDoc[]>(`/classes/${enc(classId)}/library${qs(filter)}`);
+/** Biggest PDF the Library takes (the server's cap for notebook PDFs too). */
+export const LIBRARY_UPLOAD_MAX_BYTES = 60 * 1024 * 1024;
+/** Upload a PDF to the class Library → its list row (the same row again when that file is already there). */
+export const uploadLibraryPdf = (classId: string, file: Blob, name: string) =>
+  studyPostRaw<LibraryDoc>(`/classes/${enc(classId)}/library?name=${enc(name)}`, file, 'application/pdf');
 /** Keyword search over the class library; needs `q` or `week`. */
 export const searchClassLibrary = (classId: string, query: { q?: string; week?: number | null; limit?: number }) =>
   studyGet<LibraryHit[]>(`/classes/${enc(classId)}/library/search${qs(query)}`);

@@ -4,12 +4,13 @@
 import type { ShareResourceType, SharedWithMeItem } from './types';
 import type { LucideIcon } from 'lucide-react';
 
+import { useRef } from 'react';
 import { addToast } from '@repo/ui';
 import { ChevronRight, Copy, GalleryVerticalEnd, Link2, ListChecks, Network, NotebookPen, Pencil, Plus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-import { forkHref, useFork, useLinkPreview, useSharedView, useSharedWithMe } from './api';
+import { forkHref, useFork, useForks, useLinkPreview, useSharedView, useSharedWithMe } from './api';
 import { isLinkToken, loginHref } from './link';
 import { SharedContent } from './components/SharedViews';
 import { RESOURCE_LABEL, RESOURCE_NOUN, ROLE_LABEL } from './types';
@@ -103,6 +104,9 @@ function SharedViewer({ id }: { id: string }) {
   const router = useRouter();
   const { data, isLoading, error } = useSharedView(id);
   const fork = useFork();
+  const forks = useForks();
+  // A second tap before the first answer re-renders the button as busy must not send a second copy.
+  const forking = useRef(false);
 
   if (isLoading) return <LoadingRows rows={5} />;
   // Demo mode opening a real link: the demo doesn't know it, so show what the link holds instead.
@@ -124,14 +128,22 @@ function SharedViewer({ id }: { id: string }) {
   const canEdit = share.role === 'editor' && !share.isOwner && Boolean(share.resourceId);
   // Opened by link: the button says what it does for them («Add to my Syllabi» = their own copy).
   const byLink = isLinkToken(id) && !share.isOwner;
-  const makeCopy = () =>
+  // Their copy from this share, if they made one: the button opens it (the server answers with that copy).
+  const haveCopy = !share.isOwner && (forks.data ?? []).some((f) => f.forkedFrom.shareId === share.id);
+  const makeCopy = () => {
+    if (forking.current) return;
+    forking.current = true;
     fork.mutate(id, {
       onSuccess: (result) => {
-        addToast({ title: `Copied to your ${RESOURCE_NOUN[result.resourceType]}s`, color: 'success' });
+        if (!result.existing) addToast({ title: `Copied to your ${RESOURCE_NOUN[result.resourceType]}s`, color: 'success' });
         void router.push(forkHref(result));
       },
-      onError: (e) => addToast({ title: errorText(e), color: 'danger' }),
+      onError: (e) => {
+        forking.current = false;
+        addToast({ title: errorText(e), color: 'danger' });
+      },
     });
+  };
 
   return (
     <>
@@ -148,7 +160,11 @@ function SharedViewer({ id }: { id: string }) {
               variant={canEdit && share.resourceType === 'notebook' ? 'secondary' : 'primary'}
               onClick={makeCopy}
             >
-              {byLink ? (
+              {haveCopy ? (
+                <>
+                  <ChevronRight className='h-4 w-4' /> Open my copy
+                </>
+              ) : byLink ? (
                 <>
                   <Plus className='h-4 w-4' /> Add to my Syllabi
                 </>
@@ -162,7 +178,7 @@ function SharedViewer({ id }: { id: string }) {
         }
         back='/shared/'
         subtitle={`${share.isOwner ? 'Yours' : `${share.ownerName}’s`} ${RESOURCE_NOUN[share.resourceType]} · ${
-          canEdit ? ROLE_LABEL.editor : byLink ? 'Add it to get your own copy to change' : 'View only'
+          canEdit ? ROLE_LABEL.editor : haveCopy ? 'You have your own copy' : byLink ? 'Add it to get your own copy to change' : 'View only'
         } · ${share.editedBy ? `edited by ${share.editedBy.name}` : 'updated'} ${shortWhen(share.updatedAt)}`}
         title={share.title}
       />

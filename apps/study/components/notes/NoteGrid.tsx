@@ -15,6 +15,7 @@ import { NoteCover } from "@/components/notes/NoteCover";
 import { useNoteActions } from "@/components/notes/useNoteActions";
 import { Surface } from "@/components/ui/primitives";
 import { notebookHref } from "@/features/lecturenotes/hooks";
+import { type NotebookFrom, withFrom } from "@/lib/notebooks/back";
 import { formatRelative } from "@/lib/format";
 import { cardTags } from "@/lib/notebooks/page-meta";
 
@@ -25,9 +26,12 @@ import { cardTags } from "@/lib/notebooks/page-meta";
 export function NoteGrid({
   pages,
   labelFor,
+  from,
 }: {
   pages: Page[];
   labelFor?: (page: Page) => string | undefined;
+  /** The screen showing the grid: back on the notebook returns there (lib/notebooks/back.ts). */
+  from?: NotebookFrom;
 }) {
   const { openDetails, askDelete, overlays } = useNoteActions();
 
@@ -37,6 +41,7 @@ export function NoteGrid({
         {pages.map((page) => (
           <li key={page.id} className="min-w-0">
             <NoteCard
+              from={from}
               label={labelFor?.(page)}
               page={page}
               onDelete={askDelete}
@@ -53,11 +58,13 @@ export function NoteGrid({
 function NoteCard({
   page,
   label,
+  from,
   onDetails,
   onDelete,
 }: {
   page: Page;
   label?: string;
+  from?: NotebookFrom;
   onDetails: (page: Page) => void;
   onDelete: (page: Page) => void;
 }) {
@@ -79,7 +86,7 @@ function NoteCard({
           {/* Stretched link: its ::after covers the card, so a tap anywhere opens the notebook. */}
           <Link
             className="text-st-fg focus-visible:after:outline-st-accent block truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-st-lg focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2"
-            href={notebookHref(page)}
+            href={withFrom(notebookHref(page), from)}
             title={page.title}
           >
             {page.title}

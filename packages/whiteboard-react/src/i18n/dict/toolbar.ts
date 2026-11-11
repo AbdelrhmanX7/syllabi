@@ -220,6 +220,7 @@ export const TOOLBAR_STRINGS = {
   'stroke.widthN': 'Width {n}',
   'stroke.sizeMm': '{n} mm',
   'stroke.sizeMmPen': '{n} mm pen',
+  'stroke.sizeMmHighlighter': '{n} mm highlighter',
   'pages.pageN': 'Page {n}',
   'quick.colorN': 'Colour {color}',
 } satisfies Record<string, string>;

@@ -8,6 +8,7 @@ import { renderJpeg } from "./notebook-renders";
 import { RENDERS_FOR_VISION } from "./page-meta";
 import { createPageRasterizer } from "./page-raster";
 import { getStudyObject, pdfAssetKey, PDF_ASSET_ID_RE } from "./storage";
+import { logger } from "@/services/logger.service";
 
 /**
  * The text of one notebook page for the text-only AI steps (flashcards, questions).
@@ -18,7 +19,8 @@ import { getStudyObject, pdfAssetKey, PDF_ASSET_ID_RE } from "./storage";
  *    at most RENDERS_FOR_VISION images, one vision call on the caller's spend. The result is saved as
  *    `ocrText` with `ocrAiVersion` = the version read, so the next request is free; once the page
  *    moves to a newer version the reading is stale and is made again.
- * 3. A PDF under the pages adds its own text layer (no AI needed for that part).
+ * 3. A PDF under the pages adds its own text layer (no AI needed for that part). When reading the
+ *    handwriting fails but that printed text is long enough (PRINTED_ENOUGH_CHARS), it is used alone.
  *
  * The cheap part (`planPageText`) runs before the request opens its stream; the AI part is the
  * deferred `read`, run inside the stream so its spend, limits and errors are the request's own.
@@ -46,6 +48,8 @@ const READ_TIMEOUT_MS = 90_000;
 const PDF_TEXT_MAX_CHARS = 30_000;
 const PDF_PAGES_MAX = 60;
 const OCR_MAX_CHARS = 200_000;
+/** Printed PDF text longer than this is enough on its own when reading the handwriting fails. */
+export const PRINTED_ENOUGH_CHARS = 200;
 
 export const PAGE_READ_PROMPT = [
   "These images are one page of a student's handwritten notebook, top to bottom, in order.",
@@ -187,8 +191,17 @@ export async function planPageText(page: PageDoc, deps: PageTextDeps = defaultDe
   return {
     kind: "read",
     read: async (spend, signal) => {
-      const images = await deps.pageImages(page, board);
-      const handwriting = images.length ? cleanReading(await deps.transcribe(images, !!printed, spend, signal)) : "";
+      let handwriting: string;
+      try {
+        const images = await deps.pageImages(page, board);
+        handwriting = images.length ? cleanReading(await deps.transcribe(images, !!printed, spend, signal)) : "";
+      } catch (e) {
+        // Reading the writing failed (AI error, render error), but the PDF's printed text is enough to
+        // work from: use it alone. Not saved, so the writing is read again next time.
+        if (signal?.aborted || printed.trim().length <= PRINTED_ENOUGH_CHARS) throw e;
+        await logger.warn("page text: reading the writing failed, using the PDF text alone", { pageId: String(page._id), error: e instanceof Error ? e.message : String(e) }).catch(() => undefined);
+        return { kind: "text", text: joinPageText("", printed) };
+      }
       if (signal?.aborted) return { kind: "unreadable" };
       // The board has ink, so nothing read means the writing could not be made out (not an empty page).
       if (!handwriting) return printed ? { kind: "text", text: joinPageText("", printed) } : { kind: "unreadable" };

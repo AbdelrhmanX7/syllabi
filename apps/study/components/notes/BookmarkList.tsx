@@ -46,7 +46,7 @@ export function BookmarkList({ pages }: { pages: readonly Page[] }) {
               key={`${page.id}:${bookmark.boardPageId}`}
               className="rounded-st hover:bg-st-raised flex min-h-11 min-w-0 items-center gap-3 px-3 py-2"
               data-bookmark-row
-              href={bookmarkHref(page, bookmark)}
+              href={bookmarkHref(page, bookmark, 'notes')}
               title={`${name} · ${notebook}, page ${bookmark.pageLabel}`}
             >
               <Bookmark aria-hidden className="text-st-accent h-4 w-4 shrink-0" fill="currentColor" />

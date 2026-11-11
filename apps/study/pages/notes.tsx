@@ -165,7 +165,7 @@ export default function NotesPage() {
             ownShown.length > 0 && (
               <section>
                 <SectionTitle count={ownShown.length}>My notes</SectionTitle>
-                <NoteGrid pages={ownShown} />
+                <NoteGrid from="notes" pages={ownShown} />
               </section>
             )
           )}
@@ -176,6 +176,7 @@ export default function NotesPage() {
                 Class notebooks
               </SectionTitle>
               <NoteGrid
+                from="notes"
                 labelFor={(page) =>
                   classNames.get(page.classId as string) ?? "Class"
                 }

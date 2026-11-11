@@ -17,6 +17,7 @@ import { AttachToLectureButton, lectureNoteSeed, usePageLecture } from '@/featur
 import { track } from '@/lib/analytics';
 import { getLibraryDoc, getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { PAGE_DESCRIBED_EVENT, rememberPdfName } from '@/lib/notebooks/auto-describe';
+import { notebookBackTarget } from '@/lib/notebooks/back';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
 import { isLocalPageId, pageRedirect } from '@/lib/offline/local-pages';
@@ -169,10 +170,11 @@ export default function NotebookPage() {
   const handleBack = useCallback(() => {
     // Only from the notebook still on screen: a late call from one already left must not close the next.
     if (!page || new URLSearchParams(window.location.search).get('id') !== page.id) return;
-    if (page.shared) void router.push('/shared/');
-    else if (page.classId) void router.push(`/class/?id=${encodeURIComponent(page.classId)}`);
-    else if (window.history.length > 1) router.back();
-    else void router.push('/');
+    // Where it was opened from first (the Notes page adds `&from=notes`), then shared / class / history.
+    const target = notebookBackTarget(page, new URLSearchParams(window.location.search).get('from'), window.history.length > 1);
+
+    if (target === 'history') router.back();
+    else void router.push(target);
   }, [page, router]);
 
   // A PDF imported into a note that still has its generated name renames it after the file (a name

@@ -53,6 +53,15 @@ export const studyPutRaw = <T>(path: string, body: Blob | string, contentType: s
   return transport.raw<T>('PUT', path, body, contentType);
 };
 
+/** POST a raw body (a file upload) to a study route; resolves with the parsed JSON answer. */
+export const studyPostRaw = <T>(path: string, body: Blob, contentType: string) => {
+  const transport = current();
+
+  if (!transport.raw) throw new Error('Study transport has no raw-body support');
+
+  return transport.raw<T>('POST', path, body, contentType);
+};
+
 /** POST a raw body and get the raw answer back (`Response`, already checked `ok`). */
 export const studyPostRawBlob = (path: string, body: Blob, headers: Record<string, string>) => {
   const transport = current();

@@ -13,7 +13,7 @@ import shareRouter from "@/routes/share";
 import sharePublicRouter from "@/routes/share-public";
 import studyObjectProxyRouter from "@/routes/study/object-proxy";
 import { LOCAL_STORAGE_DIR, LOCAL_STORAGE_MOUNT, useLocalStorage, useStorageProxy } from "@/compat/s3";
-import { STUDY_BLOB_PATH, STUDY_CONVERT_PATH, STUDY_OWN_JSON_PARSER_PATH, STUDY_PDF_ASSET_PATH } from "@/services/study/storage";
+import { STUDY_BLOB_PATH, STUDY_CONVERT_PATH, STUDY_LIBRARY_UPLOAD_PATH, STUDY_OWN_JSON_PARSER_PATH, STUDY_PDF_ASSET_PATH } from "@/services/study/storage";
 import { httpDrain } from "@/services/http-drain";
 import { logger } from "@/services/logger.service";
 
@@ -46,6 +46,7 @@ export function createApp() {
     STUDY_BLOB_PATH.test(path) ||
     STUDY_CONVERT_PATH.test(path) ||
     STUDY_PDF_ASSET_PATH.test(path) ||
+    STUDY_LIBRARY_UPLOAD_PATH.test(path) ||
     STUDY_OWN_JSON_PARSER_PATH.test(path);
   app.use((req, res, next) => (hasOwnParser(req.path) ? next() : appJsonParser(req, res, next)));
   app.use((req, res, next) => (hasOwnParser(req.path) ? next() : appUrlencodedParser(req, res, next)));

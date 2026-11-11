@@ -110,6 +110,8 @@ export interface ForkResult {
   resourceId: string;
   topic: string | null;
   classId: string | null;
+  /** True = this account already had a copy from this share; that copy is returned, none is made. */
+  existing?: boolean;
 }
 
 export const RESOURCE_NOUN: Record<ShareResourceType, string> = {

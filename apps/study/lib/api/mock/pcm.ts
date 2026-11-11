@@ -37,6 +37,10 @@ const NOTE_MD = (title: string, week: number) =>
   ].join('\n');
 
 function docsFor(classId: string): LibraryDetailSeed[] {
+  return [...seedDocsFor(classId), ...(uploads.get(classId) ?? [])];
+}
+
+function seedDocsFor(classId: string): LibraryDetailSeed[] {
   const code = classId.replace(/^cls_/, '');
   const lab = classId === 'cls_demo_lab';
 
@@ -84,12 +88,42 @@ function docsFor(classId: string): LibraryDetailSeed[] {
 
 interface LibraryDetailSeed extends LibraryDoc {
   textOnly?: boolean;
+  /** A PDF uploaded in this session: its own file (an object url). */
+  fileUrl?: string;
+  size?: number;
+}
+
+/** PDFs uploaded to a class Library in demo mode (in memory, like the rest of this mock). */
+const uploads = new Map<string, LibraryDetailSeed[]>();
+let uploadSeq = 1;
+
+/** Demo-mode «Upload PDF»: the file stays in this tab (an object url) so «Write on it» opens it. */
+export function mockUploadLibraryPdf(classId: string, name: string, fileUrl: string, size: number): LibraryDoc {
+  const title = name.replace(/\.pdf$/i, '').trim() || 'Uploaded PDF';
+  const list = uploads.get(classId) ?? [];
+  const doc: LibraryDetailSeed = {
+    id: `lib_upload_${uploadSeq++}`,
+    title,
+    kind: 'pdf',
+    week: null,
+    path: `Uploaded/${title}.pdf`,
+    updatedAt: new Date().toISOString(),
+    fileUrl,
+    size,
+  };
+
+  uploads.set(classId, [...list, doc]);
+  const { fileUrl: _url, size: _size, ...row } = doc;
+
+  return row;
 }
 
 const SAMPLE_PDF = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf';
 
 function detail(seed: LibraryDetailSeed): LibraryDocDetail {
-  const { textOnly, ...doc } = seed;
+  const { textOnly, fileUrl, size, ...doc } = seed;
+
+  if (fileUrl) return { ...doc, pages: null, fileStored: true, url: fileUrl, mime: 'application/pdf', size: size ?? 0 };
 
   if (doc.kind === 'note')
     return { ...doc, pages: 1, fileStored: false, markdown: NOTE_MD(doc.title, doc.week ?? 1), assets: {} };
@@ -186,7 +220,7 @@ export function pcmMockRoute(
   const [head, id, sub, extra] = segments;
 
   if (head === 'library' && id && method === 'GET') {
-    const doc = ['cls_demo_cs', 'cls_demo_earth', 'cls_demo_lab', 'cls_demo_math']
+    const doc = ['cls_demo_cs', 'cls_demo_earth', 'cls_demo_lab', 'cls_demo_math', ...uploads.keys()]
       .flatMap(docsFor)
       .find((candidate) => candidate.id === id);
 
@@ -212,7 +246,7 @@ export function pcmMockRoute(
     return {
       value: docsFor(id)
         .filter((doc) => (!kind || doc.kind === kind) && (!week || doc.week === Number(week)))
-        .map(({ textOnly: _textOnly, ...doc }) => doc),
+        .map(({ textOnly: _textOnly, fileUrl: _fileUrl, size: _size, ...doc }) => doc),
     };
   }
   if (sub === 'guide') {

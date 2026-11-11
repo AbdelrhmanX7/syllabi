@@ -269,7 +269,13 @@ async function firstClass(): Promise<StudyClass | null> {
   return classes[0] ?? null;
 }
 
+/** The copy made from each share (by share id): a second «Add» opens it, like the server. */
+const madeFrom = new Map<string, ForkResult>();
+
 async function fork(found: Incoming): Promise<ForkResult> {
+  const made = madeFrom.get(found.item.id);
+
+  if (made) return { ...made, existing: true };
   const type: ShareResourceType = found.item.resourceType;
   let result: ForkResult;
 
@@ -313,6 +319,7 @@ async function fork(found: Incoming): Promise<ForkResult> {
     forkedFrom: { shareId: found.item.id, ownerName: found.item.ownerName, title: found.item.title, resourceType: type },
     createdAt: new Date().toISOString(),
   });
+  madeFrom.set(found.item.id, result);
 
   return result;
 }

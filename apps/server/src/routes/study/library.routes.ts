@@ -13,12 +13,16 @@ import {
   putExamsSchedule,
   putGuide,
   searchClassLibrary,
+  uploadClassLibraryPdf,
 } from "@/controllers/study-library.controller";
+import { PDF_ASSET_MAX_BYTES } from "@/services/study/storage";
 
 /** P-CM — class library, guide, exam schedule, exam results, lab kit. Mounted at /study by routes/study/router.ts. */
 const router = express.Router();
 
 router.get("/classes/:id/library", listClassLibrary);
+// Upload a PDF to the class Library. app.ts skips the app-wide parsers here (STUDY_LIBRARY_UPLOAD_PATH).
+router.post("/classes/:id/library", express.raw({ type: "*/*", limit: PDF_ASSET_MAX_BYTES }), uploadClassLibraryPdf);
 router.get("/classes/:id/library/search", searchClassLibrary);
 router.get("/library/:id", getLibraryDoc);
 router.get("/classes/:id/guide", getGuide);
