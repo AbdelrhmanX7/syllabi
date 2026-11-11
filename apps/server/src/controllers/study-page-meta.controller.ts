@@ -18,6 +18,7 @@ import {
   META_FIELDS,
   pageCoverKey,
   planMetaWrite,
+  RENDERS_FOR_VISION,
   sanitizeDescribeReply,
 } from "@/services/study/page-meta";
 import { PAGE_PROJECTION, pageDtoWithCover } from "./study-pages.controller";
@@ -37,7 +38,6 @@ import { fail, isOid, uid, wrap } from "./study.controller";
  * removed is left alone. `only: "cover"` (Make a new cover) skips the text fields.
  */
 
-const RENDERS_FOR_VISION = 4;
 const RENDER_EDGE = 1024;
 const DESCRIBE_TIMEOUT_MS = 60_000;
 const COVER_PX = 512;

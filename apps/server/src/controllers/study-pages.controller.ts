@@ -465,8 +465,9 @@ export const putPageOcr = wrap(async (req, res) => {
   const found = await editablePage(req, res);
   if (!found) return;
   const { page } = found;
-  // OCR is metadata: it must not move `updatedAt`, which means "content changed".
-  await StudyPage.updateOne({ _id: page._id, userId: page.userId }, { $set: { ocrText: text.trim() || null, ocrUpdatedAt: new Date() } }, { timestamps: false });
+  // OCR is metadata: it must not move `updatedAt`, which means "content changed". The app's text
+  // replaces any AI reading of the page (ocrAiVersion null).
+  await StudyPage.updateOne({ _id: page._id, userId: page.userId }, { $set: { ocrText: text.trim() || null, ocrUpdatedAt: new Date(), ocrAiVersion: null } }, { timestamps: false });
   res.status(204).end();
 });
 

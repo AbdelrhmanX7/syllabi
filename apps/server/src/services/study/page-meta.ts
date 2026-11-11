@@ -12,6 +12,8 @@ export const META_TAG_MAX_CHARS = 24;
 export const META_TITLE_MAX = 200;
 /** Content versions a notebook must move past `metaAiVersion` before the app asks for a fresh description. */
 export const META_REDESCRIBE_VERSIONS = 5;
+/** Page images one AI look at a notebook may send (describe, and reading the handwriting for flashcards/questions). */
+export const RENDERS_FOR_VISION = 4;
 
 export const MATH_TOOLS_MODES = ["auto", "on", "off"] as const;
 export type MathToolsMode = (typeof MATH_TOOLS_MODES)[number];

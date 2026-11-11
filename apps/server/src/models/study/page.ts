@@ -98,9 +98,17 @@ export interface IStudyPage {
   version: number;
   /** Storage key of the current version; null before the first commit. */
   contentKey: string | null;
-  /** Handwriting OCR text the client sends (PUT /study/pages/:id/ocr) — feeds search + extract. */
+  /**
+   * Handwriting text — feeds search + extract. Sent by the client (PUT /study/pages/:id/ocr), or read
+   * by AI from the page when it was missing (services/study/page-text.ts).
+   */
   ocrText: string | null;
   ocrUpdatedAt: Date | null;
+  /**
+   * Set when AI read `ocrText` from the page: the content version it read. null = the client sent it
+   * (the client's text always wins). AI text older than the current version is read again.
+   */
+  ocrAiVersion?: number | null;
   thumbUrl: string | null;
   /** Course week 1..30 (organisation metadata; PATCH /study/pages/:id). */
   week: number | null;
@@ -155,6 +163,7 @@ const StudyPageSchema = new Schema<IStudyPage>(
     contentKey: { type: String, default: null },
     ocrText: { type: String, default: null },
     ocrUpdatedAt: { type: Date, default: null },
+    ocrAiVersion: { type: Number, default: null },
     thumbUrl: { type: String, default: null },
     week: { type: Number, default: null },
     moduleId: { type: Schema.Types.ObjectId, default: null },

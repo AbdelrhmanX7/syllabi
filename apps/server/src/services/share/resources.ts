@@ -176,6 +176,15 @@ export async function forkTargetClass(userId: Types.ObjectId, name: string): Pro
 }
 
 /**
+ * An AI reading of the page's handwriting stays marked as AI's on the copy (so an edit there gets it
+ * read again): current → the copy's version; already stale → -1 (read on first use). The app's own text stays the app's.
+ */
+export function forkedOcrAiVersion(p: Pick<IStudyPage, "ocrAiVersion" | "version">, copyVersion: number): number | null {
+  if (p.ocrAiVersion === null || p.ocrAiVersion === undefined) return null;
+  return p.ocrAiVersion >= (p.version ?? 0) ? copyVersion : -1;
+}
+
+/**
  * Deep copy into `userId`'s account: new ids, the notebook's board JSON (and the PDF backgrounds it
  * references) copied to the caller's own storage prefix (deleting the owner's account never breaks the copy), fresh progress on questions.
  * Question images stay references to their public URL. Returns the new resource.
@@ -204,6 +213,7 @@ export async function forkResource(r: OwnedResource, userId: Types.ObjectId): Pr
         contentKey,
         ocrText: r.page.ocrText ?? null,
         ocrUpdatedAt: r.page.ocrText ? new Date() : null,
+        ocrAiVersion: forkedOcrAiVersion(r.page, version),
       });
       return { resourceId: id, topic: null, classId: null };
     }

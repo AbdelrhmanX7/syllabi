@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { StudyClass, IStudyClass } from "@/models/study/class";
 import { StudyItem, IStudyItem } from "@/models/study/item";
-import { StudyPage, IStudyPage } from "@/models/study/page";
 import { StudyQuestion, IStudyQuestion, STUDY_QUESTION_SOURCE_KINDS, QuestionSourceKind } from "@/models/study/question";
 import {
   decodeCursor,
@@ -35,7 +34,7 @@ import { withClassGuide } from "@/services/study/ai";
 import { StudyLibraryDoc, IStudyLibraryDoc } from "@/models/study/library";
 import { libraryTextSource } from "@/services/study/library";
 import { existingTopics, extractFromTranscript, flashcardsFromText, saveModelQuestions } from "@/services/study/extract";
-import { itemTextSource, lectureTextSource, pageTextSource, TextSource, videoTextSource } from "@/services/study/text-sources";
+import { itemTextSource, lectureTextSource, pageTextSource, ReadyTextSource, TextSource, videoTextSource } from "@/services/study/text-sources";
 import { editedByOf, isCard, questionWritable, scopedQuestion } from "@/services/share/edit";
 import { loadCaller } from "@/services/share/access";
 import { sharedQuestionDto } from "@/services/share/resources";
@@ -315,6 +314,8 @@ type Prepared =
   | { kind: "error"; message: string; code: string }
   | { kind: "images"; load: () => Promise<Buffer[]>; source: QuestionDraft["source"]; classId: Types.ObjectId | null }
   | { kind: "text"; text: string; source: QuestionDraft["source"]; classId: Types.ObjectId | null }
+  /** A notebook page that AI reads first (inside the stream, on its spend). */
+  | { kind: "read"; read: (spend: Spend, signal?: AbortSignal) => Promise<ReadyTextSource>; source: QuestionDraft["source"]; classId: Types.ObjectId | null }
   | { kind: "transcript"; text: string; source: QuestionDraft["source"]; classId: Types.ObjectId | null };
 
 const src = (kind: QuestionSourceKind, ids: { itemId?: Types.ObjectId; pageId?: Types.ObjectId } = {}): QuestionDraft["source"] => ({
@@ -338,7 +339,7 @@ export const extractQuestions = wrap(async (req, res) => {
     if (!isOid(from.lectureId)) return fail(res, 400, "VALIDATION_ERROR", "lectureId must be an id");
     const ts = await lectureTextSource(userId, from.lectureId);
     if (ts.kind === "missing") return fail(res, 404, "NOT_FOUND", "Lecture not found");
-    prepared = ts.kind === "text" ? { kind: "transcript", text: ts.text, source: ts.source, classId: ts.classId } : { kind: "error", message: ts.message, code: ts.code };
+    prepared = ts.kind === "text" ? { kind: "transcript", text: ts.text, source: ts.source, classId: ts.classId } : ts.kind === "error" ? { kind: "error", message: ts.message, code: ts.code } : { kind: "error", message: "This lecture has no transcript yet", code: "NO_TRANSCRIPT" };
   } else if (keys[0] === "itemId") {
     if (!isOid(from.itemId)) return fail(res, 400, "VALIDATION_ERROR", "itemId must be an id");
     const item = await StudyItem.findOne({ _id: from.itemId, userId }).lean<IStudyItem>();
@@ -392,11 +393,9 @@ export const extractQuestions = wrap(async (req, res) => {
     }
   } else if (keys[0] === "pageId") {
     if (!isOid(from.pageId)) return fail(res, 400, "VALIDATION_ERROR", "pageId must be an id");
-    const page = await StudyPage.findOne({ _id: from.pageId, userId, deletedAt: null }).lean<IStudyPage>();
-    if (!page) return fail(res, 404, "NOT_FOUND", "Page not found");
-    prepared = page.ocrText?.trim()
-      ? { kind: "text", text: `${page.title}\n\n${page.ocrText}`, source: src("manual", { pageId: page._id }), classId: page.classId }
-      : { kind: "error", message: "This page has no handwriting text yet — open it in the app so it can send its OCR text (PUT /study/pages/:id/ocr), then try again", code: "NO_OCR_TEXT" };
+    const ts = await pageTextSource(userId, from.pageId);
+    if (ts.kind === "missing") return fail(res, 404, "NOT_FOUND", "Page not found");
+    prepared = ts.kind === "error" ? { kind: "error", message: ts.message, code: ts.code } : ts;
   } else {
     const buf = decodeB64Image(from.imagePngB64);
     if (!buf) return fail(res, 400, "VALIDATION_ERROR", "imagePngB64 must be a base64 image (max ~8 MB)");
@@ -409,22 +408,28 @@ export const extractQuestions = wrap(async (req, res) => {
   if (clsId && !cls) return fail(res, 404, "NOT_FOUND", "Class not found");
 
   await runSse(res, userId, "extract", async (sse, spend) => {
-    if (prepared.kind === "error") return sse.error(prepared.message, prepared.code);
-    if (prepared.kind === "transcript") {
-      const count = await extractFromTranscript(userId, cls!, prepared.text, prepared.source, spend, (doc) => sse.send("question", questionDto(doc)), sse.signal);
+    let job: Exclude<Prepared, { kind: "read" }>;
+    if (prepared.kind === "read") {
+      const r = await prepared.read(spend, sse.signal);
+      if (sse.signal.aborted) return;
+      job = r.kind === "error" ? { kind: "error", message: r.message, code: r.code } : r;
+    } else job = prepared;
+    if (job.kind === "error") return sse.error(job.message, job.code);
+    if (job.kind === "transcript") {
+      const count = await extractFromTranscript(userId, cls!, job.text, job.source, spend, (doc) => sse.send("question", questionDto(doc)), sse.signal);
       if (sse.signal.aborted) return;
       return sse.done({ count });
     }
     const ctx = { className: cls!.name, existingTopics: await existingTopics(userId, cls!._id) };
     const emitted = new Set<string>();
-    const emit = (raws: any[]) => saveModelQuestions(userId, cls!._id, raws, prepared.source, emitted, (doc) => sse.send("question", questionDto(doc)), { signal: sse.signal });
+    const emit = (raws: any[]) => saveModelQuestions(userId, cls!._id, raws, job.source, emitted, (doc) => sse.send("question", questionDto(doc)), { signal: sse.signal });
 
-    if (prepared.kind === "text") {
-      await emit(await buildQuestionsFromText(prepared.text, ctx, spend, sse.signal));
+    if (job.kind === "text") {
+      await emit(await buildQuestionsFromText(job.text, ctx, spend, sse.signal));
       return sse.done({ count: emitted.size });
     }
 
-    const images = await prepared.load();
+    const images = await job.load();
     // Pages run EXTRACT_CONCURRENCY at a time, but are emitted strictly in page order.
     const settle: Array<(v: any[] | Error) => void> = [];
     const results = images.map(() => new Promise<any[] | Error>((r) => settle.push(r)));
@@ -571,13 +576,15 @@ export const flashcards = wrap(async (req, res) => {
           : await pageTextSource(userId, body.pageId);
   if (ts.kind === "missing") return fail(res, 404, "NOT_FOUND", `${ts.what} not found`);
   const clsId = body.classId ? new Types.ObjectId(body.classId) : ts.classId;
-  if (!clsId && ts.kind === "text") return fail(res, 400, "VALIDATION_ERROR", "classId is required");
+  if (!clsId && ts.kind !== "error") return fail(res, 400, "VALIDATION_ERROR", "classId is required");
   const cls = clsId ? await StudyClass.findOne({ _id: clsId, userId }, { name: 1 }).lean<IStudyClass>() : null;
   if (clsId && !cls) return fail(res, 404, "NOT_FOUND", "Class not found");
 
   await runSse(res, userId, "flashcards", async (sse, spend) => {
-    if (ts.kind === "error") return sse.error(ts.message, ts.code);
-    const make = () => flashcardsFromText(userId, cls!, ts.text, count, ts.source, spend, (doc) => sse.send("question", questionDto(doc)), sse.signal);
+    const ready = ts.kind === "read" ? await ts.read(spend, sse.signal) : ts;
+    if (sse.signal.aborted) return;
+    if (ready.kind === "error") return sse.error(ready.message, ready.code);
+    const make = () => flashcardsFromText(userId, cls!, ready.text, count, ready.source, spend, (doc) => sse.send("question", questionDto(doc)), sse.signal);
     let n = await make();
     // The model occasionally returns nothing usable: one more try before AI_EMPTY. A thrown error
     // (incl. AI_QUOTA, which classifyAiError raises at runSse) is never retried — only an empty result.

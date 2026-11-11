@@ -97,13 +97,16 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-/** A PDF's text layer (poppler `pdftotext`, next to pdftoppm). "" when it has none or poppler is missing. */
-export async function pdfText(bytes: Buffer, maxPages = 60): Promise<string> {
+/**
+ * A PDF's text layer (poppler `pdftotext`, next to pdftoppm), pages `firstPage`..`maxPages` (1-based).
+ * "" when it has none or poppler is missing.
+ */
+export async function pdfText(bytes: Buffer, maxPages = 60, firstPage = 1): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "study-pdftext-"));
   const src = path.join(dir, "in.pdf");
   try {
     await fs.writeFile(src, bytes);
-    const { stdout } = await run("pdftotext", ["-layout", "-l", String(maxPages), src, "-"], { maxBuffer: 32 << 20, timeout: 60_000 });
+    const { stdout } = await run("pdftotext", ["-layout", "-f", String(firstPage), "-l", String(maxPages), src, "-"], { maxBuffer: 32 << 20, timeout: 60_000 });
     return String(stdout).replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n");
   } catch {
     return "";
