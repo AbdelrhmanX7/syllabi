@@ -9,6 +9,11 @@ import type { StrokeSmootherOptions } from './strokeSmoothing';
 
 import { findLiftHookTrim, StrokeSmoother } from './strokeSmoothing';
 
+/** A pen frame's own point is only good for the twin event of that same frame. */
+const PEN_FRAME_POINT_FRESH_MS = 50;
+/** Fabric's point and the pen's own sample further apart than this (screen px) is worth a trace line. */
+export const PEN_FRAME_MISMATCH_SCREEN_PX = 3;
+
 /**
  * A hook into the live stroke, for features that may take the stroke over before it is committed —
  * hold-to-snap shapes (`shapeSnap.ts`). Every method runs on the input path, so implementations must
@@ -151,6 +156,7 @@ export class LowLatencyPencilBrush extends PencilBrush {
 
   override _reset(): void {
     super._reset();
+    this.penFramePoint = null;
     this.smoother.reset();
     this.lastRawX = Number.NaN;
     this.lastRawY = Number.NaN;
@@ -246,7 +252,50 @@ export class LowLatencyPencilBrush extends PencilBrush {
     }
   }
 
+  /**
+   * The pen frame's own last sample (scene coords), resolved by the host from the real PointerEvent with
+   * the same nib/tilt correction as the frame's other samples. Fabric's next move — its twin touchmove /
+   * compat mousemove for the same frame — uses THIS instead of the point it resolved from the twin, so
+   * the whole line comes from one coordinate channel. Consumed once; ignored when stale.
+   */
+  private penFramePoint: Point | null = null;
+  private penFramePointAt = 0;
+
+  /**
+   * Called when Fabric's own point for a pen frame disagreed with the pen's sample by more than
+   * {@link PEN_FRAME_MISMATCH_SCREEN_PX} (dx/dy in scene px). Diagnostics only: the pen's sample is used.
+   */
+  onPenFrameMismatch: ((dx: number, dy: number) => void) | null = null;
+
+  notePenFramePoint(point: Point): void {
+    this.penFramePoint = point;
+    this.penFramePointAt = Date.now();
+  }
+
+  private takePenFramePoint(): Point | null {
+    const point = this.penFramePoint;
+
+    this.penFramePoint = null;
+
+    if (!point || Date.now() - this.penFramePointAt > PEN_FRAME_POINT_FRESH_MS) return null;
+
+    return point;
+  }
+
   override onMouseMove(pointer: Point, eventData: TEvent): void {
+    const framePoint = this.takePenFramePoint();
+
+    if (framePoint) {
+      const dx = pointer.x - framePoint.x;
+      const dy = pointer.y - framePoint.y;
+
+      if (Math.hypot(dx, dy) * (this.canvas.getZoom() || 1) > PEN_FRAME_MISMATCH_SCREEN_PX) {
+        this.onPenFrameMismatch?.(dx, dy);
+      }
+
+      pointer = framePoint;
+    }
+
     if (this.strokeInterceptor?.strokeSample(this, pointer, eventData.e)) {
       return;
     }

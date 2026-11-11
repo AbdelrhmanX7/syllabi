@@ -925,6 +925,8 @@ export function useWhiteboardCanvas({
   // Parking the value here and applying it inside Fabric's own pointer resolution fixes that for every
   // consumer at once — brush, target finding, selection.
   const penPointerOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // The pen contact's last usable tilt direction (unit vector), for frames that report none.
+  const penTiltDirectionRef = useRef<{ x: number; y: number } | null>(null);
   // Which tool this canvas is currently configured for. applyCanvasToolState runs on far more than tool
   // changes — its effect also depends on strokeSettings, eraserMode and eraserSize — so "did the tool
   // actually change?" cannot be inferred from the fact that it ran.
@@ -1607,6 +1609,8 @@ export function useWhiteboardCanvas({
   const clearPenPointerOffset = useCallback(() => {
     const current = penPointerOffsetRef.current;
 
+    penTiltDirectionRef.current = null;
+
     if (current.x !== 0 || current.y !== 0) {
       penPointerOffsetRef.current = { x: 0, y: 0 };
     }
@@ -1632,6 +1636,31 @@ export function useWhiteboardCanvas({
   // switch open — the caller, which can reach commitInterruptedFreehandStroke, closes the stroke before
   // Fabric's own twin touchmove for this frame could append the lifted position; 'skip' when the frame's
   // own sample is a tip-leaving one Fabric must not append either. Always 'contact' for touch.
+  // «Pen buttons» trace line when Fabric's own point for a pen frame disagreed with the pen's sample (the
+  // brush used the pen's). Proof for the next device report; at most a few per second so it costs nothing.
+  const penFrameMismatchTraceRef = useRef({ windowStart: 0, count: 0 });
+  const reportPenFrameMismatch = useCallback((dx: number, dy: number) => {
+    const now = Date.now();
+    const meter = penFrameMismatchTraceRef.current;
+
+    if (now - meter.windowStart > 1000) {
+      meter.windowStart = now;
+      meter.count = 0;
+    }
+
+    meter.count += 1;
+
+    if (meter.count > 3) return;
+
+    const offset = penPointerOffsetRef.current;
+
+    recordPenNativeTrace(
+      'pen frame mismatch',
+      `twin vs pen dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} (scene px), nib offset ${offset.x.toFixed(1)},${offset.y.toFixed(1)}, tilt setting ${tabletInputSettingsRef.current.penTiltOffset}`, // i18n-ignore: diagnostic trace
+      now,
+    );
+  }, []);
+
   const injectCoalescedSamples = useCallback((c: Canvas, event: PointerEvent): PenSampleVerdict => {
     const drawingCanvas = c as Canvas & { _isCurrentlyDrawing?: boolean };
 
@@ -1710,17 +1739,43 @@ export function useWhiteboardCanvas({
       if (isPen && brush && typeof brush.notePressure === 'function') brush.notePressure(event.pressure);
     };
 
-    if (!samples || !canAppend || appendIndices.length === 0) {
-      notePressure();
-
-      return verdict;
-    }
-
     // Resolve through Fabric's own (patched) pointer funnel so these points get the identical transform —
     // and the identical pen nib/tilt correction — as the sample Fabric is about to resolve itself.
     const pointerCanvas = c as unknown as {
       _getPointerImpl: (e: PointerEvent, fromViewport?: boolean) => Point;
     };
+
+    // ONE SOURCE FOR THE PEN'S LINE. Fabric still takes this frame's own point from its twin touchmove
+    // (that move is also the frame's one repaint), but a Touch is a second coordinate channel, resolved a
+    // moment later under whatever pen correction / layout state holds by then. Hand the brush the frame's
+    // own last pen sample, resolved NOW with the same correction as the samples just appended; the brush
+    // uses it in place of the twin's point (and reports when the two disagree — see onPenFrameMismatch).
+    if (isPen && verdict === 'contact' && brush && typeof brush.notePenFramePoint === 'function' && typeof pointerCanvas._getPointerImpl === 'function') {
+      let frameSamples: PointerEvent[] = samples ?? [];
+
+      if (frameSamples.length === 0 && typeof event.getCoalescedEvents === 'function') {
+        try {
+          frameSamples = event.getCoalescedEvents();
+        } catch {
+          frameSamples = [];
+        }
+      }
+
+      // Never the dispatched event itself: its clientX/Y already carry the correction (applyPenTiltOffset)
+      // and the funnel would add it a second time.
+      const own = frameSamples.length > 0 ? frameSamples[frameSamples.length - 1] : null;
+
+      if (own) {
+        brush.onPenFrameMismatch ??= reportPenFrameMismatch;
+        brush.notePenFramePoint(pointerCanvas._getPointerImpl(own));
+      }
+    }
+
+    if (!samples || !canAppend || appendIndices.length === 0) {
+      notePressure();
+
+      return verdict;
+    }
 
     if (typeof pointerCanvas._getPointerImpl !== 'function') {
       notePressure();
@@ -1737,7 +1792,7 @@ export function useWhiteboardCanvas({
     notePressure();
 
     return verdict;
-  }, [isRoutedAsPenDevice]);
+  }, [isRoutedAsPenDevice, reportPenFrameMismatch]);
 
   const applyPenTiltOffset = useCallback(
     (event: PointerEvent) => {
@@ -1760,12 +1815,23 @@ export function useWhiteboardCanvas({
       const tiltY = typeof event.tiltY === 'number' && Number.isFinite(event.tiltY) ? event.tiltY : 0;
       const tiltLength = Math.hypot(tiltX, tiltY);
 
-      if (tiltLength < STYLUS_TILT_OFFSET_MIN_ANGLE) {
+      // A frame with no usable tilt keeps the contact's last direction. Dropping the correction for that
+      // one frame moved every point of it by the whole tilt offset (up to 8 px) and the next frame moved
+      // them back: a zig-zag in a line written smoothly. A pen does not snap upright for 8 ms.
+      if (tiltLength >= STYLUS_TILT_OFFSET_MIN_ANGLE) {
+        penTiltDirectionRef.current = { x: tiltX / tiltLength, y: tiltY / tiltLength };
+      } else if (event.type === 'pointerdown') {
+        penTiltDirectionRef.current = null;
+      }
+
+      const direction = penTiltDirectionRef.current;
+
+      if (!direction) {
         return;
       }
 
-      const deltaX = -(tiltX / tiltLength) * offset;
-      const deltaY = -(tiltY / tiltLength) * offset;
+      const deltaX = -direction.x * offset;
+      const deltaY = -direction.y * offset;
 
       penPointerOffsetRef.current = {
         x: penPointerOffsetRef.current.x + deltaX,
@@ -3372,7 +3438,26 @@ export function useWhiteboardCanvas({
       };
 
       if (drawingCanvas.isDrawingMode && !drawingCanvas._isCurrentlyDrawing) {
-        drawingCanvas._onMouseDownInDrawingMode?.(event);
+        // NOT the event itself. applyPenTiltOffset has already written the nib/tilt correction INTO its
+        // clientX/Y, and Fabric's pointer funnel adds the same correction again (penPointerOffsetRef), so
+        // the restarted stroke's first point landed a whole correction (2 px, up to 10 with the tilt
+        // setting) off the pen — a spike at the start of the stroke written right after a button erase.
+        // And not the frame's LAST position either: this frame's earlier samples are appended right after
+        // (injectCoalescedSamples), so starting from the last one drew a little hook backwards. Start from
+        // the frame's FIRST raw sample, so the funnel applies the correction exactly once, in order.
+        const samples = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [];
+        const first = samples.length > 0 ? samples[0] : null;
+        const offset = penPointerOffsetRef.current;
+        const start = new window.MouseEvent('mousedown', {
+          clientX: first ? first.clientX : event.clientX - offset.x,
+          clientY: first ? first.clientY : event.clientY - offset.y,
+          buttons: 1,
+        });
+
+        // Fabric adds the scroll of the event target's ancestors; resolve it against the board's own
+        // canvas, like the pen twin's touch events (an undispatched event has no target).
+        Object.defineProperty(start, 'target', { configurable: true, value: canvas.upperCanvasEl });
+        drawingCanvas._onMouseDownInDrawingMode?.(start as unknown as PointerEvent);
       }
     };
     const penPointForMenu = (): { x: number; y: number } | null => {
@@ -5763,7 +5848,13 @@ export function useWhiteboardCanvas({
 
       // On a touch-only panel the capacitive pen arrives as 'touch' and takes the nib lift, so this is a
       // pen release as much as the real one above.
-      clearPenPointerOffset();
+      //
+      // But never while a REAL pen is drawing: then this is a palm or a finger lifting (writing fast
+      // after an erase, the hand moves). Clearing the pen's correction here, between the pen's
+      // pointermove and its twin touchmove, resolved Fabric's point for that frame WITHOUT the nib/tilt
+      // correction its neighbours had: one point per frame off the line by the whole correction — the
+      // zig-zag crown. The pen's own release clears it.
+      if (activePenPointersRef.current.size === 0) clearPenPointerOffset();
       // Apply a canvas resize the observer reported mid-stroke and we postponed (see handleResize).
       flushDeferredResize();
 
