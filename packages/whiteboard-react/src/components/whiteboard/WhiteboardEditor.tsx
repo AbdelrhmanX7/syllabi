@@ -92,6 +92,7 @@ import {
   BOARD_PEN_SAVE_DEBOUNCE_MS,
   isBoardPenTool,
   nextBoardPenMemory,
+  openBoardPen,
   readBoardPenRaw,
   resolveInitialBoardPen,
   writeBoardPenMemory,
@@ -1644,8 +1645,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // a board never opened here. Read in the initialisers so the toolbar never flashes the global pen.
   const [initialBoardPen] = useState(() => {
     const remembered = resolveInitialBoardPen(readBoardPenRaw(whiteboardDocId), readStrokeSettings());
+    let highlighterColor: string | null = null;
 
-    return initialPenTool ? { ...remembered, tool: initialPenTool } : remembered;
+    try {
+      highlighterColor = window.localStorage.getItem('whiteboard-highlighter-color');
+    } catch {
+      highlighterColor = null;
+    }
+
+    return openBoardPen(initialPenTool ? { ...remembered, tool: initialPenTool } : remembered, highlighterColor);
   });
   const [activeTool, setActiveTool] = useState<WhiteboardTool>(initialBoardPen.tool);
   const [eraserMode, setEraserMode] = useState<EraserMode>(defaultEraserMode);
@@ -2212,7 +2220,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const pendingBoardPenRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (isBoardPenTool(activeTool)) lastBoardPenToolRef.current = activeTool;
-    const memory = nextBoardPenMemory(lastBoardPenToolRef.current, activeTool, strokeSettings);
+    const memory = nextBoardPenMemory(lastBoardPenToolRef.current, activeTool, strokeSettings, parkedPenColorRef.current);
     const write = () => {
       pendingBoardPenRef.current = null;
       writeBoardPenMemory(whiteboardDocId, memory);
@@ -4339,7 +4347,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // The highlighter keeps its OWN colour: entering it parks the pen colour and swaps the highlighter's
   // in; leaving it remembers the highlighter colour (per device) and gives the pen its colour back.
   const previousToolRef = useRef<WhiteboardTool>(activeTool);
-  const parkedPenColorRef = useRef<string | null>(null);
+  const parkedPenColorRef = useRef<string | null>(initialBoardPen.parkedPenColor);
   useEffect(() => {
     const previous = previousToolRef.current;
     previousToolRef.current = activeTool;

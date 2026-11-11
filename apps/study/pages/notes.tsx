@@ -21,6 +21,7 @@ import { NoteGrid } from "@/components/notes/NoteGrid";
 import { BookmarkList } from "@/components/notes/BookmarkList";
 import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
+import { isMyNote } from "@/lib/notebooks/my-notes";
 import { tagsInUse, withTag } from "@/lib/notebooks/page-meta";
 import { rememberPages } from "@/lib/notebooks/pages-cache";
 
@@ -64,8 +65,7 @@ export default function NotesPage() {
     () => new Map((classes ?? []).map((cls) => [cls.id, cls.code || cls.name])),
     [classes],
   );
-  const own =
-    pages.data?.filter((page) => !page.classId && page.kind === "note") ?? [];
+  const own = pages.data?.filter(isMyNote) ?? [];
   const inClasses = pages.data?.filter((page) => page.classId) ?? [];
   const tags = useMemo(() => tagsInUse(pages.data ?? []), [pages.data]);
 

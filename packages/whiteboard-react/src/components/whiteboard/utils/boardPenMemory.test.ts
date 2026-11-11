@@ -7,6 +7,7 @@ import {
   getBoardPenStorageKey,
   isBoardPenTool,
   nextBoardPenMemory,
+  openBoardPen,
   parseBoardPenMemory,
   readBoardPenRaw,
   resolveInitialBoardPen,
@@ -115,4 +116,28 @@ test('blocked storage never throws: reads as nothing, writes are dropped', () =>
   assert.equal(readBoardPenRaw('b1'), null);
   assert.doesNotThrow(() => writeBoardPenMemory('b1', { tool: 'pen', strokeSettings: DEVICE_DEFAULT }));
   assert.deepEqual(resolveInitialBoardPen(readBoardPenRaw('b1'), DEVICE_DEFAULT).tool, 'pen');
+});
+
+test('the highlighter out: the PEN colour is remembered, not the highlighter colour', () => {
+  const live = { ...DEVICE_DEFAULT, color: '#ffd60a' };
+
+  assert.equal(nextBoardPenMemory('brush', 'highlighter', live, '#000000').strokeSettings.color, '#000000');
+  assert.equal(nextBoardPenMemory('brush', 'highlighter', live, '#000000').tool, 'highlighter');
+  // Nothing parked (e.g. a stale caller): the live settings as before.
+  assert.equal(nextBoardPenMemory('brush', 'highlighter', live).strokeSettings.color, '#ffd60a');
+  // Any other tool ignores the parked colour.
+  assert.equal(nextBoardPenMemory('brush', 'brush', RED_BRUSH, '#000000').strokeSettings.color, RED_BRUSH.color);
+});
+
+test('reopening: a pen keeps its colour; the highlighter takes its own and parks the pen colour', () => {
+  assert.deepEqual(openBoardPen({ tool: 'brush', strokeSettings: RED_BRUSH }, '#00ff00'), {
+    tool: 'brush',
+    strokeSettings: RED_BRUSH,
+    parkedPenColor: null,
+  });
+  const reopened = openBoardPen({ tool: 'highlighter', strokeSettings: RED_BRUSH }, '#00ff00');
+
+  assert.equal(reopened.strokeSettings.color, '#00ff00');
+  assert.equal(reopened.parkedPenColor, RED_BRUSH.color);
+  assert.equal(openBoardPen({ tool: 'highlighter', strokeSettings: RED_BRUSH }, null).strokeSettings.color, '#ffd60a');
 });

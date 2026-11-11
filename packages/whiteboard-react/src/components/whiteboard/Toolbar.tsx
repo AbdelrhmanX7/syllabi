@@ -835,7 +835,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     onChange={handleStrokeColorChange}
                   />
                   <Divider />
-                  <div className='flex flex-col gap-2 p-3'>
+                  {/* Last row of the popover: the bottom padding holds the size chips' lip and shadow (clipped at p-3). */}
+                  <div className='flex flex-col gap-2 p-3 pb-7'>
                     <span className='text-ink/60 text-xs font-bold'>{t('stroke.highlighterSize')}</span>
                     <PenSizePicker
                       label={t('stroke.highlighterSize')}

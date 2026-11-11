@@ -98,8 +98,28 @@ export function nextBoardPenMemory(
   lastPenTool: BoardPenTool,
   activeTool: WhiteboardTool,
   strokeSettings: StrokeSettings,
+  /** The pen colour parked while the highlighter is out (its own colour is kept per device). */
+  parkedPenColor: string | null = null,
 ): BoardPenMemory {
-  return { tool: isBoardPenTool(activeTool) ? activeTool : lastPenTool, strokeSettings };
+  // With the highlighter out the live colour is the highlighter's: remember the PEN's, or the board
+  // reopens with a yellow pen.
+  const settings = activeTool === 'highlighter' && parkedPenColor ? { ...strokeSettings, color: parkedPenColor } : strokeSettings;
+
+  return { tool: isBoardPenTool(activeTool) ? activeTool : lastPenTool, strokeSettings: settings };
+}
+
+/**
+ * A board reopening ON the highlighter: the remembered colour is the pen's, so the highlighter takes
+ * its own (per device, `#ffd60a` by default) and the pen's is handed back as the colour to park.
+ */
+export function openBoardPen(memory: BoardPenMemory, storedHighlighterColor: string | null): BoardPenMemory & { parkedPenColor: string | null } {
+  if (memory.tool !== 'highlighter') return { ...memory, parkedPenColor: null };
+
+  return {
+    tool: memory.tool,
+    strokeSettings: { ...memory.strokeSettings, color: storedHighlighterColor || '#ffd60a' },
+    parkedPenColor: memory.strokeSettings.color,
+  };
 }
 
 export function readBoardPenRaw(boardId: string): string | null {
