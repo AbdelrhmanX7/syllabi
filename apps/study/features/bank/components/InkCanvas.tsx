@@ -46,7 +46,16 @@ export interface InkCanvasProps {
   /** Hide the built-in tool strip (the host renders its own). */
   hideToolbar?: boolean;
   initialStrokes?: InkStroke[];
+  /** Controlled tool (the host's own tool strip); the built-in strip keeps its own state otherwise. */
+  tool?: InkTool;
+  /** Hint drawn on an empty canvas; null hides it. */
+  placeholder?: string | null;
+  /** Show the «More space» button (default true). */
+  growable?: boolean;
 }
+
+/** Most tablets report a frame's samples in line with the frame's own point; past this they're wrong. */
+const MAX_FRAME_SHIFT_PX = 24;
 
 const PALM_WINDOW_MS = 500;
 const ERASER_RADIUS = 14;
@@ -57,13 +66,13 @@ const MAX_HISTORY = 100;
 const COLOR_LIGHT: Record<InkColor, string> = { ink: '#18204A', blue: '#1d4ed8', red: '#be123c', green: '#047857' };
 const COLOR_DARK: Record<InkColor, string> = { ink: '#F1EEE4', blue: '#93c5fd', red: '#fda4af', green: '#6ee7b7' };
 
-const isDarkMode = () =>
+export const isDarkMode = () =>
   typeof document !== 'undefined' &&
   (document.documentElement.classList.contains('dark') ||
     (!document.documentElement.classList.contains('light') &&
       window.matchMedia?.('(prefers-color-scheme: dark)').matches));
 
-const resolveColor = (token: string, dark: boolean) => (dark ? COLOR_DARK : COLOR_LIGHT)[token as InkColor] ?? token;
+export const resolveColor = (token: string, dark: boolean) => (dark ? COLOR_DARK : COLOR_LIGHT)[token as InkColor] ?? token;
 
 function findScrollParent(node: HTMLElement | null): HTMLElement | null {
   let current = node?.parentElement ?? null;
@@ -79,7 +88,17 @@ function findScrollParent(node: HTMLElement | null): HTMLElement | null {
 }
 
 export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function InkCanvas(
-  { minHeight = 440, className = '', onChange, disabled = false, hideToolbar = false, initialStrokes },
+  {
+    minHeight = 440,
+    className = '',
+    onChange,
+    disabled = false,
+    hideToolbar = false,
+    initialStrokes,
+    tool: toolProp,
+    placeholder = 'Work it out here with the pen…',
+    growable = true,
+  },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -97,7 +116,8 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     null,
   );
   const penActiveRef = useRef(0);
-  const [tool, setTool] = useState<InkTool>('pen');
+  const [ownTool, setTool] = useState<InkTool>('pen');
+  const tool = toolProp ?? ownTool;
   const [color, setColor] = useState<InkColor>('ink');
   const [height, setHeight] = useState(minHeight);
   const [version, setVersion] = useState(0);
@@ -307,11 +327,24 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     const native = event.nativeEvent as PointerEvent & { getCoalescedEvents?: () => PointerEvent[] };
     const events = native.getCoalescedEvents?.() ?? [];
     const samples = events.length ? events : [native];
+    // Some tablets (Galaxy Tab S9 Ultra) report a frame's in-between samples a few px off the frame's own
+    // point, which zig-zags the line. Shift them so the frame's last sample lands on its own point.
+    const anchor = localPoint(native);
+    const lastSample = samples.length > 1 ? localPoint(samples[samples.length - 1]!) : anchor;
+    const shiftX = anchor.x - lastSample.x;
+    const shiftY = anchor.y - lastSample.y;
+    const shift = Math.hypot(shiftX, shiftY) <= MAX_FRAME_SHIFT_PX ? { x: shiftX, y: shiftY } : null;
+    const pointOf = (sample: PointerEvent) => {
+      if (sample === native) return anchor;
+      const point = localPoint(sample);
+
+      return shift ? { x: point.x + shift.x, y: point.y + shift.y } : point;
+    };
 
     if (live.erasing) {
       let current = strokesRef.current;
 
-      for (const sample of samples) current = eraseAt(current, localPoint(sample), ERASER_RADIUS);
+      for (const sample of samples) current = eraseAt(current, pointOf(sample), ERASER_RADIUS);
 
       if (current !== strokesRef.current) {
         if (!live.recorded) {
@@ -324,8 +357,9 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
 
       return;
     }
-    for (const sample of samples) {
-      const point = localPoint(sample);
+    // An absurd offset means the in-between samples can't be trusted: the frame's own point only.
+    for (const sample of shift ? samples : [native]) {
+      const point = pointOf(sample);
       const last = live.stroke.points[live.stroke.points.length - 1];
 
       if (last && Math.abs(last.x - point.x) < 0.4 && Math.abs(last.y - point.y) < 0.4) continue;
@@ -421,11 +455,10 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
           onPointerMove={onPointerMove}
           onPointerUp={finish}
         />
-        {empty && !disabled ? (
-          <p className='pointer-events-none absolute left-4 top-3 text-sm text-st-muted'>
-            Work it out here with the pen…
-          </p>
+        {empty && !disabled && placeholder ? (
+          <p className='pointer-events-none absolute left-4 top-3 text-sm text-st-muted'>{placeholder}</p>
         ) : null}
+        {growable ? (
         <button
           aria-label='Add writing space'
           className='absolute bottom-2 right-2 flex h-10 items-center gap-1 rounded-md bg-st-raised px-3 text-xs font-medium text-st-muted hover:bg-st-raised'
@@ -434,6 +467,7 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
         >
           <Plus className='h-4 w-4' /> More space
         </button>
+        ) : null}
       </div>
     </div>
   );

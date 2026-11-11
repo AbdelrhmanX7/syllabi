@@ -18,6 +18,7 @@ import {
 import { notebookHref } from "@/features/lecturenotes/hooks";
 import { createNotePage } from "@/lib/offline/jobs";
 import { NoteGrid } from "@/components/notes/NoteGrid";
+import { BookmarkList } from "@/components/notes/BookmarkList";
 import { describeError } from "@/lib/api/errors";
 import { useClasses, usePages } from "@/lib/api/hooks";
 import { tagsInUse, withTag } from "@/lib/notebooks/page-meta";
@@ -151,6 +152,8 @@ export default function NotesPage() {
               </div>
             </ScrollShadow>
           )}
+
+          <BookmarkList pages={withTag(pages.data, tag)} />
 
           {own.length === 0 ? (
             <EmptyState

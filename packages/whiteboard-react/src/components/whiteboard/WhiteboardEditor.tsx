@@ -197,6 +197,7 @@ import { DEFAULT_COLORS, isPenFamilyTool, normalizeCanvasWidthPx } from './types
 import type { EditorViewport, RulerEdgesRef } from './brushes/rulerSnap';
 import type { PageTransitionHandle } from './WhiteboardCanvas';
 import { boardPatternSpacingPx, resolveDefaultPaperSpacingMm } from './utils/paperSpacing';
+import { DEFAULT_PEN_SIZE_MM, normalizeHighlighterWidth, penMmToPx } from './utils/penSizes';
 import { findPdfScrollPageAt, pdfScrollRegionPaintArgs, resolvePdfPageAspect } from './utils/pdfScrollLayout';
 import type { PageListEntry } from './utils/boardHistory';
 import { applyItemOpsToCanvasJson, applyItemOpsToState } from './utils/itemIds';
@@ -552,6 +553,12 @@ export interface WhiteboardEditorProps {
    * the pager is unchanged.
    */
   allowInsertBlankPages?: boolean;
+  /**
+   * Open on this board page (its `WhiteboardPage.id`, e.g. a bookmark picked outside the board) instead
+   * of the page the document was last left on. Read once, when the document loads; an id that is not
+   * in the document is ignored.
+   */
+  initialPageId?: string;
   /** Paper of an inserted sheet. Default 'lined'. */
   blankPagePaper?: BackgroundType;
   /**
@@ -1066,7 +1073,7 @@ function readTabletInputSettings(): TabletInputSettings {
 const DEFAULT_STROKE_SETTINGS: StrokeSettings = {
   color: DEFAULT_INK_COLOR,
   secondaryColor: '#2563EB',
-  width: 4,
+  width: penMmToPx(DEFAULT_PEN_SIZE_MM),
   opacity: 1,
 };
 
@@ -1098,8 +1105,9 @@ function readStrokeSettings(): StrokeSettings {
         : DEFAULT_STROKE_SETTINGS.opacity;
 
     const lineShape: LineShape = parsed.lineShape === 'hold' || parsed.lineShape === 'always' ? parsed.lineShape : 'free';
+    const highlighterWidth = normalizeHighlighterWidth(parsed.highlighterWidth);
 
-    return { color, secondaryColor, width, opacity, lineShape, dashed: parsed.dashed === true };
+    return { color, secondaryColor, width, ...(highlighterWidth !== undefined && { highlighterWidth }), opacity, lineShape, dashed: parsed.dashed === true };
   } catch {
     return DEFAULT_STROKE_SETTINGS;
   }
@@ -1573,6 +1581,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   focusMode,
   onFocusModeChange,
   allowInsertBlankPages = false,
+  initialPageId,
   blankPagePaper = 'lined',
   allowPaperSpacing = false,
   defaultPaperSpacingMm,
@@ -3917,7 +3926,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         lastThumbnailRef.current = doc.thumbnail ?? '';
 
         if (compactedPages.length > 0) {
-          const safePageIndex = Math.min(Math.max(doc.currentPageIndex, 0), compactedPages.length - 1);
+          const askedIndex = initialPageId ? compactedPages.findIndex((page) => page.id === initialPageId) : -1;
+          const safePageIndex =
+            askedIndex >= 0 ? askedIndex : Math.min(Math.max(doc.currentPageIndex, 0), compactedPages.length - 1);
           const pageToLoad = compactedPages[safePageIndex];
           const viewportZoom = doc.viewportZoom ?? DEFAULT_VIEWPORT_ZOOM;
 
@@ -4519,6 +4530,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         color: nextSettings.color,
         secondaryColor: nextSettings.secondaryColor,
         width: nextSettings.width,
+        highlighterWidth: nextSettings.highlighterWidth ?? currentSettings.highlighterWidth,
         opacity: activeTool === 'highlighter' ? currentSettings.opacity : nextSettings.opacity,
         lineShape: nextSettings.lineShape,
         dashed: nextSettings.dashed,
@@ -7757,6 +7769,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     readOnly ? null : (
       <PageBookmarks
         buttonClassName={buttonClassName}
+        currentLabel={currentPageLabel}
+        currentPageId={pages[currentPageIndex]?.id ?? ''}
         isBookmarked={isCurrentPageBookmarked}
         overlayPortalContainer={overlayPortalContainer}
         placement={placementTop ? 'bottom-end' : 'top-end'}

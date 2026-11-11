@@ -267,6 +267,35 @@ describe("sharing: editors", () => {
     assert.equal(after.stats.attempts, 4);
   });
 
+  test("cards: the bookmark and the handwritten note are the owner's own", async () => {
+    const note = { w: 520, h: 260, strokes: [{ c: "blue", w: 2.4, pts: [10.04, 20, 0.513, 30, 40.06, 0.6] }] };
+    const own = await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { bookmarked: true, note });
+    assert.equal(own.status, 200);
+    assert.equal(own.body.bookmarked, true);
+    assert.deepEqual(own.body.note, { w: 520, h: 260, strokes: [{ c: "blue", w: 2.4, pts: [10, 20, 0.51, 30, 40.1, 0.6] }] });
+    const row = await m.StudyQuestion.findById(m.card1._id).lean();
+    assert.equal(row.bookmarked, true);
+    assert.equal(row.editedBy.name, "Maya"); // a bookmark tap doesn't wipe who last edited it
+    // Editors can't set them, alone or with a content change; the shared shape never carries them.
+    assert.equal((await call("maya", "PATCH", `/study/questions/${m.card1._id}`, { bookmarked: false })).status, 403);
+    assert.equal((await call("maya", "PATCH", `/study/questions/${m.card1._id}`, { answer: "x", note: null })).status, 403);
+    const view = await call("maya", "GET", `/share/view/${shares.deck}`);
+    const shared = view.body.content.questions.find((q: any) => q.id === String(m.card1._id));
+    assert.equal(shared.bookmarked, false);
+    assert.equal(shared.note, null);
+    // Bad input is a 400; null clears the note.
+    assert.equal((await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { bookmarked: "yes" })).status, 400);
+    assert.equal((await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { note: { w: 10, h: 10, strokes: [{ c: "#000", w: 2, pts: [] }] } })).status, 400);
+    assert.equal((await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { note: { w: 10, h: 10, strokes: [{ c: "ink", w: 2, pts: [1, 2] }] } })).status, 400);
+    const huge = { w: 500, h: 500, strokes: Array.from({ length: 300 }, () => ({ c: "ink", w: 2, pts: Array.from({ length: 300 }, (_, i) => (i % 3 === 2 ? 0.5 : 123.4)) })) };
+    assert.equal((await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { note: huge })).status, 400);
+    const cleared = await call("owner", "PATCH", `/study/questions/${m.card1._id}`, { note: null, bookmarked: false });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.note, null);
+    assert.equal(cleared.body.bookmarked, false);
+    assert.equal((await call("owner", "GET", `/study/questions?q=flashcard`)).body.items.find((q: any) => q.id === String(m.card1._id)).note, null);
+  });
+
   test("cards: an editor cannot touch anything outside the shared deck", async () => {
     for (const q of [m.question, m.genesCard, m.chemCard]) {
       assert.equal((await call("maya", "PATCH", `/study/questions/${q._id}`, { stem: "hacked" })).status, 404);

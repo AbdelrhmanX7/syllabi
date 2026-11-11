@@ -72,7 +72,7 @@ export function DocViewer({ classId, doc, onBack, onOpenNotebook }: DocViewerPro
         {isPdf && data?.url && (
           <>
             <ActionButton className='min-h-10 px-3' onClick={onOpenNotebook}>
-              <NotebookPen className='h-4 w-4' /> Open in notebook
+              <NotebookPen className='h-4 w-4' /> Write on it
             </ActionButton>
             <a
               className='rounded-st border-st-clay-edge bg-st-surface shadow-clay text-st-fg hover:bg-st-accent-soft inline-flex min-h-10 items-center gap-2 border-2 px-3 text-sm font-semibold transition-transform active:translate-y-[3px] active:shadow-none'
@@ -125,8 +125,8 @@ export function DocViewer({ classId, doc, onBack, onOpenNotebook }: DocViewerPro
           onClick={onOpenNotebook}
         >
           <NotebookPen className='text-st-muted h-6 w-6' />
-          <span className='text-st-fg text-sm font-medium'>Open in notebook</span>
-          <span className='text-st-muted text-xs'>Read it and write on the pages with the pen.</span>
+          <span className='text-st-fg text-sm font-medium'>Write on it</span>
+          <span className='text-st-muted text-xs'>Read it, write notes on the pages and bookmark pages to find later.</span>
         </button>
       )}
     </div>

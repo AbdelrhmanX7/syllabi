@@ -153,6 +153,9 @@ export const TOOLBAR_STRINGS = {
   'eraser.simulateHint': 'For trying it on a desktop: drag with the mouse or one finger to act as the palm eraser.',
   'stroke.width': 'Stroke width',
   'stroke.widthPx': 'Stroke width in pixels',
+  'stroke.size': 'Pen size',
+  'stroke.highlighterSize': 'Highlighter size',
+  'stroke.sizeCustom': 'Fine size',
   'stroke.opacity': 'Opacity',
   'stroke.smoothing': 'Smooth strokes',
   'stroke.lineMode': 'Line mode',
@@ -215,6 +218,8 @@ export const TOOLBAR_STRINGS = {
   'color.secondaryDef': 'secondary',
   'color.primaryDef': 'primary',
   'stroke.widthN': 'Width {n}',
+  'stroke.sizeMm': '{n} mm',
+  'stroke.sizeMmPen': '{n} mm pen',
   'pages.pageN': 'Page {n}',
   'quick.colorN': 'Colour {color}',
 } satisfies Record<string, string>;

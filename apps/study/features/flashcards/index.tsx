@@ -3,9 +3,10 @@ import type { Question, StudyClass } from '@/lib/api/types';
 
 import { useMemo, useState } from 'react';
 import { Checkbox, cn } from '@repo/ui';
-import { ChevronDown, GalleryVerticalEnd, ListChecks, Pencil, Play, Plus, Sparkles, X } from 'lucide-react';
+import { Bookmark, ChevronDown, GalleryVerticalEnd, ListChecks, Pencil, PenLine, Play, Plus, Sparkles, X } from 'lucide-react';
 
 import { AiMaker } from './components/AiMaker';
+import { BookmarkButton } from './components/BookmarkButton';
 import { CardSheet } from './components/CardSheet';
 import { StudySession } from './components/StudySession';
 import { useFlashcards } from './hooks';
@@ -59,6 +60,8 @@ export default function FlashcardsHome({
   const classById = useMemo(() => new Map(classes.map((cls) => [cls.id, cls])), [classes]);
   const cardsQuery = useFlashcards();
   const [filter, setFilter] = useState<string | null>(initialClassId ?? null);
+  /** «Bookmarked» chip: on top of the class filter, so Study / Study all practise just those. */
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [view, setView] = useState<View>({ kind: 'decks' });
   const [editing, setEditing] = useState<Editing>(null);
   const [aiOpen, setAiOpen] = useState(Boolean(make));
@@ -81,20 +84,34 @@ export default function FlashcardsHome({
     setPicked(new Set());
   };
 
-  const allDecks = useMemo(
+  const everyDeck = useMemo(
     () => groupDecks(cardsQuery.data ?? [], classes.map((cls) => cls.id)),
     [cardsQuery.data, classes],
+  );
+  const bookmarkedCount = useMemo(() => (cardsQuery.data ?? []).filter((card) => card.bookmarked).length, [cardsQuery.data]);
+  const allDecks = useMemo(
+    () =>
+      bookmarkedOnly
+        ? groupDecks((cardsQuery.data ?? []).filter((card) => card.bookmarked), classes.map((cls) => cls.id))
+        : everyDeck,
+    [bookmarkedOnly, cardsQuery.data, classes, everyDeck],
   );
   const decks = filter ? allDecks.filter((group) => group.classId === filter) : allDecks;
   const shown = decks.flatMap((group) => group.topics.flatMap((deck) => deck.cards));
   const dueCount = shown.filter((card) => isDue(card)).length;
   const topicsByClass = useMemo(
-    () => new Map(allDecks.map((group) => [group.classId, group.topics.map((deck) => deck.topic)])),
-    [allDecks],
+    () => new Map(everyDeck.map((group) => [group.classId, group.topics.map((deck) => deck.topic)])),
+    [everyDeck],
   );
   const pickClass = filter ?? initialClassId;
   const pickedCards = (cardsQuery.data ?? []).filter((card) => picked.has(card.id));
-  const scopeTitle = filter ? classLabel(classById.get(filter)) : 'All decks';
+  const scopeTitle = bookmarkedOnly
+    ? filter
+      ? `${classLabel(classById.get(filter))} · Bookmarked`
+      : 'Bookmarked'
+    : filter
+      ? classLabel(classById.get(filter))
+      : 'All decks';
 
   const study = (cards: Question[], title: string, all: boolean) => {
     const queue = orderSession(cards, { all });
@@ -171,9 +188,13 @@ export default function FlashcardsHome({
         )}
       </header>
 
-      {allDecks.length > 1 && (
+      {(everyDeck.length > 1 || bookmarkedCount > 0 || bookmarkedOnly) && (
         <div className='flex flex-wrap gap-2 pb-1'>
-          <FilterChip active={!filter} count={(cardsQuery.data ?? []).length} onClick={() => setFilter(null)}>
+          <FilterChip
+            active={!filter}
+            count={bookmarkedOnly ? bookmarkedCount : (cardsQuery.data ?? []).length}
+            onClick={() => setFilter(null)}
+          >
             All
           </FilterChip>
           {allDecks.map((group) => (
@@ -186,6 +207,11 @@ export default function FlashcardsHome({
               {classById.get(group.classId)?.code || classById.get(group.classId)?.name || 'Class'}
             </FilterChip>
           ))}
+          {(bookmarkedCount > 0 || bookmarkedOnly) && (
+            <FilterChip active={bookmarkedOnly} count={bookmarkedCount} onClick={() => setBookmarkedOnly((on) => !on)}>
+              <Bookmark className='h-3.5 w-3.5' fill={bookmarkedOnly ? 'currentColor' : 'none'} /> Bookmarked
+            </FilterChip>
+          )}
         </div>
       )}
 
@@ -196,6 +222,12 @@ export default function FlashcardsHome({
         />
       ) : loading ? (
         <LoadingRows rows={5} />
+      ) : decks.length === 0 && bookmarkedOnly ? (
+        <EmptyState
+          hint='Tap the bookmark on a card to keep it here.'
+          icon={Bookmark}
+          title='No bookmarked cards'
+        />
       ) : decks.length === 0 ? (
         <EmptyState
           action={
@@ -407,16 +439,20 @@ function DeckRow({
                   </span>
                 </Checkbox>
               ) : (
-              <button
-                className='hover:bg-st-raised rounded-st group flex min-h-10 w-full items-center gap-2 px-2 text-left'
-                title={`${card.stem}\n— ${card.answer}`}
-                type='button'
-                onClick={() => onEdit(card)}
-              >
-                <span className='text-st-fg min-w-0 flex-1 truncate text-sm'>{card.stem}</span>
-                <span className='text-st-muted hidden min-w-0 flex-1 truncate text-sm sm:block'>{card.answer}</span>
-                <Pencil className='text-st-muted h-3.5 w-3.5 shrink-0' />
-              </button>
+              <div className='flex items-center gap-1'>
+                <button
+                  className='hover:bg-st-raised rounded-st group flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2 text-left'
+                  title={`${card.stem}\n— ${card.answer}`}
+                  type='button'
+                  onClick={() => onEdit(card)}
+                >
+                  <span className='text-st-fg min-w-0 flex-1 truncate text-sm'>{card.stem}</span>
+                  <span className='text-st-muted hidden min-w-0 flex-1 truncate text-sm sm:block'>{card.answer}</span>
+                  {card.note && <PenLine aria-label='Has a note' className='text-st-accent h-3.5 w-3.5 shrink-0' />}
+                  <Pencil className='text-st-muted h-3.5 w-3.5 shrink-0' />
+                </button>
+                <BookmarkButton card={card} className='shrink-0' />
+              </div>
               )}
             </li>
           ))}

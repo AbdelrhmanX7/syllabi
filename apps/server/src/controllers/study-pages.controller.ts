@@ -17,6 +17,8 @@ import { questionDto } from "@/services/study/questions";
 import { searchTranscripts } from "@/services/study/transcript-search";
 import { logger } from "@/services/logger.service";
 import { prunePageVersions } from "@/services/study/page-versions-prune";
+import { boardBookmarks, bookmarkDto } from "@/services/study/page-bookmarks";
+import { StudyLibraryDoc } from "@/models/study/library";
 import { effectiveEdited, MATH_TOOLS_MODES, MetaField, normalizeDescription, normalizeTags } from "@/services/study/page-meta";
 import { escapeRegex, fail, isOid, uid, wrap } from "./study.controller";
 
@@ -46,6 +48,8 @@ export const pageDto = (p: IStudyPage) => ({
   week: p.week ?? null,
   moduleId: p.moduleId ? String(p.moduleId) : null,
   lecture: p.lecture ? { number: p.lecture.number ?? null, key: p.lecture.key, date: p.lecture.date } : null,
+  libraryId: p.libraryId ? String(p.libraryId) : null,
+  bookmarks: (p.bookmarks ?? []).map(bookmarkDto),
   editedBy: editedByDto(p.editedBy, p.userId),
   // Notebook details (services/study/page-meta.ts).
   description: p.description ?? null,
@@ -124,9 +128,9 @@ const editablePage = async (req: Request, res: Response): Promise<{ page: IStudy
 };
 
 export const listPages = wrap(async (req, res) => {
-  const { classId, itemId, week, lectureKey } = req.query;
+  const { classId, itemId, week, lectureKey, libraryId } = req.query;
   const filter: Record<string, unknown> = { userId: uid(req), deletedAt: null };
-  for (const [k, v] of [["classId", classId], ["itemId", itemId]] as const) {
+  for (const [k, v] of [["classId", classId], ["itemId", itemId], ["libraryId", libraryId]] as const) {
     if (v === undefined || v === "") continue;
     if (!isOid(v)) return fail(res, 400, "VALIDATION_ERROR", `${k} must be an id`);
     filter[k] = new Types.ObjectId(String(v));
@@ -167,17 +171,26 @@ export const getPage = wrap(async (req, res) => {
 });
 
 export const createPage = wrap(async (req, res) => {
-  const { classId, itemId, lectureId, title, kind } = req.body ?? {};
+  const { classId, itemId, lectureId, libraryId, title, kind } = req.body ?? {};
   const k = kind ?? "note";
   if (!(STUDY_PAGE_KINDS as readonly string[]).includes(k)) return fail(res, 400, "VALIDATION_ERROR", `kind must be one of ${STUDY_PAGE_KINDS.join(", ")}`);
   if (title !== undefined && title !== null && (typeof title !== "string" || title.length > 200))
     return fail(res, 400, "VALIDATION_ERROR", "title must be a string (max 200)");
   const orgErr = orgFieldError(req.body ?? {});
   if (orgErr) return fail(res, 400, "VALIDATION_ERROR", orgErr);
-  for (const [name, v] of [["classId", classId], ["itemId", itemId], ["lectureId", lectureId]] as const)
+  for (const [name, v] of [["classId", classId], ["itemId", itemId], ["lectureId", lectureId], ["libraryId", libraryId]] as const)
     if (v !== undefined && v !== null && !isOid(v)) return fail(res, 400, "VALIDATION_ERROR", `${name} must be an id`);
 
   const userId = uid(req);
+  // A notebook on a Library document: one per document. Asking again returns the one already there
+  // (200), so a second tablet or a double tap never makes a copy.
+  let library: Types.ObjectId | null = null;
+  if (libraryId) {
+    if (!(await StudyLibraryDoc.exists({ _id: libraryId, userId }))) return fail(res, 404, "NOT_FOUND", "Library document not found");
+    library = new Types.ObjectId(libraryId);
+    const existing = await StudyPage.findOne({ userId, libraryId: library, deletedAt: null }, PAGE_PROJECTION).sort({ createdAt: 1, _id: 1 }).lean<IStudyPage>();
+    if (existing) return res.json(await pageDtoWithCover(existing));
+  }
   let cls: Types.ObjectId | null = null;
   if (classId) {
     const c = await StudyClass.exists({ _id: classId, userId });
@@ -210,7 +223,7 @@ export const createPage = wrap(async (req, res) => {
   }
   const page = await StudyPage.create({
     userId, classId: cls, itemId: item, lectureId: lecture, title: (title ?? "").trim() || "Untitled", kind: k,
-    week: req.body?.week ?? null, moduleId: moduleOid, lecture: toLecture(req.body?.lecture),
+    week: req.body?.week ?? null, moduleId: moduleOid, lecture: toLecture(req.body?.lecture), libraryId: library,
   });
   res.status(201).json(pageDto(page.toObject() as IStudyPage));
 });
@@ -226,8 +239,9 @@ export const createPage = wrap(async (req, res) => {
  */
 export const patchPage = wrap(async (req, res) => {
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-  const keys = ["title", "week", "moduleId", "lecture", "description", "tags", "mathTools", "cover", "aiPick"].filter((k) => body[k] !== undefined);
-  if (!keys.length) return fail(res, 400, "VALIDATION_ERROR", "Send at least one of title, week, moduleId, lecture, description, tags, mathTools, cover, aiPick");
+  const keys = ["title", "week", "moduleId", "lecture", "description", "tags", "mathTools", "cover", "aiPick", "libraryId"].filter((k) => body[k] !== undefined);
+  if (!keys.length) return fail(res, 400, "VALIDATION_ERROR", "Send at least one of title, week, moduleId, lecture, description, tags, mathTools, cover, aiPick, libraryId");
+  if (body.libraryId !== undefined && body.libraryId !== null && !isOid(body.libraryId)) return fail(res, 400, "VALIDATION_ERROR", "libraryId must be an id or null");
   const err = orgFieldError(body);
   if (err) return fail(res, 400, "VALIDATION_ERROR", err);
   const set: Record<string, unknown> = {};
@@ -273,6 +287,15 @@ export const patchPage = wrap(async (req, res) => {
   if (!page) return;
   if (body.week !== undefined) set.week = body.week;
   if (body.lecture !== undefined) set.lecture = toLecture(body.lecture);
+  if (body.libraryId !== undefined) {
+    if (body.libraryId === null) set.libraryId = null;
+    else {
+      if (!(await StudyLibraryDoc.exists({ _id: body.libraryId, userId: page.userId }))) return fail(res, 404, "NOT_FOUND", "Library document not found");
+      const taken = await StudyPage.exists({ userId: page.userId, libraryId: body.libraryId, deletedAt: null, _id: { $ne: page._id } });
+      if (taken) return fail(res, 409, "ALREADY_LINKED", "Another notebook already writes on that document");
+      set.libraryId = new Types.ObjectId(String(body.libraryId));
+    }
+  }
   if (body.moduleId !== undefined) {
     if (body.moduleId === null) set.moduleId = null;
     else {
@@ -358,13 +381,22 @@ export const authorOf = async (req: Request, editor: NamedCaller | null) => edit
  * Compare-and-set on the version: two racing commits of the same version → exactly one wins (null =
  * lost). The same update records the author (editedBy + one versionLog entry, newest last, capped).
  */
-export const casCommit = (page: IStudyPage, version: number, key: string, author: NamedCaller | null, restoredFrom: number | null = null) => {
+export const casCommit = (
+  page: IStudyPage,
+  version: number,
+  key: string,
+  author: NamedCaller | null,
+  restoredFrom: number | null = null,
+  /** The committed board JSON, when at hand: its bookmarks are copied onto the row. */
+  board?: unknown
+) => {
   const at = new Date();
+  const marks = board !== undefined && board !== null ? { bookmarks: boardBookmarks(board) } : {};
   const unusual = key !== pageContentKey(String(page.userId), String(page._id), version) ? key : null;
   return StudyPage.findOneAndUpdate(
     { _id: page._id, userId: page.userId, deletedAt: null, version: version - 1 },
     {
-      $set: { version, contentKey: key, updatedAt: at, ...(author ? { editedBy: editedByOf(author) } : {}) },
+      $set: { version, contentKey: key, updatedAt: at, ...marks, ...(author ? { editedBy: editedByOf(author) } : {}) },
       ...(author
         ? { $push: { versionLog: { $each: [{ version, userId: author.userId, name: author.name, at, restoredFrom, key: unusual }], $slice: -PAGE_VERSION_LOG_MAX } } }
         : {}),
@@ -392,7 +424,9 @@ export const commitPageContent = wrap(async (req, res) => {
   if (!(await studyObjectExists(key)))
     return res.status(409).json({ message: "The upload for this version was not found — PUT the content first", code: "UPLOAD_MISSING", currentVersion: page.version });
   const author = await authorOf(req, editor);
-  const updated = await casCommit(page, version, key, author);
+  // The presigned upload never passed through here: read it back for its bookmarks (a failed read keeps the old list).
+  const board = await getStudyObject(key).catch(() => null);
+  const updated = await casCommit(page, version, key, author, null, board);
   if (!updated) return stale();
   announceVersion(page, page.version, version, req, author);
   res.json(await pageDtoWithCover(updated));
@@ -430,7 +464,7 @@ export const putPageBlob = wrap(async (req, res) => {
     const version = fresh.version + 1;
     const key = versionWriteKey(fresh, version, exclusive);
     await putStudyObject(key, body, "application/json");
-    const updated = await casCommit(fresh, version, key, author);
+    const updated = await casCommit(fresh, version, key, author, null, body);
     return updated ? { version, key } : { stale: fresh.version };
   });
   if ("stale" in outcome) return stale(outcome.stale ?? 0);
@@ -531,8 +565,9 @@ export const restorePageVersion = wrap(async (req, res) => {
     if (!fresh || fresh.version !== baseVersion) return null;
     const version = fresh.version + 1;
     const key = versionWriteKey(fresh, version, exclusive);
-    await putStudyObject(key, await getStudyObject(from), "application/json");
-    return casCommit(fresh, version, key, author, target);
+    const restored = await getStudyObject(from);
+    await putStudyObject(key, restored, "application/json");
+    return casCommit(fresh, version, key, author, target, restored);
   });
   if (!updated) return res.status(409).json({ message: "This page changed since you opened it", code: "STALE_VERSION", currentVersion: page.version });
   announceVersion(page, updated.version - 1, updated.version, req, author);

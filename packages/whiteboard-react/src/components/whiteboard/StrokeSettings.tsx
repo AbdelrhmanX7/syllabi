@@ -1,13 +1,17 @@
 import React, { useCallback } from 'react';
 
 import { Button, Divider, Slider, Switch } from '@repo/ui';
-import { Minus, Plus } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import type { LineShape, StrokeSettings as StrokeSettingsType } from './types';
 
-import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, STROKE_WIDTHS } from './types';
+import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH } from './types';
+import { PenSizePicker } from './PenSizePicker';
+import { PEN_SIZES_MM, penMmToPx, penPxToMm } from './utils/penSizes';
 import { useWbStrings } from '../../i18n/context';
+
+/** The fine slider spans 0.26–5 mm, where pen sizes live (a wider older width stretches it). */
+const FINE_SLIDER_MAX_PX = penMmToPx(5);
 
 const LINE_SHAPE_OPTIONS: { mode: LineShape; label: 'stroke.lineFree' | 'stroke.lineHold' | 'stroke.lineAlways' }[] = [
   { mode: 'free', label: 'stroke.lineFree' },
@@ -29,8 +33,9 @@ const StrokeSettingsComponent: React.FC<StrokeSettingsProps> = ({
   onSmoothingChange,
 }) => {
   const { t } = useWbStrings();
+  // No rounding: a size chip sets an exact width (0.3 mm = 1.13 px), which a 0.5 px grid would move.
   const clampWidth = useCallback((width: number) => {
-    return Math.min(MAX_STROKE_WIDTH, Math.max(MIN_STROKE_WIDTH, Math.round(width * 2) / 2));
+    return Math.min(MAX_STROKE_WIDTH, Math.max(MIN_STROKE_WIDTH, width));
   }, []);
 
   const handleWidthChange = useCallback(
@@ -82,83 +87,22 @@ const StrokeSettingsComponent: React.FC<StrokeSettingsProps> = ({
         </svg>
       </div>
 
-      {/* Width Selector */}
+      {/* Pen size in real mm (0.3 mm, 0.5 mm… like the number on a pen), with a fine slider above it
+          for any width in between. */}
       <div className='flex flex-col gap-2'>
-        {/* Label and an inline − value + stepper on ONE row: no separate input row under the slider. */}
-        <div className='flex items-center justify-between gap-2'>
-          <p className='text-foreground text-xs font-medium'>{t('stroke.width')}</p>
-          <div className='border-ink bg-paper text-ink flex h-8 items-stretch overflow-hidden rounded-full border-[1.5px]'>
-            <button
-              aria-label={t('stroke.widthPx') + ' −'}
-              className='hover:bg-paper-2 flex w-8 items-center justify-center disabled:opacity-40'
-              disabled={settings.width <= MIN_STROKE_WIDTH}
-              type='button'
-              onClick={() => handleWidthChange(Math.max(MIN_STROKE_WIDTH, settings.width - 0.5))}
-            >
-              <Minus className='h-3.5 w-3.5' />
-            </button>
-            <label className='border-ink/15 flex items-center gap-0.5 border-x px-1.5'>
-              <input
-                aria-label={t('stroke.widthPx')}
-                className='w-8 bg-transparent text-center text-sm font-bold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-                inputMode='decimal'
-                max={MAX_STROKE_WIDTH}
-                min={MIN_STROKE_WIDTH}
-                step={0.5}
-                type='number'
-                value={settings.width}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n) && n >= MIN_STROKE_WIDTH && n <= MAX_STROKE_WIDTH) handleWidthChange(n);
-                }}
-              />
-              <span className='text-ink/55 text-[11px] font-semibold'>px</span>
-            </label>
-            <button
-              aria-label={t('stroke.widthPx') + ' +'}
-              className='hover:bg-paper-2 flex w-8 items-center justify-center disabled:opacity-40'
-              disabled={settings.width >= MAX_STROKE_WIDTH}
-              type='button'
-              onClick={() => handleWidthChange(Math.min(MAX_STROKE_WIDTH, settings.width + 0.5))}
-            >
-              <Plus className='h-3.5 w-3.5' />
-            </button>
-          </div>
-        </div>
         <Slider
-          aria-label={t('stroke.widthPx')}
+          aria-label={t('stroke.sizeCustom')}
           color='primary'
-          maxValue={MAX_STROKE_WIDTH}
+          getValue={(value) => t('stroke.sizeMm', { n: penPxToMm(Array.isArray(value) ? value[0]! : value).toFixed(1) })}
+          label={t('stroke.size')}
+          maxValue={Math.min(MAX_STROKE_WIDTH, Math.max(FINE_SLIDER_MAX_PX, settings.width))}
           minValue={MIN_STROKE_WIDTH}
           size='sm'
-          step={0.5}
+          step={0.1}
           value={settings.width}
           onChange={handleWidthSliderChange}
         />
-        <div className='flex items-center justify-between gap-1'>
-          {STROKE_WIDTHS.map((w) => (
-            <button
-              key={w}
-              aria-label={t('stroke.widthN', { n: w })}
-              className={`hover:bg-default-200 flex cursor-pointer items-center justify-center rounded-full transition-all ${
-                settings.width === w ? 'bg-primary/10 ring-primary ring-2' : 'bg-default-100'
-              }`}
-              style={{ width: 32, height: 32 }}
-              type='button'
-              onClick={() => handleWidthChange(w)}
-            >
-              <div
-                className='rounded-full'
-                style={{
-                  width: Math.min(w + 2, 20),
-                  height: Math.min(w + 2, 20),
-                  backgroundColor:
-                    settings.width === w ? 'hsl(var(--heroui-primary))' : 'hsl(var(--heroui-default-500))',
-                }}
-              />
-            </button>
-          ))}
-        </div>
+        <PenSizePicker label={t('stroke.size')} sizes={PEN_SIZES_MM} valuePx={settings.width} onChange={handleWidthChange} />
       </div>
 
       {/* Opacity, 10–100 % (the highlighter keeps its own see-through look) */}

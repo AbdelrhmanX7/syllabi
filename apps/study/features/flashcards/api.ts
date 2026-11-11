@@ -1,7 +1,7 @@
 // Flashcards are bank questions tagged 'flashcard' (front = stem, back = answer) — thin wrappers over
 // the shared /questions + /ai/flashcards endpoints.
 import type { Grade } from './lib/deck';
-import type { Question } from '@/lib/api/types';
+import type { Question, QuestionNote } from '@/lib/api/types';
 
 import { FLASHCARD_TAG, gradeRating, isFlashcard, withFlashcardTag } from './lib/deck';
 import { tagAsFlashcard } from './lib/tag';
@@ -75,6 +75,10 @@ export const updateFlashcard = (card: Question, draft: CardDraft) =>
   });
 
 export const deleteFlashcard = (card: Question) => deleteQuestion(card.id);
+
+/** The owner's own marks on a card: a bookmark and a handwritten note (null clears it). */
+export const setCardBookmark = (card: Pick<Question, 'id'>, bookmarked: boolean) => patchQuestion(card.id, { bookmarked });
+export const saveCardNote = (card: Pick<Question, 'id'>, note: QuestionNote | null) => patchQuestion(card.id, { note });
 
 /**
  * Records a self-grade through the bank's attempt endpoint (no grader runs for `selfRating`). Offline

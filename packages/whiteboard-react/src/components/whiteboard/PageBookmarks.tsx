@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import { Button, Input, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@repo/ui';
-import { Bookmark, BookmarkX, ListChecks } from 'lucide-react';
+import { Button, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@repo/ui';
+import { Bookmark, BookmarkMinus, BookmarkPlus, BookmarkX, X } from 'lucide-react';
 
 import { TOOLBAR_SURFACE } from './toolbarSurfaces';
 import { useWbStrings } from '../../i18n/context';
 
 /**
- * Page bookmarks in the pager: a toggle for the page in view (filled when it is bookmarked) and the
- * list of every bookmarked page — tap a row to go there, type a short name for it, or drop it.
- * Removing a bookmark loses nothing, so it needs no confirm. Rows address pages by id: the host
+ * Page bookmarks in the pager: ONE key (filled when the page in view is bookmarked) that opens a small
+ * list — «Bookmark page 3» on top, then every bookmarked page: tap a row to go there, type a short
+ * name for it, or drop it. Dropping a bookmark that has a name asks first (the name would be lost);
+ * an unnamed one comes back with one tap, so it goes at once. Rows address pages by id: the host
  * resolves the id against its live page list (the list may lag an insert/delete by a frame).
  */
 export interface PageBookmarkRow {
@@ -21,13 +22,17 @@ export interface PageBookmarkRow {
 
 export interface PageBookmarksProps {
   isBookmarked: boolean;
+  /** The pager label of the page in view («3»). */
+  currentLabel: string;
+  /** The page in view's id (to find its bookmark row). */
+  currentPageId: string;
   rows: readonly PageBookmarkRow[];
   overlayPortalContainer?: Element;
   onToggle: () => void;
   onJump: (pageId: string) => void;
   onRename: (pageId: string, name: string) => void;
   onRemove: (pageId: string) => void;
-  /** Size/shape of the two triggers (the pager group's 40px keys). */
+  /** Size/shape of the trigger (the pager group's 40px keys). */
   buttonClassName: string;
   placement?: 'top-end' | 'bottom-end';
 }
@@ -82,6 +87,8 @@ function BookmarkName({ name, onSave, pageLabel }: { name: string; pageLabel: st
 
 const PageBookmarks: React.FC<PageBookmarksProps> = ({
   buttonClassName,
+  currentLabel,
+  currentPageId,
   isBookmarked,
   onJump,
   onRemove,
@@ -93,42 +100,51 @@ const PageBookmarks: React.FC<PageBookmarksProps> = ({
 }) => {
   const { t } = useWbStrings();
   const [isOpen, setIsOpen] = useState(false);
-  const toggleLabel = t(isBookmarked ? 'editor.bookmark.remove' : 'editor.bookmark.add');
+  const [pendingRemove, setPendingRemove] = useState<PageBookmarkRow | null>(null);
+  const triggerLabel = isBookmarked ? t('editor.bookmark.open') : t('editor.bookmark.list');
+  const currentRow = rows.find((row) => row.pageId === currentPageId) ?? null;
+
+  // A named bookmark asks first (in a modal, after the list closes); an unnamed one goes at once.
+  const askRemove = (row: PageBookmarkRow | null, remove: () => void) => {
+    if (row?.name?.trim()) {
+      setIsOpen(false);
+      setPendingRemove(row);
+    } else remove();
+  };
 
   return (
     <>
-      <Tooltip content={toggleLabel} delay={400} portalContainer={overlayPortalContainer} size='sm'>
-        <Button
-          aria-label={toggleLabel}
-          aria-pressed={isBookmarked}
-          className={buttonClassName}
-          data-wb-bookmark-toggle
-          isIconOnly
-          style={TOOLBAR_SURFACE[isBookmarked ? 'active' : 'idle']}
-          variant='flat'
-          onPress={onToggle}
-        >
-          <Bookmark aria-hidden className='h-5 w-5' fill={isBookmarked ? 'currentColor' : 'none'} />
-        </Button>
-      </Tooltip>
       <Popover isOpen={isOpen} placement={placement} portalContainer={overlayPortalContainer} onOpenChange={setIsOpen}>
         <PopoverTrigger>
           <Button
-            aria-label={t('editor.bookmark.list')}
+            aria-label={triggerLabel}
+            aria-pressed={isBookmarked}
             className={buttonClassName}
             data-wb-bookmark-list
             isIconOnly
-            style={TOOLBAR_SURFACE[isOpen ? 'active' : 'idle']}
+            style={TOOLBAR_SURFACE[isOpen || isBookmarked ? 'active' : 'idle']}
+            title={triggerLabel}
             variant='flat'
           >
-            <ListChecks aria-hidden className='h-5 w-5' />
+            <Bookmark aria-hidden className='h-5 w-5' fill={isBookmarked ? 'currentColor' : 'none'} />
           </Button>
         </PopoverTrigger>
         <PopoverContent className='w-80 max-w-[calc(100vw-2rem)] p-2'>
           <div className='flex w-full flex-col gap-1' data-wb-bookmark-panel>
-            <p className='text-ink px-1 pb-1 text-sm font-semibold'>{t('editor.bookmark.list')}</p>
+            <Button
+              className='h-9 justify-start px-2 text-sm font-semibold !shadow-none'
+              data-wb-bookmark-toggle
+              startContent={
+                isBookmarked ? <BookmarkMinus aria-hidden className='h-4 w-4' /> : <BookmarkPlus aria-hidden className='h-4 w-4' />
+              }
+              variant='light'
+              onPress={() => (isBookmarked ? askRemove(currentRow, onToggle) : onToggle())}
+            >
+              {t(isBookmarked ? 'editor.bookmark.removePage' : 'editor.bookmark.addPage', { page: currentLabel })}
+            </Button>
+            <div className='border-default-200 mx-1 border-t' />
             {rows.length === 0 ? (
-              <p className='text-default-500 px-1 pb-1 text-sm'>{t('editor.bookmark.empty')}</p>
+              <p className='text-default-500 px-1 py-1 text-sm'>{t('editor.bookmark.empty')}</p>
             ) : (
               <div className='scroll-shadow-y flex max-h-[min(50vh,22rem)] flex-col gap-1 overflow-y-auto'>
                 {rows.map((row) => (
@@ -146,16 +162,18 @@ const PageBookmarks: React.FC<PageBookmarksProps> = ({
                       {t('editor.bookmark.page', { page: row.pageLabel })}
                     </Button>
                     <BookmarkName name={row.name ?? ''} pageLabel={row.pageLabel} onSave={(value) => onRename(row.pageId, value)} />
-                    <Button
-                      aria-label={t('editor.bookmark.removeOne', { page: row.pageLabel })}
-                      className='h-9 w-9 min-w-9 shrink-0 !shadow-none'
-                      data-wb-bookmark-remove
-                      isIconOnly
-                      variant='light'
-                      onPress={() => onRemove(row.pageId)}
-                    >
-                      <BookmarkX aria-hidden className='h-4 w-4' />
-                    </Button>
+                    <Tooltip content={t('editor.bookmark.removeOne', { page: row.pageLabel })} delay={400} portalContainer={overlayPortalContainer} size='sm'>
+                      <Button
+                        aria-label={t('editor.bookmark.removeOne', { page: row.pageLabel })}
+                        className='h-9 w-9 min-w-9 shrink-0 !shadow-none'
+                        data-wb-bookmark-remove
+                        isIconOnly
+                        variant='light'
+                        onPress={() => askRemove(row, () => onRemove(row.pageId))}
+                      >
+                        <BookmarkX aria-hidden className='h-4 w-4' />
+                      </Button>
+                    </Tooltip>
                   </div>
                 ))}
               </div>
@@ -163,6 +181,37 @@ const PageBookmarks: React.FC<PageBookmarksProps> = ({
           </div>
         </PopoverContent>
       </Popover>
+      <Modal
+        isOpen={pendingRemove !== null}
+        placement='center'
+        portalContainer={overlayPortalContainer}
+        size='sm'
+        onClose={() => setPendingRemove(null)}
+      >
+        <ModalContent>
+          <ModalHeader className='flex-row items-center gap-2 text-start'>
+            <span className='min-w-0 flex-1'>{t('editor.bookmark.confirmTitle', { name: pendingRemove?.name?.trim() ?? '' })}</span>
+            <Button isIconOnly aria-label={t('editor.sheet.close')} size='sm' variant='light' onPress={() => setPendingRemove(null)}>
+              <X className='h-5 w-5' />
+            </Button>
+          </ModalHeader>
+          <ModalBody>
+            <p className='text-sm'>{t('editor.bookmark.confirmBody', { page: pendingRemove?.pageLabel ?? '' })}</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color='danger'
+              data-wb-bookmark-confirm
+              onPress={() => {
+                if (pendingRemove) onRemove(pendingRemove.pageId);
+                setPendingRemove(null);
+              }}
+            >
+              {t('editor.bookmark.confirmRemove')}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   );
 };

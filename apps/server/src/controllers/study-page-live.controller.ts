@@ -80,7 +80,7 @@ export const pushPageLive = wrap(async (req, res) => {
       const key = versionWriteKey(fresh, version, exclusive);
       const json = JSON.stringify(next);
       await putStudyObject(key, Buffer.from(json, "utf8"), "application/json");
-      if (await casCommit(fresh, version, key, author)) {
+      if (await casCommit(fresh, version, key, author, null, next)) {
         rememberBoard(key, json);
         return { prevVersion: fresh.version ?? 0, version };
       }

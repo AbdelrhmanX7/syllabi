@@ -10,6 +10,7 @@
 import type { StrokeSettings, WhiteboardTool } from '../types';
 
 import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH } from '../types';
+import { normalizeHighlighterWidth } from './penSizes';
 
 /** The tools a board can reopen on. Wider than PEN_FAMILY_TOOLS: the highlighter is a pen here. */
 export const BOARD_PEN_TOOLS = ['pen', 'brush', 'marker', 'script', 'highlighter'] as const;
@@ -57,17 +58,30 @@ export function parseBoardPenMemory(raw: string | null | undefined, fallback: St
 
     const lineShape = stored.lineShape === 'hold' || stored.lineShape === 'always' ? stored.lineShape : fallback.lineShape;
     const dashed = typeof stored.dashed === 'boolean' ? stored.dashed : fallback.dashed;
+    const highlighterWidth = normalizeHighlighterWidth(stored.highlighterWidth) ?? fallback.highlighterWidth;
 
-    return { tool: value.tool, strokeSettings: { ...fallback, color, secondaryColor, width, opacity, ...(lineShape !== undefined && { lineShape }), ...(dashed !== undefined && { dashed }) } };
+    return {
+      tool: value.tool,
+      strokeSettings: {
+        ...fallback,
+        color,
+        secondaryColor,
+        width,
+        opacity,
+        ...(highlighterWidth !== undefined && { highlighterWidth }),
+        ...(lineShape !== undefined && { lineShape }),
+        ...(dashed !== undefined && { dashed }),
+      },
+    };
   } catch {
     return null;
   }
 }
 
 export function serializeBoardPenMemory(memory: BoardPenMemory): string {
-  const { color, secondaryColor, width, opacity, lineShape, dashed } = memory.strokeSettings;
+  const { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed } = memory.strokeSettings;
 
-  return JSON.stringify({ tool: memory.tool, strokeSettings: { color, secondaryColor, width, opacity, lineShape, dashed } });
+  return JSON.stringify({ tool: memory.tool, strokeSettings: { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed } });
 }
 
 /** What a board opens with: its own last pen, else the plain pen with the device-wide settings. */

@@ -107,7 +107,13 @@ export const deleteRulerPreset = (pageId: string, page: number) =>
   studyDelete(`/pages/${enc(pageId)}/ruler/${page}`);
 
 export const listPages = (
-  filter: { classId?: string | null; itemId?: string | null; week?: number | null; lectureKey?: string | null } = {},
+  filter: {
+    classId?: string | null;
+    itemId?: string | null;
+    week?: number | null;
+    lectureKey?: string | null;
+    libraryId?: string | null;
+  } = {},
 ) => studyGet<Page[]>(`/pages${qs(filter)}`);
 /** One page record (incl. `markdown`/`text` for typed pages). 404 on an older backend → list and find. */
 export const getPage = (pageId: string) => studyGet<Page>(`/pages/${enc(pageId)}`);
@@ -119,6 +125,8 @@ export const createPage = (body: {
   week?: number | null;
   moduleId?: string | null;
   lecture?: PageLectureLink | null;
+  /** A notebook on this Library document: the server returns the one already there instead of a copy. */
+  libraryId?: string | null;
 }) => studyPost<Page>('/pages', body);
 /**
  * Rename / file a page under a lecture / edit its details. Leaves the content version alone.
@@ -138,6 +146,8 @@ export const patchPage = (
     mathTools?: MathToolsMode;
     cover?: null;
     aiPick?: MetaField[];
+    /** Link the notebook to a Library document (409 `ALREADY_LINKED` when another one is). */
+    libraryId?: string | null;
   },
 ) => studyPatch<Page>(`/pages/${enc(pageId)}`, patch);
 /** AI names / describes the notebook (only fields the owner has not edited). `only: 'cover'` = a new cover. */

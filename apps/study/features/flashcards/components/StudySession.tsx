@@ -1,12 +1,17 @@
 import type { Grade, SessionTally } from '../lib/deck';
-import type { Question } from '@/lib/api/types';
+import type { Question, QuestionNote } from '@/lib/api/types';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RotateCcw, X } from 'lucide-react';
+import { Button } from '@repo/ui';
+import { PenLine, RotateCcw, X } from 'lucide-react';
 
 import { gradeFlashcard } from '../api';
 import { EMPTY_TALLY, GRADES, gradeForKey, recallPercent, tallyAdd } from '../lib/deck';
+
+import { BookmarkButton } from './BookmarkButton';
+import { NotePad } from './NotePad';
+import { NotePreview } from './NotePreview';
 
 import { ActionButton, Badge, ErrorNote } from '@/components/ui/primitives';
 import { Markdown } from '@/features/bank/components/Markdown';
@@ -50,6 +55,7 @@ export function StudySession({
   const [flipped, setFlipped] = useState(false);
   const [tally, setTally] = useState<SessionTally>(EMPTY_TALLY);
   const [error, setError] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
   const shownAt = useRef(Date.now());
   /** Ids graded «Again» this round — «Review again» replays them. */
   const missed = useRef(new Set<string>());
@@ -71,6 +77,10 @@ export function StudySession({
   );
 
   const flip = useCallback(() => setFlipped((value) => !value), []);
+
+  /** The queue is a snapshot: a bookmark or a note saved mid-session is copied into it too. */
+  const patchCard = (id: string, marks: { bookmarked?: boolean; note?: QuestionNote | null }) =>
+    setQueue((current) => current.map((item) => (item.id === id ? { ...item, ...marks } : item)));
 
   const grade = useCallback(
     (value: Grade) => {
@@ -191,12 +201,53 @@ export function StudySession({
           {title}
           {card && !title.endsWith(card.topic) ? ` · ${card.topic}` : ''}
         </span>
+        {card && (
+          <>
+            <BookmarkButton card={card} onSaved={(bookmarked) => patchCard(card.id, { bookmarked })} />
+            <Button
+              isIconOnly
+              aria-label={card.note ? 'Edit your note' : 'Write a note'}
+              color={card.note ? 'primary' : 'default'}
+              size='sm'
+              title={card.note ? 'Edit your note' : 'Write a note'}
+              variant='light'
+              onPress={() => setWriting(true)}
+            >
+              <PenLine className='h-4 w-4' />
+            </Button>
+          </>
+        )}
         <ActionButton aria-label='End session' className='min-h-10 px-3' variant='ghost' onClick={onExit}>
           <X className='h-4 w-4' /> End
         </ActionButton>
       </div>
 
       {card && <FlipCard key={card.id} card={card} flipped={flipped} onFlip={flip} />}
+
+      {card?.note && flipped && (
+        // Flat (no lip): under the answer, tap to change it.
+        <div
+          aria-label='Your note, tap to edit'
+          className='border-st-line rounded-st flex cursor-pointer flex-col gap-1 border px-3 py-2'
+          role='button'
+          tabIndex={0}
+          onClick={() => setWriting(true)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            // Not the session's flip shortcut.
+            event.preventDefault();
+            event.stopPropagation();
+            setWriting(true);
+          }}
+        >
+          <span className='text-st-muted text-xs font-semibold uppercase tracking-wide'>Your note</span>
+          <NotePreview note={card.note} />
+        </div>
+      )}
+
+      {writing && card && (
+        <NotePad card={card} onClose={() => setWriting(false)} onSaved={(note) => patchCard(card.id, { note })} />
+      )}
 
       {error && <ErrorNote message={error} />}
 

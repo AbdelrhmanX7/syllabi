@@ -457,7 +457,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     "update_question",
     {
       description:
-        "Edit a saved question by id (from get_questions / add_questions): send only what changes — stem, type, topic, subtopic, difficulty, choices, answer, solutionSteps, tags. imageInboxId replaces its picture with a copy of that inbox image; removeImage: true clears it. Returns the updated question.",
+        "Edit a saved question by id (from get_questions / add_questions): send only what changes — stem, type, topic, subtopic, difficulty, choices, answer, solutionSteps, tags, bookmarked (pins it under Bookmarked in Flashcards). imageInboxId replaces its picture with a copy of that inbox image; removeImage: true clears it. Returns the updated question.",
       inputSchema: {
         id: oid,
         stem: questionInput.shape.stem.optional(),
@@ -469,6 +469,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
         answer: questionInput.shape.answer,
         solutionSteps: questionInput.shape.solutionSteps,
         tags: questionInput.shape.tags,
+        bookmarked: z.boolean().optional(),
         imageInboxId: imageInboxId.optional(),
         removeImage: z.boolean().optional(),
       },

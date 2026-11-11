@@ -53,6 +53,7 @@ import { RulerSnapInterceptor } from '../brushes/rulerSnap';
 import { ScriptBrush } from '../brushes/ScriptBrush';
 import { dashArrayFor, installSnappedShapeSupport, ShapeSnapController } from '../brushes/shapeSnap';
 import { SOFT_MARKER_OPACITY, SOFT_MARKER_WIDTH_SCALE, SoftMarkerBrush } from '../brushes/SoftMarkerBrush';
+import { highlighterWidthPx } from '../utils/penSizes';
 import { isHoverWithoutContact } from '../utils/hoverContact';
 import { createStrokeInkContrast, type StrokeInkContrast } from '../utils/inkContrast';
 import { installInkBake, snapPanStep, type InkBakeHandle } from '../utils/inkBake';
@@ -2529,7 +2530,7 @@ export function useWhiteboardCanvas({
           const brush = getOrCreateHighlighterBrush(c);
 
           brush.color = withAlpha(strokeSettingsRef.current.color, HIGHLIGHTER_OPACITY);
-          brush.width = Math.max(strokeSettingsRef.current.width * 4, 24);
+          brush.width = highlighterWidthPx(strokeSettingsRef.current);
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
           c.freeDrawingBrush = brush;
           c.isDrawingMode = true;

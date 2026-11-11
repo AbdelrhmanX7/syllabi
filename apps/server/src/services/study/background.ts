@@ -1,4 +1,5 @@
 import { startStudyCanvasCron, STUDY_CANVAS_SYNC_SCHEDULE } from "@/cron/study-canvas-sync.cron";
+import { backfillPageBookmarks } from "@/services/study/page-bookmarks";
 import { scheduleSandboxImageCheck } from "@/cron/study-code-image.cron";
 import { logger } from "@/services/logger.service";
 import { drainStudyJobs, setStudyJobsAutoKick, sweepUploadedSummaries } from "./jobs";
@@ -88,6 +89,8 @@ export function startStudyBackground(role: BackgroundRole): BackgroundHandle {
     tick = (async () => {
       await drainStudyJobs();
       if (!stopped) await sweepUploadedSummaries(5, uploadMinAgeMs);
+      // Older notebooks get their bookmarks onto the page row (a no-op once every row has the field).
+      if (!stopped) await backfillPageBookmarks(25);
     })()
       .catch((error) => logger.error("study jobs poll failed", error))
       .finally(() => {

@@ -53,6 +53,8 @@ export function questionDto(q: IStudyQuestion) {
     createdAt: iso(q.createdAt),
     /** Set when someone the owner shared it with (an editor) made the last change. */
     editedBy: q.editedBy ? { name: q.editedBy.name || "Someone", at: iso(q.editedBy.at) } : null,
+    bookmarked: Boolean(q.bookmarked),
+    note: q.note ?? null,
   };
 }
 

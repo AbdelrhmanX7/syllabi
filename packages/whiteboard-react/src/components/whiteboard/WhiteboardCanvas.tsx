@@ -31,6 +31,7 @@ import {
 } from './utils/backgroundLayers';
 import { isDarkBoard, registerDarkBoardSurface, setBoardTheme } from './utils/darkBoard';
 import { invalidateInkBake } from './utils/inkBake';
+import { highlighterWidthPx } from './utils/penSizes';
 import {
   getScaledRasterTarget,
   isStrokeInProgress,
@@ -657,7 +658,7 @@ export function WhiteboardCanvas({
   // pen at the same width setting, so showing them at the pen's size would under-report the mark.
   const indicatorSize =
     effectiveTool === 'highlighter'
-      ? Math.max(strokeSettings.width * 4, 24)
+      ? highlighterWidthPx(strokeSettings)
       : effectiveTool === 'eraser'
         ? eraserSize
         : effectiveTool === 'brush'

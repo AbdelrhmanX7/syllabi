@@ -71,9 +71,11 @@ import { ShapeStylePanel } from './ShapeStylePanel';
 import type { ShapeStyleSettings } from './utils/shapeStyle';
 import type { ShapeStylePatch } from './utils/shapeStylePaint';
 import EraserSettings from './EraserSettings';
+import { PenSizePicker } from './PenSizePicker';
 import StrokeSettingsComponent from './StrokeSettings';
 import TabletInputSettingsComponent from './TabletInputSettings';
 import { penSurface, TOOLBAR_SURFACE } from './toolbarSurfaces';
+import { HIGHLIGHTER_SIZES_MM, highlighterWidthPx } from './utils/penSizes';
 import { createDragScroll, scrollEdges, type ScrollEdges } from './utils/toolbarScroll';
 import { useWbStrings } from '../../i18n/context';
 import type { WbStringKey } from '../../i18n/strings';
@@ -825,12 +827,24 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 onOpenChange={(open) => onOpenToolSettings(open ? 'highlighter' : null)}
                 onToolChange={onToolChange}
               >
-                <ColorPicker
-                  color={strokeSettings.color}
-                  colors={HIGHLIGHTER_PALETTE}
-                  label={t(TOOL_LABELS.highlighter)}
-                  onChange={handleStrokeColorChange}
-                />
+                <div className='flex w-[min(calc(100vw-2rem),18rem)] flex-col'>
+                  <ColorPicker
+                    color={strokeSettings.color}
+                    colors={HIGHLIGHTER_PALETTE}
+                    label={t(TOOL_LABELS.highlighter)}
+                    onChange={handleStrokeColorChange}
+                  />
+                  <Divider />
+                  <div className='flex flex-col gap-2 p-3'>
+                    <span className='text-ink/60 text-xs font-bold'>{t('stroke.highlighterSize')}</span>
+                    <PenSizePicker
+                      label={t('stroke.highlighterSize')}
+                      sizes={HIGHLIGHTER_SIZES_MM}
+                      valuePx={highlighterWidthPx(strokeSettings)}
+                      onChange={(highlighterWidth) => onStrokeSettingsChange({ ...strokeSettings, highlighterWidth })}
+                    />
+                  </div>
+                </div>
               </MemoizedSettingsToolButton>
               <MemoizedSettingsToolButton
                 activeTool={activeTool}

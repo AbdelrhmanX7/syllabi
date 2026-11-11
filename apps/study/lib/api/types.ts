@@ -211,6 +211,23 @@ export interface Page {
   metaAiAt?: string | null;
   /** Content version AI last described; null = never. */
   metaAiVersion?: number | null;
+  /** The class Library PDF this notebook writes on (one notebook per document). Absent on older backends. */
+  libraryId?: string | null;
+  /** Bookmarked board pages as of the last save, in page order. Absent on older backends. */
+  bookmarks?: PageBookmarkRef[];
+}
+
+/** One bookmarked board page of a notebook (read from its board at each save). */
+export interface PageBookmarkRef {
+  /** The board page's own id (`&page=` on the notebook route opens it). */
+  boardPageId: string;
+  /** 0-based position when saved. */
+  index: number;
+  /** What the pager shows: «3», «3a». */
+  pageLabel: string;
+  /** The short name typed for it; null = none. */
+  label: string | null;
+  at: string;
 }
 
 /** `POST /pages/:id/describe`: the page as it is now, plus whether a cover picture is still being made. */
@@ -267,6 +284,20 @@ export interface Question {
   createdAt: string;
   /** Someone the owner shared it with (Can edit) made the last change. */
   editedBy?: { name: string; at: string | null } | null;
+  /** The owner's own: pinned under «Bookmarked» in Flashcards (never on a shared copy). */
+  bookmarked?: boolean;
+  /** The owner's handwritten note on the card (never on a shared copy). */
+  note?: QuestionNote | null;
+}
+
+/**
+ * Pen strokes written on a `w` × `h` CSS px pad. Each stroke: a colour token, a base width and a flat
+ * `[x, y, pressure, …]` list. The server caps it at 64 KB.
+ */
+export interface QuestionNote {
+  w: number;
+  h: number;
+  strokes: { c: 'ink' | 'blue' | 'red' | 'green'; w: number; pts: number[] }[];
 }
 
 export interface AttemptInput {

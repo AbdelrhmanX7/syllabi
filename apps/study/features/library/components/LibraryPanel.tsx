@@ -1,7 +1,8 @@
 import type { LibraryDoc, LibraryHit, LibraryKind } from '@/lib/api/types';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Image as ImageIcon, Library, NotebookText, Search } from 'lucide-react';
+import { Chip } from '@repo/ui';
+import { FileText, Image as ImageIcon, Library, NotebookPen, NotebookText, Search } from 'lucide-react';
 
 import { useClassLibrary, useLibrarySearch } from '../hooks';
 import { filterDocs, groupByWeek } from '../lib/library';
@@ -9,6 +10,7 @@ import { filterDocs, groupByWeek } from '../lib/library';
 import { EmptyState, ErrorNote, FilterChip, INPUT_CLASS, LoadingRows, Surface } from '@/components/ui/primitives';
 import { useLectureNoteWeeks, WeekNotes } from '@/features/lecturenotes/components/NoteLinks';
 import { describeError } from '@/lib/api/errors';
+import { usePages } from '@/lib/api/hooks';
 
 /**
  * The class library by week: notes, slides/PDFs, images from the class folder. The box filters
@@ -40,7 +42,7 @@ function useDebounced(value: string, ms = 350): string {
   return debounced;
 }
 
-function DocRow({ doc, onOpen }: { doc: LibraryDoc; onOpen: (doc: LibraryDoc) => void }) {
+function DocRow({ doc, hasNotes, onOpen }: { doc: LibraryDoc; hasNotes: boolean; onOpen: (doc: LibraryDoc) => void }) {
   const Icon = KIND_ICON[doc.kind];
 
   return (
@@ -56,6 +58,22 @@ function DocRow({ doc, onOpen }: { doc: LibraryDoc; onOpen: (doc: LibraryDoc) =>
         <span className='text-st-fg block truncate text-sm font-medium'>{doc.title}</span>
         <span className='text-st-muted block truncate text-xs'>{doc.path}</span>
       </span>
+      {/* You wrote on this PDF: «Write on it» goes back to that notebook. */}
+      {hasNotes && (
+        <Chip
+          aria-label='Your notes'
+          className='shrink-0'
+          color='primary'
+          classNames={{ content: 'gap-1' }}
+          size='sm'
+          title='Your notes'
+          variant='flat'
+        >
+          <NotebookPen aria-hidden className='h-3.5 w-3.5' />
+          {/* Phone width: the icon alone, so the name keeps its room. */}
+          <span className='hidden sm:inline'>Your notes</span>
+        </Chip>
+      )}
     </button>
   );
 }
@@ -81,6 +99,12 @@ function HitRow({ hit, onOpen }: { hit: LibraryHit; onOpen: () => void }) {
 
 export function LibraryPanel({ classId, onOpen }: LibraryPanelProps) {
   const library = useClassLibrary(classId);
+  // Library PDFs you wrote on (their notebook is linked to the document).
+  const classPages = usePages({ classId });
+  const withNotes = useMemo(
+    () => new Set((classPages.data ?? []).flatMap((page) => (page.libraryId ? [page.libraryId] : []))),
+    [classPages.data],
+  );
   const docs = useMemo(() => library.data ?? [], [library.data]);
   const [kind, setKind] = useState<LibraryKind | 'all'>('all');
   const [text, setText] = useState('');
@@ -197,7 +221,7 @@ export function LibraryPanel({ classId, onOpen }: LibraryPanelProps) {
             <Surface className='flex flex-col gap-1 px-1 py-1'>
               <WeekNotes classId={classId} label='Your lecture notes' week={group.week} />
               {group.docs.map((doc) => (
-                <DocRow key={doc.id} doc={doc} onOpen={onOpen} />
+                <DocRow key={doc.id} doc={doc} hasNotes={withNotes.has(doc.id)} onOpen={onOpen} />
               ))}
             </Surface>
           </section>

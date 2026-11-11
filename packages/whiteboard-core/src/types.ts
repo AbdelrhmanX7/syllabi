@@ -478,7 +478,13 @@ export interface StrokeSettings {
    * `color` <-> `secondaryColor`. Default: '#2563EB' (blue).
    */
   secondaryColor: string;
+  /** Pen width in board px (the size picker shows it in real mm). */
   width: number;
+  /**
+   * The highlighter's own width in board px. Absent = the width it always had, derived from `width`
+   * (see `highlighterWidthPx` in whiteboard-react).
+   */
+  highlighterWidth?: number;
   opacity: number;
   /**
    * Straight-line mode of the pen family. `free` (default / absent) = freehand; `hold` = a pause of

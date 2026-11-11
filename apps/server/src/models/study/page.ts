@@ -1,6 +1,7 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { EditedBySchema, IEditedBy } from "@/models/share";
 import { COVER_COLORS, COVER_ICONS, MATH_TOOLS_MODES, MathToolsMode, MetaEdited } from "@/services/study/page-meta";
+import type { BoardBookmark } from "@/services/study/page-bookmarks";
 
 export const STUDY_PAGE_KINDS = ["note", "pdf", "lecture", "solve"] as const;
 export type StudyPageKind = (typeof STUDY_PAGE_KINDS)[number];
@@ -114,6 +115,10 @@ export interface IStudyPage {
   week: number | null;
   /** An owned StudyModule of this page's class. */
   moduleId: Types.ObjectId | null;
+  /** The class Library document (a PDF) this notebook writes on; one live notebook per document. */
+  libraryId?: Types.ObjectId | null;
+  /** Bookmarked board pages, read from the board JSON at each commit (services/study/page-bookmarks.ts). */
+  bookmarks?: BoardBookmark[];
   /** The recorded lecture this page belongs to: client-built key (e.g. "bio101-2026-10-05"), date YYYY-MM-DD. */
   lecture: { number: number | null; key: string; date: string } | null;
   /** Client page renders (PUT /study/pages/:id/renders/:index). Never moves `updatedAt`. */
@@ -167,6 +172,22 @@ const StudyPageSchema = new Schema<IStudyPage>(
     thumbUrl: { type: String, default: null },
     week: { type: Number, default: null },
     moduleId: { type: Schema.Types.ObjectId, default: null },
+    libraryId: { type: Schema.Types.ObjectId, default: null },
+    bookmarks: {
+      type: [
+        new Schema(
+          {
+            index: { type: Number, required: true },
+            boardPageId: { type: String, required: true },
+            pageLabel: { type: String, default: "" },
+            label: { type: String, default: "" },
+            at: { type: Number, required: true },
+          },
+          { _id: false }
+        ),
+      ],
+      default: undefined,
+    },
     lecture: {
       type: new Schema({ number: { type: Number, default: null }, key: { type: String, required: true }, date: { type: String, required: true } }, { _id: false }),
       default: null,
@@ -274,5 +295,6 @@ StudyPageSchema.index({ userId: 1, itemId: 1 });
 StudyPageSchema.index({ userId: 1, lectureId: 1 });
 StudyPageSchema.index({ userId: 1, classId: 1, week: 1 });
 StudyPageSchema.index({ userId: 1, "lecture.key": 1 });
+StudyPageSchema.index({ userId: 1, libraryId: 1 }, { partialFilterExpression: { libraryId: { $type: "objectId" } } });
 
 export const StudyPage = mongoose.model<IStudyPage>("StudyPage", StudyPageSchema, "study_pages");

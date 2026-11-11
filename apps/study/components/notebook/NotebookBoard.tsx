@@ -161,6 +161,8 @@ export interface NotebookBoardProps {
   live?: boolean;
   /** Replaces the name chip in the board's top bar (e.g. the notebook-details button). */
   titleSlot?: ReactNode;
+  /** Open on this board page (a bookmark picked on the Notes page) instead of where it was left. */
+  initialPageId?: string;
 }
 
 const newClientId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -273,6 +275,7 @@ export function NotebookBoard({
   onPdfFileImported,
   live = false,
   titleSlot,
+  initialPageId,
 }: NotebookBoardProps) {
   // The title only seeds a brand-new document; a rename must not re-open (and so remount) the board.
   const titleRef = useRef(title);
@@ -886,6 +889,7 @@ export function NotebookBoard({
       <WhiteboardEditor
         key={`${pageId}:${opened.source}:${boardGeneration}`}
         allowInsertBlankPages
+        initialPageId={initialPageId}
         allowPaperSpacing
         allowPdfLayoutToggle
         compactSelectTool

@@ -20,6 +20,7 @@ import {
   REVIEW_MAX,
 } from "@/services/study/questions";
 import { stemHash, shingleHashes } from "@/services/study/dedupe";
+import { personalPatch } from "@/services/study/question-note";
 import { newSrs } from "@/services/study/fsrs";
 import { openStudySse, StudySse } from "@/services/study/sse";
 import { newSpend, Spend, spendForUser } from "@/services/study/ai-models";
@@ -228,10 +229,27 @@ const editableQuestion = async (req: Request, res: Response) => {
 export const patchQuestion = wrap(async (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const patch = Object.fromEntries(PATCHABLE.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
-  if (!Object.keys(patch).length) return fail(res, 400, "VALIDATION_ERROR", `Nothing to update (editable: ${PATCHABLE.join(", ")})`);
+  let personal: ReturnType<typeof personalPatch>;
+  try {
+    personal = personalPatch(body);
+  } catch (e) {
+    if (e instanceof QuestionInputError) return fail(res, 400, "VALIDATION_ERROR", e.message);
+    throw e;
+  }
+  const hasPersonal = Object.keys(personal).length > 0;
+  if (!Object.keys(patch).length && !hasPersonal)
+    return fail(res, 400, "VALIDATION_ERROR", `Nothing to update (editable: ${[...PATCHABLE, "bookmarked", "note"].join(", ")})`);
   const found = await editableQuestion(req, res);
   if (!found) return;
   const { doc: q, editor } = found;
+  // The bookmark and the handwritten note are the owner's own, like progress.
+  if (editor && hasPersonal) return fail(res, 403, "FORBIDDEN", "Only the owner can bookmark a card or write a note on it");
+  // Only personal marks: a plain set (no re-dedupe, and an editor's «edited by» line stays).
+  if (!Object.keys(patch).length) {
+    const marked = await StudyQuestion.findOneAndUpdate({ _id: q._id, userId: q.userId }, { $set: personal }, { new: true, projection: QUESTION_PROJECTION }).lean<IStudyQuestion>();
+    if (!marked) return fail(res, 404, "NOT_FOUND", "Question not found");
+    return res.json(questionDto(marked));
+  }
   if (editor) {
     const locked = EDITOR_LOCKED.find((k) => patch[k] !== undefined && JSON.stringify(patch[k]) !== JSON.stringify(questionDto(q)[k]));
     if (locked) return fail(res, 403, "FORBIDDEN", `Only the owner can change ${locked}`);
@@ -252,7 +270,7 @@ export const patchQuestion = wrap(async (req, res) => {
   const scope = editor ? { classId: q.classId, topic: q.topic } : {};
   const updated = await StudyQuestion.findOneAndUpdate(
     { _id: q._id, userId: q.userId, ...scope },
-    { $set: { ...fields, ...scope, stemHash: stemHash(dedupeText(draft)), shingles: shingleHashes(dedupeText(draft)), editedBy: editor ? editedByOf(editor) : null } },
+    { $set: { ...fields, ...scope, ...personal, stemHash: stemHash(dedupeText(draft)), shingles: shingleHashes(dedupeText(draft)), editedBy: editor ? editedByOf(editor) : null } },
     { new: true, projection: QUESTION_PROJECTION }
   ).lean<IStudyQuestion>();
   if (!updated) return fail(res, 404, "NOT_FOUND", "Question not found");

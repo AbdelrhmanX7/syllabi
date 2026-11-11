@@ -55,6 +55,7 @@ import {
 } from '@/features/lecturenotes/mock';
 // Notebook details: PATCH fields + POST /pages/:id/describe (fake AI, deterministic).
 import { describeMockPage, patchPageMeta, withMetaDefaults } from './page-meta';
+import { boardBookmarks } from '@/lib/notebooks/bookmarks';
 // Sharing: /share (demo classmates + make a copy through this transport); undefined = not its path.
 import { shareMockRoutes } from '@/features/share/mock';
 // Perf telemetry: /telemetry/perf (POST batches, GET the owner read); undefined = not its path.
@@ -397,10 +398,12 @@ class MockDb {
     itemId: string | null,
     week: string | null = null,
     lectureKey: string | null = null,
+    libraryId: string | null = null,
   ): Page[] {
     return this.state.pages
       .map((page) => withMetaDefaults({ ...pageLectureFields(page), ...page }))
       .filter((page) => !classId || page.classId === classId)
+      .filter((page) => !libraryId || page.libraryId === libraryId)
       .filter((page) => !itemId || page.itemId === itemId)
       .filter((page) => pageMatchesLecture(page, week, lectureKey))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -408,6 +411,10 @@ class MockDb {
 
   createPage(body: Partial<Page>): Page {
     if (!body.title || !body.kind) throw badRequest('title and kind are required');
+    // One notebook per Library document: asking again returns the one already there.
+    const linked = body.libraryId ? this.state.pages.find((candidate) => candidate.libraryId === body.libraryId) : undefined;
+
+    if (linked) return linked;
     const page: Page = {
       id: uid('pg'),
       classId: body.classId ?? null,
@@ -419,6 +426,8 @@ class MockDb {
       updatedAt: nowIso(),
       version: 0,
       thumbUrl: null,
+      ...(body.libraryId ? { libraryId: body.libraryId } : {}),
+      bookmarks: [],
       // A typed page (what MCP add_note_page creates): markdown text, empty board.
       ...(typeof body.markdown === 'string' && body.markdown ? { markdown: body.markdown } : {}),
     };
@@ -484,6 +493,8 @@ class MockDb {
 
     this.state.pageContents[page.id] = { version, json };
     page.version = version;
+    // Like the server: the board's bookmarks are copied onto the page row at each commit.
+    page.bookmarks = boardBookmarks(json);
     page.updatedAt = nowIso();
     this.persist();
 
@@ -899,8 +910,22 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
     }
     case 'pages': {
       if (!a && method === 'GET')
-        return db.pages(query.get('classId'), query.get('itemId'), query.get('week'), query.get('lectureKey'));
+        return db.pages(
+          query.get('classId'),
+          query.get('itemId'),
+          query.get('week'),
+          query.get('lectureKey'),
+          query.get('libraryId'),
+        );
       if (a && !b && method === 'PATCH') {
+        if (body && 'libraryId' in body) {
+          const libraryId = (body.libraryId as string | null) ?? null;
+
+          if (libraryId && db.pages(null, null, null, null, libraryId).some((other) => other.id !== a)) {
+            throw new StudyApiError(409, 'Another notebook already writes on that document', 'ALREADY_LINKED');
+          }
+          db.page(a).libraryId = libraryId;
+        }
         const page = withMetaDefaults(patchPageMeta(patchPageFields(db.page(a), body), body));
 
         db.persist();

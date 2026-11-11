@@ -2,9 +2,13 @@ import type { Question, StudyClass } from '@/lib/api/types';
 
 import { useState } from 'react';
 import { cn } from '@repo/ui';
-import { Trash2 } from 'lucide-react';
+import { PenLine, Trash2 } from 'lucide-react';
 
-import { useFlashcardMutations } from '../hooks';
+import { useFlashcardMutations, useFlashcards } from '../hooks';
+
+import { BookmarkButton } from './BookmarkButton';
+import { NotePad } from './NotePad';
+import { NotePreview } from './NotePreview';
 
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ActionButton, ErrorNote, Field, INPUT_CLASS } from '@/components/ui/primitives';
@@ -37,6 +41,10 @@ export function CardSheet({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [added, setAdded] = useState(0);
+  const [writing, setWriting] = useState(false);
+  // Bookmark and note save on their own, so read them from the live list, not the snapshot.
+  const cardsQuery = useFlashcards();
+  const live = card ? (cardsQuery.data?.find((item) => item.id === card.id) ?? card) : null;
   const busy = create.isPending || update.isPending || remove.isPending;
   const canSave = front.trim().length > 0 && back.trim().length > 0 && Boolean(classId);
   const topics = topicsByClass.get(classId) ?? [];
@@ -127,9 +135,24 @@ export function CardSheet({
               </datalist>
             </Field>
           </div>
+          {live && (
+            <div className='border-st-line flex flex-col gap-2 border-t pt-3'>
+              <div className='flex items-center gap-2'>
+                <span className={cn('min-w-0 flex-1 text-sm', live.note ? 'text-st-fg font-medium' : 'text-st-muted')}>
+                  {live.note ? 'Your note' : 'No note yet'}
+                </span>
+                <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => setWriting(true)}>
+                  <PenLine className='h-4 w-4' /> {live.note ? 'Edit note' : 'Write a note'}
+                </ActionButton>
+                <BookmarkButton card={live} className='shrink-0' />
+              </div>
+              {live.note && <NotePreview note={live.note} />}
+            </div>
+          )}
           {error && <ErrorNote message={error} />}
         </div>
       </Sheet>
+      {writing && live && <NotePad card={live} onClose={() => setWriting(false)} />}
       {confirmDelete && card && (
         <ConfirmSheet
           danger

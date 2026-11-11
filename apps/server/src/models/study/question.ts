@@ -46,6 +46,9 @@ export interface IStudyQuestion {
   shingles: string[];
   /** Set when someone the owner shared this with (an editor) last changed it. */
   editedBy?: IEditedBy | null;
+  /** The owner's own marks (services/study/question-note.ts): never shared, never set by an editor. */
+  bookmarked?: boolean;
+  note?: { w: number; h: number; strokes: Array<{ c: string; w: number; pts: number[] }> } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +92,8 @@ const StudyQuestionSchema = new Schema<IStudyQuestion>(
     stemHash: { type: String, required: true },
     shingles: { type: [String], default: [] },
     editedBy: { type: EditedBySchema, default: null },
+    bookmarked: { type: Boolean, default: false },
+    note: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );

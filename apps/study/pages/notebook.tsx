@@ -1,3 +1,4 @@
+import type { WhiteboardStorage } from '@repo/whiteboard-core';
 import type { Page } from '@/lib/api/types';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -14,7 +15,7 @@ import { recordPhoneImage } from '@/features/conceptmaps/lib/pageImages';
 import { useNotebookConceptMaps } from '@/features/conceptmaps/notes/NotebookConceptMaps';
 import { AttachToLectureButton, lectureNoteSeed, usePageLecture } from '@/features/lecturenotes';
 import { track } from '@/lib/analytics';
-import { getPage, listPages, patchPage } from '@/lib/api/endpoints';
+import { getLibraryDoc, getPage, listPages, patchPage } from '@/lib/api/endpoints';
 import { PAGE_DESCRIBED_EVENT, rememberPdfName } from '@/lib/notebooks/auto-describe';
 import { retitleForPdf } from '@/lib/notebooks/note-title';
 import { readCachedPage, rememberPages } from '@/lib/notebooks/pages-cache';
@@ -27,7 +28,7 @@ import { PageVersionsButton, SharedEditChip } from '@/features/share/components/
 const ExtractButton = dynamic(() => import('@/features/bank').then((mod) => mod.ExtractButton), { ssr: false });
 
 /**
- * `/notebook/?id=<pageId>` — a handwritten notebook page on the board, edge to edge.
+ * `/notebook/?id=<pageId>[&page=<board page id>]` — a handwritten notebook page on the board, edge to edge.
  *
  * The Page record comes from the local index first (every list/create fills it) and from a pages
  * listing otherwise; the board itself only needs the id and a title.
@@ -36,6 +37,8 @@ export default function NotebookPage() {
   const router = useRouter();
   const pageId = typeof router.query.id === 'string' ? router.query.id : '';
   const classId = typeof router.query.classId === 'string' ? router.query.classId : '';
+  // `&page=<board page id>`: open on that page (a bookmark picked on the Notes page).
+  const startPageId = typeof router.query.page === 'string' ? router.query.page : undefined;
   const [page, setPage] = useState<Page | null>(null);
   // Someone else's page shared with me to edit: content only, nothing that reaches into their classes.
   const sharedWithMe = page?.shared ?? null;
@@ -191,6 +194,22 @@ export default function NotebookPage() {
     [page],
   );
 
+  // A notebook on a Library PDF opened here (a bookmark on another tablet): when the server has no copy
+  // of the PDF under the pages, fetch it from the Library document.
+  const libraryId = sharedWithMe ? null : (page?.libraryId ?? null);
+  const restoreFromLibrary = useCallback(
+    async (storage: WhiteboardStorage, assetId: string) => {
+      if (!libraryId) return;
+      const doc = await getLibraryDoc(libraryId);
+
+      if (!doc.url) return;
+      const { restorePdfAsset } = await import('@/lib/notebooks/pdf-import');
+
+      await restorePdfAsset({ assetId, fileUrl: doc.url, fileName: doc.path.split('/').pop() || `${doc.title}.pdf`, storage });
+    },
+    [libraryId],
+  );
+
   // Moving to the server id: never mount the board on the old one (it would start a blank board there).
   if (redirectTo) return null;
 
@@ -214,6 +233,7 @@ export default function NotebookPage() {
         <NotebookBoard
           boardAi={boardAi}
           extraSelectionActions={conceptMaps.selectionActions}
+          initialPageId={startPageId}
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
           live={Boolean(page.live)}
@@ -236,6 +256,7 @@ export default function NotebookPage() {
           pageId={page.id}
           pendingImage={inboxImage}
           pendingPdf={inboxPdf}
+          restorePdfAsset={libraryId ? restoreFromLibrary : undefined}
           // A lecture note starts on lined paper (only a brand-new page is seeded).
           seed={lecture ? lectureNoteSeed(page.id, page.title) : undefined}
           title={page.title}
