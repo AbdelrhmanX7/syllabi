@@ -372,8 +372,15 @@ const PEN_TWIN_START_DISTANCE_PX = 24;
 const STYLUS_TILT_OFFSET_MIN_ANGLE = 1;
 // Constant upward calibration (CSS px) applied to drawing input so ink lands at the nib
 // rather than slightly below it. Positive = lift the drawn point up. Applies to any drawing
-// contact (real stylus and pen-reported-as-touch).
+// contact (real stylus and pen-reported-as-touch) — but ONLY while the aim correction is turned on
+// (a non-zero `penTiltOffset`, see isAimCorrectionOn). Off by default since 2026-11-11: the S Pen
+// reports its tip exactly, and the correction is only for touch panels with parallax (ViewSonic).
 const PEN_VERTICAL_DRAW_OFFSET_PX: number = 2;
+
+/** The aim correction (the lift above plus the tilt offset) runs only when the user turned it on. */
+function isAimCorrectionOn(penTiltOffset: unknown): penTiltOffset is number {
+  return typeof penTiltOffset === 'number' && Number.isFinite(penTiltOffset) && Math.abs(penTiltOffset) >= 0.01;
+}
 // --- Stranded-touch-state self-heal watchdog ---
 // The transient TOUCH state (touchOverrideToolRef='pan', touchPanModeRef, the tracked pointer maps) is
 // normally cleared when a pointerup/pointercancel reaches the container's capture-phase listener. On a
@@ -1573,7 +1580,9 @@ export function useWhiteboardCanvas({
   // coordinates — but it is not what moves the ink. See penPointerOffsetRef: Fabric never reads this
   // PointerEvent, so the offset has to be handed to it separately.
   const applyPenVerticalDrawOffset = useCallback((event: PointerEvent) => {
-    if (PEN_VERTICAL_DRAW_OFFSET_PX === 0) {
+    // Off (the default): ink goes exactly where the event says. Nothing is computed or written to the
+    // event, so a frame can never get the correction twice or lose it halfway through a stroke.
+    if (PEN_VERTICAL_DRAW_OFFSET_PX === 0 || !isAimCorrectionOn(tabletInputSettingsRef.current.penTiltOffset)) {
       penPointerOffsetRef.current = { x: 0, y: 0 };
 
       return;
@@ -1728,10 +1737,15 @@ export function useWhiteboardCanvas({
       return verdict;
     }
 
-    for (let i = 0; i < appendIndices.length; i += 1) {
-      const sample = samples[appendIndices[i]];
+    const points = appendIndices.map((index) => pointerCanvas._getPointerImpl(samples[index]));
+    const pressures = appendIndices.map((index) => (isPen ? samples[index].pressure : undefined));
 
-      brush.appendCoalescedSample(pointerCanvas._getPointerImpl(sample), isPen ? sample.pressure : undefined);
+    // Anchored to Fabric's own point for this frame (its twin event), not appended as they came: on the
+    // owner's tablet the sub-frame samples sit 9.1 px above that point, which drew the zig-zag crown.
+    if (typeof brush.queueCoalescedFrame === 'function') {
+      brush.queueCoalescedFrame(points, pressures, pointerCanvas._getPointerImpl(samples[lastIndex]));
+    } else {
+      points.forEach((point, i) => brush.appendCoalescedSample(point, pressures[i]));
     }
 
     notePressure();
@@ -1748,13 +1762,16 @@ export function useWhiteboardCanvas({
         return;
       }
 
-      applyPenVerticalDrawOffset(event);
-
       const offset = tabletInputSettingsRef.current.penTiltOffset;
 
-      if (typeof offset !== 'number' || !Number.isFinite(offset) || Math.abs(offset) < 0.01) {
+      if (!isAimCorrectionOn(offset)) {
+        // Off (the default): bypassed entirely, not computed and multiplied by zero.
+        penPointerOffsetRef.current = { x: 0, y: 0 };
+
         return;
       }
+
+      applyPenVerticalDrawOffset(event);
 
       const tiltX = typeof event.tiltX === 'number' && Number.isFinite(event.tiltX) ? event.tiltX : 0;
       const tiltY = typeof event.tiltY === 'number' && Number.isFinite(event.tiltY) ? event.tiltY : 0;
@@ -2939,10 +2956,10 @@ export function useWhiteboardCanvas({
       const point = resolveFabricPointer(e, fromViewport);
       const { x: clientDeltaX, y: clientDeltaY } = penPointerOffsetRef.current;
 
-      // Reached by a MOUSE, and by anything resolved between strokes (the offset is cleared on every
-      // release path). It does NOT fire for a drawing contact: PEN_VERTICAL_DRAW_OFFSET_PX is a
-      // non-zero constant, so applyPenVerticalDrawOffset parks {x:0,y:-2} on every move of the pen /
-      // touch-stylus that is inking. That is why the branch below had to stop costing a layout read.
+      // The common case: the aim correction is off (the default), and also a MOUSE and anything resolved
+      // between strokes (the offset is cleared on every release path). With the correction turned on,
+      // applyPenVerticalDrawOffset parks {x:0,y:-2} (plus tilt) on every move of the inking pen /
+      // touch-stylus, which is why the branch below must not cost a layout read.
       if (clientDeltaX === 0 && clientDeltaY === 0) {
         return point;
       }

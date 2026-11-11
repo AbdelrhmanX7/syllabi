@@ -77,7 +77,7 @@ export const TOOLBAR_STRINGS = {
     'The pen writes and a finger pans or zooms automatically — nothing to set up. Pen corrections, pan sensitivity and pen buttons live here.',
   'tablet.tiltOffset': 'Pen tilt compensation',
   'tablet.tiltOffsetHint':
-    'Fixes a small gap between the pen tip and the drawn point when the pen is tilted. Use a negative value if the direction is reversed.',
+    'Off at 0. Turn it on only if the ink lands a little off the pen tip (some big touch screens do this). Use a negative value if the direction is reversed.',
   'tablet.jitter': 'Pen jitter filter',
   'tablet.jitterHint':
     'Ignores very small movements in the pen line to cut stray dots and strokes. Set 0 for raw input, raise it on shaky screens.',

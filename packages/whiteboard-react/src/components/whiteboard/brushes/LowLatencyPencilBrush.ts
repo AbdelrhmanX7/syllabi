@@ -52,6 +52,9 @@ export interface StrokeInterceptor {
  * through {@link appendCoalescedSample} from a CAPTURE-phase listener — i.e. before Fabric processes its
  * own event for the same frame, which is what keeps the points in chronological order.
  */
+/** Largest believable shift (screen px) between a frame's pen sample and Fabric's point for it. */
+const MAX_FRAME_SHIFT_SCREEN_PX = 24;
+
 export class LowLatencyPencilBrush extends PencilBrush {
   /** The colour this brush paints with into `ctx`: its own on a light surface, remapped on a dark board (utils/darkBoard). */
   protected paintColorFor(ctx: CanvasRenderingContext2D): string {
@@ -151,6 +154,8 @@ export class LowLatencyPencilBrush extends PencilBrush {
 
   override _reset(): void {
     super._reset();
+    this.pendingFrame = null;
+    this.frameDelta = null;
     this.smoother.reset();
     this.lastRawX = Number.NaN;
     this.lastRawY = Number.NaN;
@@ -247,6 +252,14 @@ export class LowLatencyPencilBrush extends PencilBrush {
   }
 
   override onMouseMove(pointer: Point, eventData: TEvent): void {
+    // Fabric's own point for the frame: its sub-frame samples go in first, anchored to it.
+    if (this.pendingFrame && this.canvas._isMainEvent(eventData.e)) {
+      const { reference } = this.pendingFrame;
+
+      this.frameDelta = { x: pointer.x - reference.x, y: pointer.y - reference.y };
+      this.flushPendingFrame();
+    }
+
     if (this.strokeInterceptor?.strokeSample(this, pointer, eventData.e)) {
       return;
     }
@@ -256,6 +269,7 @@ export class LowLatencyPencilBrush extends PencilBrush {
 
   override _finalizeAndAddPath(): void {
     try {
+      this.flushPendingFrame();
       if (!this.trimLiftHooks()) this.reachLastSample();
 
       if (this.strokeInterceptor?.strokeFinalize(this)) {
@@ -301,6 +315,61 @@ export class LowLatencyPencilBrush extends PencilBrush {
    * accumulate: their `_render()` repaints the whole stroke from `_points` on the frame's own move, so
    * the appended samples are covered there and a per-sample repaint would be pure waste.
    */
+  /**
+   * A frame's sub-frame samples, waiting for the frame's own point from Fabric (its twin touch/mouse
+   * event). See {@link queueCoalescedFrame}.
+   */
+  private pendingFrame: { points: Point[]; pressures: Array<number | undefined>; reference: Point } | null = null;
+
+  /** The last measured shift from the pen's samples to Fabric's point; null until a frame measured it. */
+  private frameDelta: { x: number; y: number } | null = null;
+
+  /**
+   * Queue a frame's sub-frame samples (all but the frame's own, already resolved to scene points) and
+   * `reference`, the frame's own sample resolved the same way.
+   *
+   * WHY QUEUE, NOT APPEND. The stroke is Fabric's: its first point and every frame's own point come from
+   * the twin touch/mouse event. On some tablets (the owner's Galaxy Tab S9 Ultra, 2026-11-11) the pen's
+   * sub-frame samples are reported at a constant offset from that point — 9.1 px straight up, every
+   * frame. Appended as they came, every frame with 2+ samples put points 9 px off the line between
+   * Fabric's points: the zig-zag "earthquake" crown. Using the pen's samples for every point instead
+   * moved the whole line off the tip. So each sample is moved by the offset measured between the frame's
+   * own sample and Fabric's point for the SAME frame, the moment that point arrives; on a device without
+   * the offset the shift is 0 and nothing changes.
+   */
+  queueCoalescedFrame(points: Point[], pressures: Array<number | undefined>, reference: Point): void {
+    // A frame whose twin never came (a skipped frame) goes in with the last measured shift.
+    this.flushPendingFrame();
+    if (points.length > 0) this.pendingFrame = { points, pressures, reference };
+  }
+
+  /** Append the queued samples moved by the last measured shift (dropped when it is unknown or absurd). */
+  private flushPendingFrame(): void {
+    const frame = this.pendingFrame;
+
+    this.pendingFrame = null;
+
+    const delta = this.frameDelta;
+
+    if (!frame || !delta) return;
+
+    const zoom = this.canvas.getZoom() || 1;
+
+    // The same moment can't be this far apart: something is wrong with the frame, so keep Fabric's points only.
+    if (Math.hypot(delta.x, delta.y) * zoom > MAX_FRAME_SHIFT_SCREEN_PX) return;
+
+    // The frame's own pressure was noted for Fabric's point; the samples carry their own, then it is put back.
+    const framePressure = this.livePressure;
+
+    for (let i = 0; i < frame.points.length; i += 1) {
+      const point = frame.points[i];
+
+      this.appendCoalescedSample(new Point(point.x + delta.x, point.y + delta.y), frame.pressures[i]);
+    }
+
+    this.livePressure = framePressure;
+  }
+
   appendCoalescedSample(point: Point, pressure?: number): void {
     if (pressure !== undefined) this.notePressure(pressure);
 

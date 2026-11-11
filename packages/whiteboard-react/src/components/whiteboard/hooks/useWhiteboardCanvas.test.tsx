@@ -6,6 +6,7 @@ import React from 'react';
 
 import type { Canvas as FabricCanvas } from 'fabric';
 
+import type { TabletInputSettings } from '@repo/whiteboard-core';
 import type { UseWhiteboardCanvasProps } from './useWhiteboardCanvas';
 
 // The state this file pins lives in refs inside the hook; `window.__wbInputDebug` is the hook's OWN
@@ -450,12 +451,10 @@ test('the pointer geometry cache is dropped when the canvas moves', async () => 
 
     const afterContactStart = resolve(150, 120);
 
-    // 110 - 10 offset, then -2 for the nib lift PEN_VERTICAL_DRAW_OFFSET_PX, which this contact armed at
-    // touch-down — so this doubles as proof that the correction still reaches the ink now that the
-    // branch applying it reads cached geometry instead of measuring.
+    // 120 - 10 offset. No nib lift: the aim correction is off by default (the opt-in is tested below).
     assert.deepEqual(
       { x: Math.round(afterContactStart.x), y: Math.round(afterContactStart.y) },
-      { x: 140, y: 108 },
+      { x: 140, y: 110 },
       'pointerdown did not re-measure — a silent layout shift would offset the whole stroke',
     );
 
@@ -589,7 +588,7 @@ function fireMouse(target: EventTarget, type: string, init: MouseInit): MouseEve
 function firePen(
   target: HTMLElement,
   type: string,
-  init: MouseInit & { pointerId?: number; pressure?: number },
+  init: MouseInit & { pointerId?: number; pressure?: number; tiltX?: number; tiltY?: number },
 ): Event {
   const event = new window.MouseEvent(type, {
     bubbles: true,
@@ -605,8 +604,8 @@ function firePen(
     width: 1,
     height: 1,
     pressure: init.pressure ?? (init.buttons & 1 ? 0.5 : 0),
-    tiltX: 0,
-    tiltY: 0,
+    tiltX: init.tiltX ?? 0,
+    tiltY: init.tiltY ?? 0,
     twist: 0,
     isPrimary: true,
     getCoalescedEvents: () => [],
@@ -1129,18 +1128,19 @@ function firePenFrame(target: HTMLElement, pointerId: number, samples: PenFrameS
   return event;
 }
 
+/** Counts the sub-frame samples the board hands the brush (queued for the frame's own point). */
 function spyAppendedSamples(canvas: DrawingCanvas): () => number {
-  const brush = canvas.freeDrawingBrush as unknown as { appendCoalescedSample: (point: unknown) => void };
+  const brush = canvas.freeDrawingBrush as unknown as { queueCoalescedFrame: (points: unknown[], ...rest: unknown[]) => void };
 
-  assert.equal(typeof brush.appendCoalescedSample, 'function', 'the pen brush has no appendCoalescedSample');
+  assert.equal(typeof brush.queueCoalescedFrame, 'function', 'the pen brush has no queueCoalescedFrame');
 
-  const original = brush.appendCoalescedSample;
+  const original = brush.queueCoalescedFrame;
   let count = 0;
 
-  brush.appendCoalescedSample = function appendSpy(point: unknown) {
-    count += 1;
+  brush.queueCoalescedFrame = function queueSpy(points: unknown[], ...rest: unknown[]) {
+    count += points.length;
 
-    return original.call(this, point);
+    return original.call(this, points, ...rest);
   };
 
   return () => count;
@@ -2310,5 +2310,387 @@ test('erase-hold tail (device log): zero-pressure button-held frames after the n
   } finally {
     await harness.unmount();
     forgetPenDevice();
+  }
+});
+
+// --- The "earthquake" crown, the real cause (device trace, build c57e291, 2026-11-11 01:00 UTC) --------
+//
+// On the owner's SM-X910 the pen's COALESCED samples (PointerEvent.getCoalescedEvents) sit 9.1 px ABOVE
+// the board's own point for the same frame (Fabric's twin touch), dx 0, every frame, tilt setting 0:
+//   "pen frame mismatch  twin vs pen dx=0.0 dy=9.1 (scene px), nib offset 0.0,-2.0, tilt setting 0"
+// The board takes each frame's own point from the twin and appends the sub-frame samples before it, so
+// any frame with 2+ samples put points 9.1 px up between points on the line: the zig-zag crown (saved
+// strokes: single points ≈ −8 px after smoothing, in the normal x rhythm). Round 2 (c57e291) took EVERY
+// point from the pen's samples instead — the whole line after the first point then sat 9.1 px off the
+// tip ("the ink starts away from the tip"). The fix anchors each frame's sub-frame samples to the twin.
+
+const DEVICE_COALESCED_DY = -9.1;
+
+/** A pen frame as the device delivers it: coalesced samples offset by `coalescedDy` from the true
+ *  position, then its twin touchmove at the true frame position. */
+function deviceFrame(
+  harness: TouchHarness,
+  canvas: DrawingCanvas,
+  pointerId: number,
+  positions: Array<{ x: number; y: number }>,
+  coalescedDy: number,
+): void {
+  const frame = positions[positions.length - 1];
+  const event = new window.MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: frame.x, clientY: frame.y, buttons: 1 });
+  const coalesced = positions.map((p) => ({
+    clientX: p.x,
+    clientY: p.y + coalescedDy,
+    buttons: 1,
+    pressure: 0.5,
+    pointerId,
+    pointerType: 'pen',
+    isPrimary: true,
+    tiltX: 20,
+    tiltY: 30,
+  }));
+
+  Object.assign(event, {
+    pointerId,
+    pointerType: 'pen',
+    width: 1,
+    height: 1,
+    pressure: 0.5,
+    tiltX: 20,
+    tiltY: 30,
+    twist: 0,
+    isPrimary: true,
+    getCoalescedEvents: () => coalesced,
+    getPredictedEvents: () => [],
+  });
+
+  const actGlobals = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const wasActEnvironment = actGlobals.IS_REACT_ACT_ENVIRONMENT;
+
+  actGlobals.IS_REACT_ACT_ENVIRONMENT = false;
+
+  try {
+    harness.container.dispatchEvent(event);
+  } finally {
+    actGlobals.IS_REACT_ACT_ENVIRONMENT = wasActEnvironment;
+  }
+
+  fireTouch(canvas.upperCanvasEl, 'touchmove', [{ identifier: 0, clientX: frame.x, clientY: frame.y, radiusX: 1, radiusY: 1 }]);
+}
+
+/** Draw a horizontal stroke at client y=200 starting x=100: 6 frames of 3 samples. Returns raw points. */
+async function drawDeviceStroke(options: {
+  coalescedDy: number;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
+  tabletInputSettings?: TabletInputSettings;
+}) {
+  const harness = await mountWhiteboard(options.tabletInputSettings ? { tabletInputSettings: options.tabletInputSettings } : {});
+
+  try {
+    const canvas = harness.canvas() as DrawingCanvas;
+
+    if (options.zoom || options.panX || options.panY) {
+      const z = options.zoom ?? 1;
+
+      canvas.setViewportTransform([z, 0, 0, z, options.panX ?? 0, options.panY ?? 0]);
+    }
+
+    const brush = canvas.freeDrawingBrush as unknown as { smoothing: boolean; _points: Array<{ x: number; y: number }> };
+
+    brush.smoothing = false;
+    // A real pen lands with the same tilt it keeps while writing.
+    firePen(harness.container, 'pointerdown', { pointerId: 7, clientX: 100, clientY: 200, buttons: 1, tiltX: 20, tiltY: 30 });
+    fireTouch(canvas.upperCanvasEl, 'touchstart', [{ identifier: 0, clientX: 100, clientY: 200, radiusX: 1, radiusY: 1 }]);
+    assert.equal(canvas._isCurrentlyDrawing, true, 'the pen twin did not open the stroke');
+
+    let x = 100;
+
+    for (let f = 0; f < 6; f += 1) {
+      deviceFrame(harness, canvas, 7, [{ x: x + 2, y: 200 }, { x: x + 4, y: 200 }, { x: x + 6, y: 200 }], options.coalescedDy);
+      x += 6;
+    }
+
+    const points = brush._points.map((p) => ({ x: p.x, y: p.y }));
+    // Where the tip is in scene coords (client y=200; the aim correction is off by default), through
+    // the same viewport.
+    const vpt = canvas.viewportTransform;
+    const tip = { y: (200 - vpt[5]) / vpt[3] };
+
+    firePen(harness.container, 'pointerup', { pointerId: 7, clientX: x, clientY: 200, buttons: 0 });
+
+    return { points, tipY: tip.y, zoom: canvas.getZoom() };
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+}
+
+test('a normal stroke lands exactly under the pointer: no lift, every sample kept (zoom 1, zoom 2, panned)', async () => {
+  for (const view of [{}, { zoom: 2 }, { zoom: 2, panX: -137, panY: -61 }]) {
+    const { points, tipY } = await drawDeviceStroke({ coalescedDy: 0, ...view });
+
+    assert.ok(points.length >= 12, 'the stroke lost its sub-frame samples');
+
+    // Exact points of the b6cf380 pipeline (smoothing off): pen-down twice, then 3 samples per frame.
+    const expectedX = [100, 100];
+
+    for (let x = 102; x <= 136; x += 2) expectedX.push(x);
+
+    const z = view.zoom ?? 1;
+    const toScene = (clientX: number) => (clientX - 0 - (view.panX ?? 0)) / z;
+
+    assert.deepEqual(
+      points.map((p) => Math.round(p.x * 1000) / 1000),
+      expectedX.map((x) => Math.round(toScene(x) * 1000) / 1000),
+      `x positions changed (${JSON.stringify(view)})`,
+    );
+
+    for (const p of points) {
+      assert.ok(Math.abs(p.y - tipY) < 1e-6, `a point left the tip line by ${(p.y - tipY).toFixed(2)} (${JSON.stringify(view)})`);
+    }
+  }
+});
+
+test("the device's offset sub-frame samples never leave the line, and the ink starts and stays at the tip", async () => {
+  for (const view of [{}, { zoom: 2 }, { zoom: 2, panX: -137, panY: -61 }]) {
+    const { points, tipY, zoom } = await drawDeviceStroke({ coalescedDy: DEVICE_COALESCED_DY, ...view });
+
+    assert.ok(points.length >= 12, 'the stroke lost its sub-frame samples');
+    assert.ok(Math.abs(points[0].y - tipY) < 1e-6, 'the stroke does not start at the tip');
+
+    for (const [i, p] of points.entries()) {
+      assert.ok(
+        Math.abs(p.y - tipY) * zoom < 0.5,
+        `point ${i} is ${((p.y - tipY) * zoom).toFixed(1)} screen px off the tip line (${JSON.stringify(view)})`,
+      );
+    }
+  }
+});
+
+test('the aim correction, when turned on, moves every point of the stroke by the same amount', async () => {
+  const { DEFAULT_TABLET_INPUT_SETTINGS } = await import('@repo/whiteboard-core');
+
+  for (const view of [{}, { zoom: 2 }]) {
+    const off = await drawDeviceStroke({ coalescedDy: DEVICE_COALESCED_DY, ...view });
+    const on = await drawDeviceStroke({
+      coalescedDy: DEVICE_COALESCED_DY,
+      ...view,
+      tabletInputSettings: { ...DEFAULT_TABLET_INPUT_SETTINGS, penTiltOffset: 3 },
+    });
+
+    assert.equal(on.points.length, off.points.length, 'turning the correction on changed which samples were kept');
+
+    const z = view.zoom ?? 1;
+    const shiftY = (on.points[on.points.length - 1].y - off.points[off.points.length - 1].y) * z;
+
+    // The lift (2 px) plus the tilt part (3 px along tilt 20,30 → 2.5 px up).
+    assert.ok(shiftY < -4, `the correction did not reach the ink (shift ${shiftY.toFixed(2)} px)`);
+
+    for (const [i, p] of on.points.entries()) {
+      const dx = (p.x - off.points[i].x) * z;
+      const dy = (p.y - off.points[i].y) * z;
+      const lastDx = (on.points[on.points.length - 1].x - off.points[off.points.length - 1].x) * z;
+
+      assert.ok(Math.abs(dy - shiftY) < 0.01 && Math.abs(dx - lastDx) < 0.01, `point ${i} got a different correction (${dx.toFixed(2)}, ${dy.toFixed(2)}) ${JSON.stringify(view)}`);
+    }
+  }
+});
+
+test('with the aim correction off, the board never writes an offset into the pen events', async () => {
+  const harness = await mountWhiteboard();
+
+  try {
+    const seen: number[] = [];
+
+    harness.container.addEventListener('pointermove', (event) => seen.push((event as PointerEvent).clientY));
+    openPenTwinStroke(harness, { identifier: 0, clientX: 100, clientY: 200 });
+    firePen(harness.container, 'pointermove', { pointerId: 7, clientX: 110, clientY: 200, buttons: 1 });
+    firePen(harness.container, 'pointerup', { pointerId: 7, clientX: 110, clientY: 200, buttons: 0 });
+
+    assert.ok(seen.length > 0);
+    assert.deepEqual([...new Set(seen)], [200], 'a pen event was moved by a correction that is turned off');
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+// --- With the aim correction off (the default), the earlier spike scenarios cannot move a point ----------
+//
+// Round 2 chased three ways a point could get a different nib/tilt correction from its neighbours: a hand
+// lifting mid-stroke (which cleared the correction for that frame), the S Pen button let go mid-contact
+// (the restarted stroke's first point), and a frame reporting no tilt. With the correction off nothing is
+// computed at all, so in every one of them each point must equal the pointer exactly.
+
+/** A tilted pen pointermove whose getCoalescedEvents() replays `samples` (the last one is the frame). */
+function firePenFrameTilted(target: HTMLElement, pointerId: number, samples: Array<{ clientX: number; clientY: number }>, tiltY = 30): void {
+  const frame = samples[samples.length - 1];
+  const event = new window.MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: frame.clientX, clientY: frame.clientY, buttons: 1 });
+  const coalesced = samples.map((s) => ({ ...s, buttons: 1, pressure: 0.5, pointerId, pointerType: 'pen', isPrimary: true, tiltX: 0, tiltY }));
+
+  Object.assign(event, {
+    pointerId,
+    pointerType: 'pen',
+    width: 1,
+    height: 1,
+    pressure: 0.5,
+    tiltX: 0,
+    tiltY,
+    twist: 0,
+    isPrimary: true,
+    getCoalescedEvents: () => coalesced,
+    getPredictedEvents: () => [],
+  });
+
+  const actGlobals = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const wasActEnvironment = actGlobals.IS_REACT_ACT_ENVIRONMENT;
+
+  actGlobals.IS_REACT_ACT_ENVIRONMENT = false;
+
+  try {
+    target.dispatchEvent(event);
+  } finally {
+    actGlobals.IS_REACT_ACT_ENVIRONMENT = wasActEnvironment;
+  }
+}
+
+function strokePoints(canvas: DrawingCanvas): Array<{ x: number; y: number }> {
+  return (canvas.freeDrawingBrush as unknown as { _points: Array<{ x: number; y: number }> })._points.map((p) => ({ x: p.x, y: p.y }));
+}
+
+/** Pen frames of 3 samples moving right along y=100, each followed by its twin touchmove. */
+function writeAlong(harness: TouchHarness, canvas: DrawingCanvas, pointerId: number, fromX: number, frames: number, opts: { between?: (frame: number) => void; tiltY?: (frame: number) => number } = {}): number {
+  let x = fromX;
+
+  for (let frame = 0; frame < frames; frame += 1) {
+    firePenFrameTilted(
+      harness.container,
+      pointerId,
+      [
+        { clientX: x + 2, clientY: 100 },
+        { clientX: x + 4, clientY: 100 },
+        { clientX: x + 6, clientY: 100 },
+      ],
+      opts.tiltY?.(frame) ?? 30,
+    );
+    x += 6;
+    opts.between?.(frame);
+    fireTouch(canvas.upperCanvasEl, 'touchmove', [{ identifier: 0, clientX: x, clientY: 100, radiusX: 1, radiusY: 1 }]);
+  }
+
+  return x;
+}
+
+/** Every point is exactly on the pointer's line (y=100), in order, one per sample: 100, 100, 102, 104, … */
+function assertExactlyThePointer(points: Array<{ x: number; y: number }>, fromX: number, label: string): void {
+  const expected = [fromX, fromX];
+
+  for (let x = fromX + 2; expected.length < points.length; x += 2) expected.push(x);
+
+  // The two pen-down points are split by a hair on purpose (so a tap draws a dot): 0.01 px tolerance.
+  const rounded = points.map((p) => ({ x: Math.round(p.x * 100) / 100, y: p.y }));
+
+  assert.deepEqual(rounded, expected.map((x) => ({ x, y: 100 })), `${label}: a point is not where the pointer was`);
+}
+
+test('correction off: a hand lifting mid-stroke leaves every point exactly on the pointer', async () => {
+  const harness = await mountWhiteboard();
+
+  try {
+    const canvas = openPenTwinStroke(harness, { identifier: 0, clientX: 100, clientY: 100 });
+
+    (canvas.freeDrawingBrush as unknown as { smoothing: boolean }).smoothing = false;
+
+    const x = writeAlong(harness, canvas, 7, 100, 6, {
+      between: (frame) => {
+        if (frame !== 2) return;
+        firePointer(harness.container, 'pointerdown', { pointerId: 40, clientX: 300, clientY: 300 });
+        firePointer(harness.container, 'pointerup', { pointerId: 40, clientX: 300, clientY: 300 });
+      },
+    });
+
+    assertExactlyThePointer(strokePoints(canvas), 100, 'hand lifted mid-stroke');
+    firePen(harness.container, 'pointerup', { pointerId: 7, clientX: x, clientY: 100, buttons: 0 });
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+test('correction off: a pen frame that reports no tilt leaves every point exactly on the pointer', async () => {
+  const harness = await mountWhiteboard();
+
+  try {
+    const canvas = openPenTwinStroke(harness, { identifier: 0, clientX: 100, clientY: 100 });
+
+    (canvas.freeDrawingBrush as unknown as { smoothing: boolean }).smoothing = false;
+
+    const x = writeAlong(harness, canvas, 7, 100, 6, { tiltY: (frame) => (frame % 2 ? 0.5 : 30) });
+
+    assertExactlyThePointer(strokePoints(canvas), 100, 'tilt dropped out on alternate frames');
+    firePen(harness.container, 'pointerup', { pointerId: 7, clientX: x, clientY: 100, buttons: 0 });
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+test('correction off: the S Pen button let go mid-contact restarts the stroke exactly on the pointer', async () => {
+  const harness = await mountWhiteboard({ toggleableTool: true, eraserMode: 'partial' });
+
+  try {
+    const canvas = openPenTwinStroke(harness, { pointerId: 9, identifier: 0, clientX: 100, clientY: 100 });
+
+    firePenFrameTilted(harness.container, 9, [{ clientX: 104, clientY: 100 }, { clientX: 108, clientY: 100 }]);
+    nativePen(32, 0, true); // ▼ erase while on the glass
+    firePenFrameTilted(harness.container, 9, [{ clientX: 112, clientY: 100 }, { clientX: 116, clientY: 100 }]);
+    nativePen(0, 32, true); // ▲ let go, keep writing
+    await wait(160);
+
+    (canvas.freeDrawingBrush as unknown as { smoothing: boolean }).smoothing = false;
+
+    const x = writeAlong(harness, canvas, 9, 116, 4);
+    const points = strokePoints(canvas);
+
+    assert.notEqual(brushName(canvas), 'LiveEraserBrush');
+
+    // Known, and not a spike: the restarted stroke is seeded at the first frame's own sample, then that
+    // frame's earlier sub-frame samples follow — a step back of at most one frame ALONG the line.
+    for (const [i, p] of points.entries()) {
+      assert.equal(p.y, 100, `point ${i} of the restarted stroke is off the pointer's line: y ${p.y}`);
+      assert.ok(p.x >= 116 && p.x <= x, `point ${i} is outside the written span: x ${p.x}`);
+    }
+
+    firePen(harness.container, 'pointerup', { pointerId: 9, clientX: x, clientY: 100, buttons: 0 });
+  } finally {
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+test('touch panel opt-in: with the aim correction turned on, a drawing contact gets the 2 px lift', async () => {
+  const { DEFAULT_TABLET_INPUT_SETTINGS } = await import('@repo/whiteboard-core');
+
+  setStubRect({ left: 10, top: 10, width: 400, height: 300 });
+
+  // A touch-only panel (ViewSonic): no pen ever seen, the finger/IR pen draws. The slider only has to be
+  // non-zero; a touch contact reports no tilt, so what it switches on is the fixed 2 px lift.
+  const harness = await mountWhiteboard({ tabletInputSettings: { ...DEFAULT_TABLET_INPUT_SETTINGS, penTiltOffset: 1 } });
+
+  try {
+    const canvas = harness.canvas();
+
+    canvas.enableRetinaScaling = false;
+    canvas.setDimensions({ width: 400, height: 300 });
+    firePointer(harness.container, 'pointerdown', { pointerId: 11, clientX: 150, clientY: 120 });
+
+    const point = canvas.getScenePoint({ clientX: 150, clientY: 120, target: null } as unknown as MouseEvent);
+
+    assert.deepEqual({ x: Math.round(point.x), y: Math.round(point.y) }, { x: 140, y: 108 }, 'the opt-in lift did not reach the ink');
+    firePointer(harness.container, 'pointerup', { pointerId: 11, clientX: 150, clientY: 120 });
+  } finally {
+    setStubRect({ left: 0, top: 0, width: 0, height: 0 });
+    await harness.unmount();
   }
 });
