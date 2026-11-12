@@ -268,3 +268,44 @@ describe('ScriptBrush outline', () => {
     });
   });
 });
+
+describe('ScriptBrush pressure switch (the pressure pen)', () => {
+  it('on: a hard press is clearly thicker than a light one; off: the same line whatever the pressure', () => {
+    const light = makeBrush(8);
+
+    light.setPressure(true);
+
+    const lightWidth = thicknessAt(drawLine(light, 160, 0.1), 180);
+    const hard = makeBrush(8);
+
+    hard.setPressure(true);
+
+    const hardWidth = thicknessAt(drawLine(hard, 160, 1), 180);
+
+    assert.ok(hardWidth > lightWidth * 2, `hard ${hardWidth} vs light ${lightWidth}`);
+    close(hardWidth, 12, 0.6);
+
+    const offLight = makeBrush(8);
+
+    offLight.setPressure(false);
+
+    const offHard = makeBrush(8);
+
+    offHard.setPressure(false);
+    close(thicknessAt(drawLine(offLight, 160, 0.1), 180), thicknessAt(drawLine(offHard, 160, 1), 180), 0.01);
+    close(thicknessAt(drawLine(offHard, 160, 1), 180), 8, 0.4);
+  });
+
+  it('an untapered pen starts at its full width instead of a fine point', () => {
+    const pointed = makeBrush(8);
+    const blunt = makeBrush(8);
+
+    blunt.tapered = false;
+
+    const pointedStart = thicknessAt(drawLine(pointed, 160), 103);
+    const bluntStart = thicknessAt(drawLine(blunt, 160), 103);
+
+    assert.ok(bluntStart > pointedStart * 1.5, `blunt ${bluntStart} vs pointed ${pointedStart}`);
+    close(bluntStart, 8, 0.8);
+  });
+});

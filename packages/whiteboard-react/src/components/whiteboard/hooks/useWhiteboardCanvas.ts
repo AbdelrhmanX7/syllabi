@@ -1503,6 +1503,25 @@ export function useWhiteboardCanvas({
     return softMarkerBrushRef.current;
   }, []);
 
+  /**
+   * The plain pen with «Pressure» on: the script pen's engine (a filled outline whose width follows the
+   * hand) without its pointed ends — an even-ended line that swells when pressed.
+   */
+  const pressurePenBrushRef = useRef<ScriptBrush | null>(null);
+  const getOrCreatePressurePenBrush = useCallback((c: Canvas) => {
+    if (!pressurePenBrushRef.current || pressurePenBrushRef.current.canvas !== c) {
+      const brush = new ScriptBrush(c);
+
+      brush.tapered = false;
+      brush.setPressure(true);
+      brush.strokeInterceptor = strokeInterceptorRef.current;
+      brush.inkContrast = inkContrastRef.current;
+      pressurePenBrushRef.current = brush;
+    }
+
+    return pressurePenBrushRef.current;
+  }, []);
+
   const getOrCreateScriptBrush = useCallback((c: Canvas) => {
     if (!scriptBrushRef.current || scriptBrushRef.current.canvas !== c) {
       const brush = new ScriptBrush(c);
@@ -1565,6 +1584,7 @@ export function useWhiteboardCanvas({
       softMarkerBrushRef.current.decimate = decimate;
     }
 
+    if (pressurePenBrushRef.current) pressurePenBrushRef.current.decimate = decimate;
     if (scriptBrushRef.current) {
       scriptBrushRef.current.decimate = decimate;
     }
@@ -2449,6 +2469,20 @@ export function useWhiteboardCanvas({
         // `setStrokeColor`, not `color =`: this pass also runs mid-stroke (the colour barrel button, the
         // pen popover's colour swatches), and the smart-contrast adjustment has to follow the new colour.
         case 'pen': {
+          // «Pressure» on (the default) and not dashed: the pressure pen. A dashed line cannot be a filled
+          // outline, and with pressure off the pen is the plain even line it always was.
+          if (strokeSettingsRef.current.pressure !== false && !strokeSettingsRef.current.dashed) {
+            const pressurePen = getOrCreatePressurePenBrush(c);
+
+            pressurePen.setStrokeColor(strokeSettingsRef.current.color);
+            pressurePen.width = strokeSettingsRef.current.width;
+            pressurePen.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
+            c.freeDrawingBrush = pressurePen;
+            c.isDrawingMode = true;
+            c.defaultCursor = 'crosshair';
+            break;
+          }
+
           const brush = getOrCreatePenBrush(c);
 
           brush.setStrokeColor(strokeSettingsRef.current.color);
@@ -2508,6 +2542,7 @@ export function useWhiteboardCanvas({
 
           const brush = getOrCreateScriptBrush(c);
 
+          brush.setPressure(strokeSettingsRef.current.pressure !== false);
           brush.setStrokeColor(strokeSettingsRef.current.color);
           brush.width = strokeSettingsRef.current.width;
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
@@ -2618,6 +2653,7 @@ export function useWhiteboardCanvas({
       getOrCreateHighlighterBrush,
       getOrCreatePenBrush,
       getOrCreateScriptBrush,
+      getOrCreatePressurePenBrush,
       getOrCreateSoftMarkerBrush,
       isObjectEraserToolActive,
       resolveEffectiveTool,
@@ -3030,6 +3066,7 @@ export function useWhiteboardCanvas({
     calligraphyBrushRef.current = null;
     softMarkerBrushRef.current = null;
     scriptBrushRef.current = null;
+    pressurePenBrushRef.current = null;
     eraserBrushRef.current = null;
     objectInteractionModeRef.current = null;
     activeTouchPointersRef.current.clear();
@@ -3208,6 +3245,7 @@ export function useWhiteboardCanvas({
       calligraphyBrushRef.current = null;
       softMarkerBrushRef.current = null;
       scriptBrushRef.current = null;
+      pressurePenBrushRef.current = null;
       eraserBrushRef.current = null;
       objectInteractionModeRef.current = null;
       resizeObserver.disconnect();

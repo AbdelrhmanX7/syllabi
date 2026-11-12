@@ -163,6 +163,7 @@ export const TOOLBAR_STRINGS = {
   'stroke.lineHold': 'Straight on hold',
   'stroke.lineAlways': 'Always straight',
   'stroke.dashed': 'Dashed line',
+  'stroke.pressure': 'Thicker when pressed harder',
   'color.primary': 'Primary colour',
   'color.primaryShort': 'Primary',
   'color.active': 'Active',

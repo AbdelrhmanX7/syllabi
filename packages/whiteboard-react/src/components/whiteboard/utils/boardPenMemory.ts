@@ -58,6 +58,7 @@ export function parseBoardPenMemory(raw: string | null | undefined, fallback: St
 
     const lineShape = stored.lineShape === 'hold' || stored.lineShape === 'always' ? stored.lineShape : fallback.lineShape;
     const dashed = typeof stored.dashed === 'boolean' ? stored.dashed : fallback.dashed;
+    const pressure = typeof stored.pressure === 'boolean' ? stored.pressure : fallback.pressure;
     const highlighterWidth = normalizeHighlighterWidth(stored.highlighterWidth) ?? fallback.highlighterWidth;
 
     return {
@@ -71,6 +72,7 @@ export function parseBoardPenMemory(raw: string | null | undefined, fallback: St
         ...(highlighterWidth !== undefined && { highlighterWidth }),
         ...(lineShape !== undefined && { lineShape }),
         ...(dashed !== undefined && { dashed }),
+        ...(pressure !== undefined && { pressure }),
       },
     };
   } catch {
@@ -79,9 +81,9 @@ export function parseBoardPenMemory(raw: string | null | undefined, fallback: St
 }
 
 export function serializeBoardPenMemory(memory: BoardPenMemory): string {
-  const { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed } = memory.strokeSettings;
+  const { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed, pressure } = memory.strokeSettings;
 
-  return JSON.stringify({ tool: memory.tool, strokeSettings: { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed } });
+  return JSON.stringify({ tool: memory.tool, strokeSettings: { color, secondaryColor, width, highlighterWidth, opacity, lineShape, dashed, pressure } });
 }
 
 /** What a board opens with: its own last pen, else the plain pen with the device-wide settings. */

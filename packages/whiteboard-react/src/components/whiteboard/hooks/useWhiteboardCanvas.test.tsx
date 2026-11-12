@@ -137,10 +137,13 @@ before(() => {
   } as unknown as HTMLCanvasElement['getContext'];
 });
 
+// These tests drive the plain stroked pen (the input plumbing under every pen): pressure off. The
+// pressure pen's own drawing is covered in brushes/ScriptBrush.test.ts (jsdom has no Path2D).
 const STROKE_SETTINGS = {
   color: '#111111',
   width: 4,
   opacity: 1,
+  pressure: false,
 } as unknown as UseWhiteboardCanvasProps['strokeSettings'];
 
 // jsdom has no layout, so every getBoundingClientRect is 0x0 at 0,0. The pointer-geometry tests need a

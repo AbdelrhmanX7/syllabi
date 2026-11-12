@@ -494,6 +494,11 @@ export interface StrokeSettings {
   lineShape?: LineShape;
   /** Pen-family strokes are drawn dashed (the dash is scaled to the stroke width and saved with it). */
   dashed?: boolean;
+  /**
+   * The line gets thicker when the pen is pressed harder (the plain pen and the script pen). Absent =
+   * on. Off = an even line whatever the pressure. A finger or a mouse reports no pressure: even either way.
+   */
+  pressure?: boolean;
 }
 
 export type LineShape = 'free' | 'hold' | 'always';

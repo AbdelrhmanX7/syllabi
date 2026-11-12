@@ -4556,6 +4556,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         opacity: activeTool === 'highlighter' ? currentSettings.opacity : nextSettings.opacity,
         lineShape: nextSettings.lineShape,
         dashed: nextSettings.dashed,
+        pressure: nextSettings.pressure,
       }));
     },
     [activeTool],

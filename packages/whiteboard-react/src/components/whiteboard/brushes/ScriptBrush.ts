@@ -43,6 +43,9 @@ import { markInkPen } from './inkPenMark';
 /** Width at pressure 0 and at pressure 1, as a fraction of the configured pen width. */
 export const SCRIPT_MIN_PRESSURE_SCALE = 0.75;
 export const SCRIPT_MAX_PRESSURE_SCALE = 1.25;
+/** With «Pressure» on: the same range the small writing pad uses (half … one and a half of the pen size). */
+export const PRESSURE_ON_MIN = 0.5;
+export const PRESSURE_ON_MAX = 1.5;
 /** The width at the very tip of a taper, as a fraction of the full width there. */
 export const SCRIPT_TAPER_MIN = 0.2;
 /** A full taper runs this many pen widths of arc length… */
@@ -174,6 +177,31 @@ export class ScriptBrush extends LowLatencyPencilBrush {
 
   /** The pressure EMA for the stroke in progress (NaN until a known pressure arrives). */
   private smoothedPressure = Number.NaN;
+
+  /**
+   * How much the width follows pressure: the factor at the lightest touch and at full pressure. The
+   * script pen breathes gently by default; {@link setPressure} makes it follow the hand clearly, or not at all.
+   */
+  pressureMin = SCRIPT_MIN_PRESSURE_SCALE;
+  pressureMax = SCRIPT_MAX_PRESSURE_SCALE;
+  /** False = no pointed ends: the line starts and stops at its full width (the plain pen's look). */
+  tapered = true;
+
+  /** Pressure on = the width runs from half to one and a half of the pen size with the hand; off = an even line. */
+  setPressure(on: boolean): void {
+    this.pressureMin = on ? PRESSURE_ON_MIN : 1;
+    this.pressureMax = on ? PRESSURE_ON_MAX : 1;
+  }
+
+  private pressureScale(pressure: number | undefined): number {
+    if (typeof pressure !== 'number' || !Number.isFinite(pressure) || pressure <= 0) return 1;
+
+    return this.pressureMin + (this.pressureMax - this.pressureMin) * Math.min(1, pressure);
+  }
+
+  private halfWidth(width: number, pressure: number | undefined, fromStart: number, fromEnd: number, taperLength: number): number {
+    return (width / 2) * this.pressureScale(pressure) * (this.tapered ? scriptTaperScale(fromStart, fromEnd, taperLength) : 1);
+  }
 
   private get strokePoints(): PressurePoint[] {
     return (this as unknown as { _points?: PressurePoint[] })._points ?? [];
@@ -369,7 +397,7 @@ export class ScriptBrush extends LowLatencyPencilBrush {
     if (extent < width) {
       const centreX = (cache.minX + cache.maxX) / 2;
       const centreY = (cache.minY + cache.maxY) / 2;
-      const radius = (width / 2) * scriptPressureScale(sig[0].p);
+      const radius = (width / 2) * this.pressureScale(sig[0].p);
       const polygon: OutlinePoint[] = [];
 
       for (let i = 0; i < DOT_SEGMENTS; i += 1) {
@@ -464,7 +492,7 @@ export class ScriptBrush extends LowLatencyPencilBrush {
     if (canCache) {
       for (let j = cache.left.length; j <= stableCount - 2 && tipArc - arcAt(j) >= taperLength; j += 1) {
         const point = centre(j);
-        const half = scriptHalfWidth(width, point.p, arcAt(j), Number.POSITIVE_INFINITY, taperLength);
+        const half = this.halfWidth(width, point.p, arcAt(j), Number.POSITIVE_INFINITY, taperLength);
         const resolved = this.offsetAt(point, centre(Math.max(0, j - 1)), centre(j + 1), half);
 
         cache.left.push(resolved.left);
@@ -489,7 +517,7 @@ export class ScriptBrush extends LowLatencyPencilBrush {
 
     for (let j = cache.left.length; j < total; j += 1) {
       const point = centre(j);
-      const half = scriptHalfWidth(width, point.p, arcAt(j), tipArc - arcAt(j), taperLength);
+      const half = this.halfWidth(width, point.p, arcAt(j), tipArc - arcAt(j), taperLength);
       const resolved = this.offsetAt(point, centre(Math.max(0, j - 1)), centre(Math.min(total - 1, j + 1)), half);
 
       tailLeft.push(resolved.left);
