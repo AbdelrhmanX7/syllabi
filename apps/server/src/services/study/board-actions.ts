@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { parseJsonLoose, Spend, visionCall } from "./ai-models";
 import { guidedSystem } from "./class-guide";
 
@@ -41,6 +42,12 @@ export interface BoardCluster {
 export interface BoardInput {
   question: string;
   clusters: BoardCluster[];
+  /**
+   * The client's contract version. 2 = it understands `mark` actions, `write` with `near`, and the
+   * reply's `verdict` (and the model gets the tagged copy of the page + the checking prompt).
+   * 1 (or absent) = the first contract, unchanged.
+   */
+  v: 1 | 2;
 }
 export interface Pt {
   x: number;
@@ -49,7 +56,13 @@ export interface Pt {
 export type Target = { clusterId: string } | { box: BoardBox };
 export type Endpoint = Pt | { clusterId: string };
 export type StrokeTool = "pen" | "marker" | "highlighter";
+export type MarkVerdict = "correct" | "wrong" | "warning";
+export type PageVerdict = "correct" | "wrong" | "partly";
 export type BoardAction =
+  /** v2: ✓ / ✗ / ! beside a region, with a few words (the fix or the reason). */
+  | { type: "mark"; target: Target; verdict: MarkVerdict; label?: string }
+  /** v2: a note beside a region — the client finds the empty space. */
+  | { type: "write"; text: string; near: Target; size?: number }
   | { type: "point_at"; at: Pt; note?: string }
   | { type: "circle"; target: Target }
   | { type: "underline"; target: Target }
@@ -59,6 +72,8 @@ export type BoardAction =
 export interface BoardReply {
   actions: BoardAction[];
   say?: string;
+  /** v2: was the student's own work right? Absent when there was nothing to check. */
+  verdict?: PageVerdict;
 }
 
 const ID_RX = /^[\w.:-]{1,64}$/;
@@ -91,7 +106,7 @@ export function parseBoardInput(raw: unknown): { input: BoardInput } | { error: 
     if (!b || !fits(b.x, b.w) || !fits(b.y, b.h)) return { error: `cluster ${id}: box {x,y,w,h} must lie inside 0..1` };
     clusters.push({ id, box: { x: b.x, y: b.y, w: Math.min(b.w, 1 - b.x), h: Math.min(b.h, 1 - b.y) } });
   }
-  return { input: { question, clusters } };
+  return { input: { question, clusters, v: Number(o.v) >= 2 ? 2 : 1 } };
 }
 
 export const BOARD_ACTIONS_PROMPT_EN = [
@@ -113,15 +128,89 @@ export const BOARD_ACTIONS_PROMPT_EN = [
   'Return ONE JSON object: {"actions":[...],"say":"optional spoken answer"}',
 ].join("\n");
 
+/**
+ * v2: the tutor CHECKS the student's work before marking. The model gets two images — the clean
+ * page and a copy with every listed region outlined and numbered — so it names regions by tag
+ * instead of guessing coordinates, and it never chooses where a note goes (the app finds the gap).
+ */
+export const BOARD_ACTIONS_PROMPT_V2_EN = [
+  "You are a tutor sitting next to a college student, looking at the page they have open.",
+  "Image 1 is the page. Image 2 is the SAME page with thin magenta outlines and small numbered tags: each tag names one region (a group of the student's handwriting or a block of printed content) listed below. Read from image 1; use image 2 only to find tags.",
+  "",
+  "Think in this order before you answer (silently):",
+  "1. Read the whole page. Tell the student's own handwriting apart from printed material.",
+  "2. If the page has the student's own work or answer that the question touches (or they ask whether it is right), solve the problem yourself first, independently. Then compare with their work line by line and find the FIRST place it goes wrong, if any. A different but valid method is not a mistake. If handwriting is unreadable, say so instead of guessing.",
+  '3. Decide `verdict`: "correct" (their work/answer is right), "wrong" (the answer is wrong), "partly" (right idea, a slip or a missing piece). Leave it out when there is nothing of theirs to check (a pure explanation).',
+  "",
+  "Then answer by marking the page. Rules:",
+  "- Never invent a mistake. If their work is right, say so plainly and tick the final answer.",
+  "- A mistake gets ONE `mark` with verdict \"wrong\" on the exact region where it happens, and `label` = the fix in a few words (e.g. \"sign: should be −3x\"). Something incomplete or risky gets \"warning\". Correct work gets \"correct\" on the final answer only — at most 3 ticks, never one per line.",
+  "- To say «look here» use circle / underline / arrow / point_at.",
+  "- Notes: {\"type\":\"write\",\"text\":\"…\",\"near\":{\"clusterId\":\"<tag>\"}}. You do NOT choose where a note goes — the app puts it in empty space next to that region. Keep notes to a few words (max 120 characters); longer explanations go in `say`.",
+  "- Target regions by tag: {\"clusterId\":\"<tag>\"}. Only when what you mean has no tag, give a tight box {\"box\":{\"x\",\"y\",\"w\",\"h\"}} in 0..1 of image 1 (origin top-left).",
+  "- Few, purposeful marks: usually 1 to 5, never more than 12. Label what you mark; do not decorate.",
+  "- `say`: 1–3 short sentences in plain English. The FIRST sentence answers directly — when you checked their work it gives the verdict (\"Yes, this is right.\" / \"Almost: line 3 drops the minus sign.\"). Be encouraging; never shame.",
+  "Action types (use only these):",
+  '- {"type":"mark","target":{"clusterId":"4"},"verdict":"wrong","label":"should be 2x, not x²"}   (verdict: correct | wrong | warning)',
+  '- {"type":"circle","target":{"clusterId":"3"}}',
+  '- {"type":"underline","target":{"clusterId":"2"}}',
+  '- {"type":"arrow","from":{"clusterId":"1"},"to":{"clusterId":"5"},"label":"optional"}',
+  '- {"type":"point_at","at":{"x":0.5,"y":0.4},"note":"optional short note"}',
+  '- {"type":"write","text":"short note","near":{"clusterId":"2"}}',
+  'Return ONE JSON object: {"verdict":"correct|wrong|partly (optional)","actions":[...],"say":"..."}',
+].join("\n");
+
+/** The page with every cluster outlined and numbered (image 2 of the v2 call); null when it cannot be drawn. */
+export async function tagBoardImage(image: Buffer, clusters: BoardCluster[]): Promise<Buffer | null> {
+  if (clusters.length === 0) return null;
+  try {
+    const meta = await sharp(image).metadata();
+    const W = meta.width ?? 0;
+    const H = meta.height ?? 0;
+    if (!W || !H) return null;
+    const font = Math.max(11, Math.round(Math.max(W, H) / 110));
+    const parts = clusters.map((c, i) => {
+      const x = c.box.x * W;
+      const y = c.box.y * H;
+      const w = c.box.w * W;
+      const h = c.box.h * H;
+      const label = String(i + 1);
+      const tw = label.length * font * 0.62 + 6;
+      const th = font + 4;
+      // The tag sits just above the region's top-left corner (inside it when at the page top).
+      const tx = Math.max(0, Math.min(W - tw, x - 2));
+      const ty = y - th - 1 >= 0 ? y - th - 1 : y + 1;
+      return (
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="none" stroke="#d6009a" stroke-width="1.5" stroke-opacity="0.75"/>` +
+        `<rect x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" width="${tw.toFixed(1)}" height="${th}" rx="3" fill="#d6009a"/>` +
+        `<text x="${(tx + 3).toFixed(1)}" y="${(ty + font).toFixed(1)}" font-family="DejaVu Sans, Arial, sans-serif" font-size="${font}" font-weight="700" fill="#ffffff">${label}</text>`
+      );
+    });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${parts.join("")}</svg>`;
+    return await sharp(image)
+      .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | null): string {
   const lines = input.clusters.map((c, i) => {
     const b = c.box;
     return `${i + 1}: x=${b.x.toFixed(3)} y=${b.y.toFixed(3)} w=${b.w.toFixed(3)} h=${b.h.toFixed(3)}`;
   });
   return [
-    guidedSystem(BOARD_ACTIONS_PROMPT_EN),
+    guidedSystem(input.v === 2 ? BOARD_ACTIONS_PROMPT_V2_EN : BOARD_ACTIONS_PROMPT_EN),
     "",
-    lines.length ? `INK GROUPS (tag: normalised box) — ${lines.length}:` : "INK GROUPS: none listed — target with boxes and points.",
+    input.v === 2
+      ? lines.length
+        ? `REGIONS (tag: normalised box) — ${lines.length}:`
+        : "REGIONS: none listed — target with boxes and points; for notes use \"at\":{\"x\",\"y\"} instead of \"near\"."
+      : lines.length
+        ? `INK GROUPS (tag: normalised box) — ${lines.length}:`
+        : "INK GROUPS: none listed — target with boxes and points.",
     ...lines,
     "",
     `The student's question: ${input.question}`,
@@ -170,7 +259,7 @@ function thin<T>(pts: T[], max: number): T[] {
  * tag to FE id, an unknown one drops the action; text bounded; strokes thinned to 64 points;
  * at most 12 actions, in the model's order.
  */
-export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[]): BoardReply | null {
+export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], v: 1 | 2 = 1): BoardReply | null {
   const o = typeof raw === "string" ? parseJsonLoose(raw) : raw;
   if (!o || typeof o !== "object" || Array.isArray(o) || !Array.isArray((o as any).actions)) return null;
   const byTag = new Map<string, string>();
@@ -221,8 +310,23 @@ export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[]): Bo
         actions.push({ type: "arrow", from, to, ...(label ? { label } : {}) });
         break;
       }
+      case "mark": {
+        if (v !== 2) break;
+        const t = target(a.target);
+        const verdict = a.verdict === "correct" || a.verdict === "wrong" || a.verdict === "warning" ? (a.verdict as MarkVerdict) : null;
+        if (!t || !verdict) break;
+        const label = str(a.label, LABEL_MAX);
+        actions.push({ type: "mark", target: t, verdict, ...(label ? { label } : {}) });
+        break;
+      }
       case "write": {
         const text = str(a.text, WRITE_TEXT_MAX);
+        const near = v === 2 && a.near !== undefined ? target(a.near) : null;
+        if (text && near) {
+          const size = num(a.size);
+          actions.push({ type: "write", text, near, ...(size !== null && size > 0 ? { size: Math.min(WRITE_SIZE_MAX, Math.max(WRITE_SIZE_MIN, size)) } : {}) });
+          break;
+        }
         const at = point(a.at);
         if (!text || !at) break;
         const s = num(a.size);
@@ -246,7 +350,9 @@ export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[]): Bo
     }
   }
   const say = str((o as any).say, SAY_MAX);
-  return { actions, ...(say ? { say } : {}) };
+  const pv = (o as any).verdict;
+  const verdict = v === 2 && (pv === "correct" || pv === "wrong" || pv === "partly") ? (pv as PageVerdict) : null;
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}) };
 }
 
 /**
@@ -261,10 +367,21 @@ export async function boardActionsFromPage(o: {
   signal?: AbortSignal;
 }): Promise<{ reply: BoardReply; attempts: number } | null> {
   let retryNote: string | null = null;
+  // v2: the clean page + the tagged copy (same mime needed: the tagged copy is a JPEG, so both are sent as JPEG).
+  let images: Buffer | Buffer[] = o.image;
+  let mime = o.mime;
+  if (o.input.v === 2) {
+    const tagged = await tagBoardImage(o.image, o.input.clusters);
+    if (tagged) {
+      const clean = o.mime === "image/jpeg" ? o.image : await sharp(o.image).jpeg({ quality: 88 }).toBuffer();
+      images = [clean, tagged];
+      mime = "image/jpeg";
+    }
+  }
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const raw = await visionCall(o.image, o.mime, buildBoardActionsPrompt(o.input, retryNote), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
+    const raw = await visionCall(images, mime, buildBoardActionsPrompt(o.input, retryNote), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
     if (o.signal?.aborted) return null;
-    const reply = sanitizeBoardActions(raw, o.input.clusters);
+    const reply = sanitizeBoardActions(raw, o.input.clusters, o.input.v);
     if (reply) return { reply, attempts: attempt };
     retryNote = 'Your previous answer was not valid JSON. Return ONE JSON object exactly as specified: {"actions":[...],"say":"..."}.';
   }

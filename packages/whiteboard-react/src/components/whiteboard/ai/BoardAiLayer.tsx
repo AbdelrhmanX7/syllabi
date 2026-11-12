@@ -54,6 +54,8 @@ import { buildTermsMapObjects } from './termsMapObjects';
 import { checkCaptureRegion, groupInkLines, linesToClusters, parseStepCheck, pixelBoxToScene, placeStepMarks, stepCheckQuestion } from './stepCheck';
 import { buildStepMarkObjects, isStepMark } from './stepCheckObjects';
 import { parsePenPlan, planPenActions } from './penActions';
+import { buildOccupancy, contentBlocks, findFreeBox } from './pageOccupancy';
+import type { PxBox } from './pageOccupancy';
 import { buildPenActionObjects } from './penActionObjects';
 import { showPointerSprite } from './penPointer';
 import { playObjectReveal, playPenTurn, playWriteOn } from './writeOn';
@@ -66,7 +68,7 @@ import type { PlaceOverlay } from './useRemakeDraft';
 import type { PageBackgroundInfo, SnapshotLayers } from './remakeSnapshot';
 import type { BoardAiCommand } from './commands';
 import type { StepCheckResult } from './stepCheck';
-import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, SceneRect, ScenePoint } from './types';
+import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, PenPageVerdict, SceneRect, ScenePoint } from './types';
 import type { WhiteboardTool } from '../types';
 
 import { measureChromeInsets } from '../utils/chromeInsets';
@@ -147,6 +149,10 @@ export interface BoardAiLayerProps {
 }
 
 const DASH_STYLE_ID = 'wb-ai-ants-style';
+/** The server takes 200 regions: the student's ink groups first, the rest for printed blocks. */
+const PEN_MAX_INK_REGIONS = 160;
+const PEN_MAX_PRINT_REGIONS = 40;
+const BUDDY_INK = '#3b5bdb';
 /** How long the buddy's temporary marks (and its pointers) stay before they fade. */
 const BUDDY_MARKS_MS = 40_000;
 
@@ -956,7 +962,7 @@ export function BoardAiLayer({
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
       buddy?: { origin?: { x: number; y: number } },
-    ): Promise<{ say?: string; added: number }> => {
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -1009,6 +1015,95 @@ export function BoardAiLayer({
       if (!rendered || !image) throw new Error(t('ai.layer.pageCaptureFailed'));
       if (signal.aborted) return { added: 0 };
 
+      // What is really on the page, from its pixels (printed text and pictures too, not only ink):
+      // notes go into true empty space, and printed blocks become regions the model can name.
+      const px = rendered.width / sheet.width;
+      let grid: ReturnType<typeof buildOccupancy> | null = null;
+
+      try {
+        const context = rendered.getContext('2d');
+        const pixels = context?.getImageData(0, 0, rendered.width, rendered.height);
+
+        grid = pixels ? buildOccupancy(pixels.data, rendered.width, rendered.height) : null;
+      } catch {
+        grid = null; // a tainted canvas: fall back to the ink boxes
+      }
+
+      // A page that reads as «full» everywhere (dark ruling, a photo background) tells us nothing.
+      if (grid && grid.fill > 0.85) grid = null;
+
+      const regionRects = new Map<string, SceneRect>(clusters.slice(0, PEN_MAX_INK_REGIONS).map((cluster) => [cluster.id, cluster.rect]));
+      const regions = clusterBoxes(clusters.slice(0, PEN_MAX_INK_REGIONS), sheet);
+
+      // Printed regions come from the page WITHOUT the ink, so a scribble across two columns does not
+      // weld them into one.
+      let printGrid: typeof grid = null;
+
+      if (grid) {
+        try {
+          const paper = await bridge.renderRegion({ region: sheet, scale, layers: 'background' });
+          const pixels = paper?.getContext('2d')?.getImageData(0, 0, paper.width, paper.height);
+
+          printGrid = pixels && paper && paper.width === rendered.width ? buildOccupancy(pixels.data, paper.width, paper.height) : null;
+        } catch {
+          printGrid = null;
+        }
+
+        if (signal.aborted) return { added: 0 };
+      }
+
+      if (printGrid && printGrid.fill <= 0.85) {
+        const inkRects = clusters.map((cluster) => cluster.rect);
+        const tooBig = sheet.width * sheet.height * 0.3;
+        let printed = 0;
+
+        for (const block of contentBlocks(printGrid, { max: PEN_MAX_PRINT_REGIONS })) {
+          const rect = { left: sheet.left + block.x / px, top: sheet.top + block.y / px, width: block.w / px, height: block.h / px };
+          // Mostly the student's ink → already a region of its own.
+          const inked = inkRects.reduce((sum, ink) => {
+            const w = Math.min(rect.left + rect.width, ink.left + ink.width) - Math.max(rect.left, ink.left);
+            const h = Math.min(rect.top + rect.height, ink.top + ink.height) - Math.max(rect.top, ink.top);
+
+            return w > 0 && h > 0 ? sum + w * h : sum;
+          }, 0);
+
+          if (inked > rect.width * rect.height * 0.3 || rect.width * rect.height > tooBig) continue;
+
+          const [box] = clusterBoxes([{ id: `p${(printed += 1)}`, rect } as (typeof clusters)[number]], sheet);
+
+          if (!box || box.bbox.w <= 0 || box.bbox.h <= 0) continue;
+
+          regionRects.set(box.id, rect);
+          regions.push(box);
+        }
+      }
+
+      const placed: PxBox[] = [];
+      const reach = Math.max(rendered.width, rendered.height) * 0.35;
+      // The part of the sheet on screen (clear of the top and bottom bars): marks go where they can be seen.
+      const view = viewportOf(canvas);
+      const viewZoom = view[0] || 1;
+      const seen = {
+        x: ((-view[4]! + 24) / viewZoom - sheet.left) * px,
+        y: ((-view[5]! + 64) / viewZoom - sheet.top) * px,
+        w: (Math.max(0, canvas.getWidth() - 48) / viewZoom) * px,
+        h: (Math.max(0, canvas.getHeight() - 128) / viewZoom) * px,
+      };
+      const place = grid
+        ? (wanted: SceneRect): SceneRect | null => {
+            const want = { x: (wanted.left - sheet.left) * px, y: (wanted.top - sheet.top) * px, w: wanted.width * px, h: wanted.height * px };
+            // A spot that is on screen gets its note on screen (or a bubble) — never ink out of sight.
+            const inView = want.x >= seen.x && want.x <= seen.x + seen.w && want.y >= seen.y && want.y <= seen.y + seen.h;
+            const box = inView ? findFreeBox(grid!, want, placed, reach, seen) : findFreeBox(grid!, want, placed, reach);
+
+            if (!box) return null;
+
+            placed.push(box);
+
+            return { left: sheet.left + box.x / px, top: sheet.top + box.y / px, width: wanted.width, height: wanted.height };
+          }
+        : undefined;
+
       onStatus(t('ai.pen.planning'));
       if (buddy) emitBoardBuddyState({ phase: 'planning' });
 
@@ -1016,16 +1111,17 @@ export function BoardAiLayer({
         {
           image,
           imageSize: { width: rendered.width, height: rendered.height },
-          clusters: clusterBoxes(clusters, sheet),
+          clusters: regions,
           ...(question ? { question } : {}),
           lang: 'en' as const,
+          v: 2 as const,
         },
         signal,
       );
 
       if (signal.aborted) return { added: 0 };
 
-      const result = parsePenPlan(raw, clusters.map((cluster) => cluster.id));
+      const result = parsePenPlan(raw, Array.from(regionRects.keys()));
 
       if (!result) throw new Error(t('ai.pen.failed'));
       if (bridge.getPageId() !== pageAtStart) throw new Error(t('ai.layer.pageChanged'));
@@ -1037,13 +1133,15 @@ export function BoardAiLayer({
       const strokeWidth = hand?.strokeWidth || Math.max(1, penWidth);
       const plan = planPenActions(result, {
         page: sheet,
-        clusters: new Map(clusters.map((cluster) => [cluster.id, cluster.rect])),
+        clusters: regionRects,
         occupied: pageObjects.map(rectOf),
         letterHeight,
         strokeWidth,
+        ...(place ? { place } : {}),
       });
       const built = await buildPenActionObjects(plan, {
-        color: hand?.color ?? readableInk(penColor),
+        // The buddy writes in its own blue, so its marks never read as the student's ink.
+        color: buddy ? BUDDY_INK : (hand?.color ?? readableInk(penColor)),
         strokeWidth,
         hand,
         zoom,
@@ -1060,12 +1158,13 @@ export function BoardAiLayer({
       const playback = host
         ? playPenTurn(canvas, host, built.steps, {
             linger: !!buddy,
+            pencil: !!buddy,
             onPointer: (at, note) => {
               const layer = sceneRectToLayer({ left: at.x, top: at.y, width: 0, height: 0 });
 
               if (layer) {
                 pointers.push(
-                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BUDDY_MARKS_MS, ...(from ? { from } : {}) } : undefined),
+                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BUDDY_MARKS_MS, pencil: true, ...(from ? { from } : {}) } : undefined),
                 );
               }
             },
@@ -1094,7 +1193,7 @@ export function BoardAiLayer({
         // Temporary: the marks stay on the overlay; «Keep» adds these same objects later.
         buddyMarksRef.current = { objects: built.objects, playback, pointers, pageId: pageAtStart, vpt: [...viewportOf(canvas)] };
 
-        return { ...(result.say ? { say: result.say } : {}), added: built.objects.length };
+        return { ...(result.say ? { say: result.say } : {}), ...(result.verdict ? { verdict: result.verdict } : {}), added: built.objects.length };
       }
 
       // One tick: every add lands in the same idle snapshot → ONE undo step.
@@ -1105,7 +1204,7 @@ export function BoardAiLayer({
 
       playback?.dispose();
 
-      return { ...(result.say ? { say: result.say } : {}), added: built.objects.length };
+      return { ...(result.say ? { say: result.say } : {}), ...(result.verdict ? { verdict: result.verdict } : {}), added: built.objects.length };
     },
     [bridge, canvas, penColor, penWidth, sceneRectToLayer, service, t],
   );
@@ -1155,11 +1254,11 @@ export function BoardAiLayer({
       buddyAbortRef.current = controller;
 
       try {
-        const { say, added } = await penExplain(question.trim(), controller.signal, () => undefined, origin ? { origin } : {});
+        const { say, added, verdict } = await penExplain(question.trim(), controller.signal, () => undefined, origin ? { origin } : {});
 
         if (controller.signal.aborted) return;
 
-        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), marks: added });
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), marks: added });
 
         if (added > 0) buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true), BUDDY_MARKS_MS);
       } catch (error) {

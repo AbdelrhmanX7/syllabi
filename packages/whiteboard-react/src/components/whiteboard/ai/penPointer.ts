@@ -4,6 +4,8 @@
  * after {@link POINTER_TTL_MS}. `prefers-reduced-motion` keeps the dot still (no pulse).
  */
 
+import { PENCIL_SVG } from './writeOn';
+
 export const POINTER_TTL_MS = 2500;
 const FADE_MS = 350;
 const STYLE_ID = 'wb-ai-pointer-style';
@@ -29,6 +31,8 @@ function ensurePointerStyle(): void {
 
 export interface PointerSpriteOptions {
   ttlMs?: number;
+  /** Show the buddy's pencil (tip on the spot) instead of the dot. */
+  pencil?: boolean;
   /** Fly in from this point (px inside `host`, e.g. the buddy button) instead of popping in place. */
   from?: { left: number; top: number };
 }
@@ -39,7 +43,7 @@ const FLY_MS = 520;
  * Shows the pointer at `(left, top)` px inside `host` (positioned). Returns a disposer; the sprite
  * removes itself after the TTL anyway.
  */
-export function showPointerSprite(host: HTMLElement, at: { left: number; top: number }, note: string | undefined, { ttlMs = POINTER_TTL_MS, from }: PointerSpriteOptions = {}): () => void {
+export function showPointerSprite(host: HTMLElement, at: { left: number; top: number }, note: string | undefined, { ttlMs = POINTER_TTL_MS, from, pencil }: PointerSpriteOptions = {}): () => void {
   ensurePointerStyle();
 
   const root = document.createElement('div');
@@ -52,14 +56,22 @@ export function showPointerSprite(host: HTMLElement, at: { left: number; top: nu
   root.style.top = `${Math.round(at.top)}px`;
   dot.className = 'wb-ai-pointer-dot';
   ring.className = 'wb-ai-pointer-ring';
-  root.append(ring, dot);
+  if (pencil) {
+    const icon = document.createElement('span');
+
+    icon.style.cssText = 'position:absolute;left:0;top:-28px;width:28px;height:28px;';
+    icon.innerHTML = PENCIL_SVG;
+    root.append(ring, icon);
+  } else {
+    root.append(ring, dot);
+  }
 
   if (note) {
     const bubble = document.createElement('span');
 
     bubble.className = 'wb-ai-pointer-note';
     bubble.textContent = note;
-    bubble.style.left = '12px';
+    bubble.style.left = pencil ? '26px' : '12px';
 
     root.appendChild(bubble);
   }

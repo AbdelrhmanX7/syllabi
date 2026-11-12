@@ -22,14 +22,17 @@ export interface BoardActionsJson {
   /** Always 'en': Syllabi is English only. */
   lang: 'en';
   clusters: Array<{ id: string; box: { x: number; y: number; w: number; h: number } }>;
+  /** The contract version the caller draws (2 = verdict marks + notes placed by the app). */
+  v?: 2;
 }
 
 /** The `json` multipart field: the editor's clusters (`bbox`) become the contract's `box`; `lang` is always English. */
-export function boardActionsJson(request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters'>): BoardActionsJson {
+export function boardActionsJson(request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters' | 'v'>): BoardActionsJson {
   return {
     question: (request.question ?? '').trim(),
     lang: 'en',
     clusters: request.clusters.map((cluster) => ({ id: cluster.id, box: { ...cluster.bbox } })),
+    ...(request.v === 2 ? { v: 2 as const } : {}),
   };
 }
 

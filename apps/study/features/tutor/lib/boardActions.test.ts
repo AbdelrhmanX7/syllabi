@@ -17,6 +17,7 @@ test('boardActionsJson: the editor clusters (bbox) become the contract clusters 
     { question: 'where?', lang: 'en', clusters: [{ id: 'c1', box: { x: 0.1, y: 0.2, w: 0.3, h: 0.04 } }] },
   );
   assert.deepEqual(boardActionsJson({ clusters: [] }), { question: '', lang: 'en', clusters: [] });
+  assert.equal(boardActionsJson({ clusters: [], v: 2 }).v, 2);
 });
 
 test('postBoardActions: multipart to /study/ai/board-actions with the Study bearer; the body is returned as is', async () => {

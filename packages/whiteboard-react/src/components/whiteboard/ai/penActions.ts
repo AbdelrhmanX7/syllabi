@@ -5,7 +5,9 @@ import { pageLength, toSceneBox, toScenePoint } from './penCoords';
 import { arrowHeadPoints, estimateTextWidth, handEllipsePoints, handLinePoints, placeBelowFree } from './termsMap';
 
 import type { ScenePt } from './penCoords';
-import type { NormalizedBox, PagePoint, PenAction, PenActionEnd, PenActionTarget, PenPlanResult, PenStrokeTool, SceneRect } from './types';
+import { TONE_INK } from './tones';
+
+import type { NormalizedBox, PagePoint, PenAction, PenActionEnd, PenActionTarget, PenMarkVerdict, PenPlanResult, PenStrokeTool, SceneRect } from './types';
 
 /**
  * «Explain on my page» — the pure half. The model answers with a short list of ACTIONS in page
@@ -88,12 +90,30 @@ const TYPE_ALIASES: Record<string, PenAction['type']> = {
   write: 'write',
   note: 'write',
   text: 'write',
+  mark: 'mark',
+  check: 'mark',
+  grade: 'mark',
   pen_stroke: 'pen_stroke',
   stroke: 'pen_stroke',
   draw: 'pen_stroke',
 };
 
 const TOOLS = new Set<PenStrokeTool>(['pen', 'marker', 'highlighter']);
+
+const MARK_VERDICTS: Record<string, PenMarkVerdict> = {
+  correct: 'correct',
+  right: 'correct',
+  check: 'correct',
+  wrong: 'wrong',
+  incorrect: 'wrong',
+  cross: 'wrong',
+  warning: 'warning',
+  partly: 'warning',
+  incomplete: 'warning',
+};
+
+/** A verdict mark's ink: the answer view's semantic tones (green ✓, red ✗, amber !). */
+export const MARK_INK: Record<PenMarkVerdict, string> = { correct: TONE_INK.success, wrong: TONE_INK.wrong, warning: TONE_INK.warning };
 
 /** A cluster reference in any of the shapes a model writes: `'c1'`, `{clusterId}`, `{id}`, `{cluster}`. */
 function clusterRef(value: unknown, known: ReadonlySet<string>): string | null {
@@ -209,12 +229,24 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
       case 'write': {
         const text = str(action.text ?? action.note ?? action.content, PEN_MAX_TEXT);
         const at = parsePagePoint(action.at ?? action.position ?? action.point);
+        const near = action.near !== undefined ? parseTarget({ target: action.near }, known) : null;
 
-        if (!text || !at) break;
+        if (!text || (!at && !near)) break;
 
         const size = Number(action.size ?? action.letterHeight);
 
-        actions.push({ type: 'write', text, at, ...(Number.isFinite(size) && size > 0 ? { size: Math.max(PEN_MIN_LETTER, Math.min(PEN_MAX_LETTER, size)) } : {}) });
+        actions.push({ type: 'write', text, ...(near ? { near } : { at: at! }), ...(Number.isFinite(size) && size > 0 ? { size: Math.max(PEN_MIN_LETTER, Math.min(PEN_MAX_LETTER, size)) } : {}) });
+        break;
+      }
+      case 'mark': {
+        const target = parseTarget(action, known);
+        const verdict = MARK_VERDICTS[String(action.verdict ?? action.mark ?? '').toLowerCase()];
+
+        if (!target || !verdict) break;
+
+        const label = str(action.label ?? action.text ?? action.note, PEN_MAX_NOTE);
+
+        actions.push({ type: 'mark', target, verdict, ...(label ? { label } : {}) });
         break;
       }
       case 'pen_stroke': {
@@ -233,8 +265,9 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
   }
 
   const say = str(source.say ?? source.answer ?? source.message, PEN_MAX_SAY);
+  const verdict = source.verdict === 'correct' || source.verdict === 'wrong' || source.verdict === 'partly' ? source.verdict : undefined;
 
-  return { actions, ...(say ? { say } : {}) };
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -245,9 +278,9 @@ export type PenPrimitive =
   /** The animated pointer dot (+ a note bubble). Overlay only — nothing lands on the board. */
   | { kind: 'pointer'; at: ScenePt; note?: string }
   /** One pen stroke, scene points; `width` in scene units. */
-  | { kind: 'stroke'; role: 'circle' | 'underline' | 'arrow' | 'arrow-head' | 'ink'; points: ScenePt[]; tool: PenStrokeTool; width: number }
-  /** Text to write inside `box` (top-start aligned, line pitch 1.5 × letter height). */
-  | { kind: 'write'; role: 'note' | 'label'; text: string; lines: string[]; box: SceneRect; letterHeight: number };
+  | { kind: 'stroke'; role: 'circle' | 'underline' | 'arrow' | 'arrow-head' | 'ink' | 'mark'; points: ScenePt[]; tool: PenStrokeTool; width: number; color?: string }
+  /** Text to write inside `box` (top-start aligned, line pitch 1.5 × letter height). `color`: a verdict's ink instead of the owner's. */
+  | { kind: 'write'; role: 'note' | 'label'; text: string; lines: string[]; box: SceneRect; letterHeight: number; color?: string };
 
 export interface PenPlan {
   primitives: PenPrimitive[];
@@ -262,6 +295,12 @@ export interface PenPlanContext {
   clusters: ReadonlyMap<string, SceneRect>;
   /** Boxes already taken (the owner's ink, earlier AI objects): a written note never covers one. */
   occupied: readonly SceneRect[];
+  /**
+   * The page's real empty space (pageOccupancy — printed text and pictures count as taken, not just
+   * ink): the free box nearest to `wanted`, or null when there is no room. When given it replaces the
+   * `occupied` nudge, and a note with no room becomes a pointer bubble instead of covering content.
+   */
+  place?: (wanted: SceneRect) => SceneRect | null;
   /** The owner's letter height, scene units. */
   letterHeight: number;
   /** The pen nib, scene units. */
@@ -434,22 +473,40 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
   const occupied = [...ctx.occupied];
   const primitives: PenPrimitive[] = [];
   const extents: SceneRect[] = [];
-  const stroke = (role: Extract<PenPrimitive, { kind: 'stroke' }>['role'], points: ScenePt[], tool: PenStrokeTool = 'pen', width = nib) => {
+  const stroke = (role: Extract<PenPrimitive, { kind: 'stroke' }>['role'], points: ScenePt[], tool: PenStrokeTool = 'pen', width = nib, color?: string) => {
     if (points.length < 2) return;
 
-    primitives.push({ kind: 'stroke', role, points, tool, width });
+    primitives.push({ kind: 'stroke', role, points, tool, width, ...(color ? { color } : {}) });
     extents.push(pointsBounds(points));
   };
-  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number) => {
-    const lines = wrapHandText(text, letterHeight, maxWidth);
-    const width = Math.min(maxWidth, Math.max(...lines.map((line) => estimateTextWidth(line, letterHeight))));
-    const height = letterHeight * 1.5 * lines.length;
-    const wanted = { left: at.x, top: at.y, width, height };
-    const box = placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 });
-
-    primitives.push({ kind: 'write', role, text, lines, box, letterHeight });
-    extents.push(box);
+  const pointer = (at: ScenePt, note?: string) => {
+    primitives.push({ kind: 'pointer', at, ...(note ? { note: Array.from(note).slice(0, PEN_MAX_NOTE).join('') } : {}) });
+    extents.push({ left: at.x - lh, top: at.y - lh, width: lh * 2, height: lh * 2 });
   };
+  /** A free box for `wanted`: the page's real empty space when known, else the ink-box nudge. */
+  const fit = (wanted: SceneRect): SceneRect | null => (ctx.place ? ctx.place(wanted) : placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 }));
+  /**
+   * Writes `text` in empty space near `at`. With the page's real empty space known and no room for
+   * it (even a size smaller), the words go into a pointer bubble at `at` — never over content.
+   */
+  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number, color?: string) => {
+    for (const height of ctx.place ? [letterHeight, letterHeight * 0.8] : [letterHeight]) {
+      const lines = wrapHandText(text, height, maxWidth);
+      const width = Math.min(maxWidth, Math.max(...lines.map((line) => estimateTextWidth(line, height))));
+      const box = fit({ left: at.x, top: at.y, width, height: height * 1.5 * lines.length });
+
+      if (box) {
+        primitives.push({ kind: 'write', role, text, lines, box, letterHeight: height, ...(color ? { color } : {}) });
+        extents.push(box);
+
+        return;
+      }
+    }
+
+    pointer(at, text);
+  };
+  /** Just right of a region, level with its top — where a note about it reads naturally. */
+  const beside = (rect: SceneRect): ScenePt => ({ x: rect.left + rect.width + lh * 0.8, y: rect.top });
 
   for (const action of result.actions) {
     switch (action.type) {
@@ -526,9 +583,71 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
 
         break;
       }
+      case 'mark': {
+        const rect = resolveTarget(action.target, ctx);
+
+        if (!rect) break;
+
+        const ink = MARK_INK[action.verdict];
+        const size = Math.max(lh * 1.1, Math.min(lh * 2, rect.height * 0.9));
+        const labelHeight = lh * 0.85;
+        const maxLabel = Math.max(lh * 5, ctx.page.width * 0.28);
+        const lines = action.label ? wrapHandText(action.label, labelHeight, maxLabel) : [];
+        const labelWidth = lines.length ? Math.min(maxLabel, Math.max(...lines.map((line) => estimateTextWidth(line, labelHeight)))) : 0;
+        const labelBlock = labelHeight * 1.5 * lines.length;
+        const gap = lh * 0.4;
+        const anchor = { x: rect.left + rect.width + lh * 0.6, y: rect.top + rect.height / 2 - size / 2 };
+        // The glyph and its label as one box; with no room for both, the glyph alone and the label in a bubble.
+        const whole = fit({ left: anchor.x, top: anchor.y, width: size + (lines.length ? gap + labelWidth : 0), height: Math.max(size, labelBlock) });
+        const box = whole ?? (lines.length ? fit({ left: anchor.x, top: anchor.y, width: size, height: size }) : null);
+
+        if (!box) {
+          pointer(centreOf(rect), `${action.verdict === 'correct' ? '✓' : action.verdict === 'wrong' ? '✗' : '!'}${action.label ? ` ${action.label}` : ''}`);
+          break;
+        }
+
+        const x = box.left;
+        const y = box.top + (box.height - size) / 2;
+        const width = nib * 1.5;
+        const p = (fx: number, fy: number): ScenePt => ({ x: x + size * fx, y: y + size * fy });
+
+        if (action.verdict === 'correct') {
+          stroke('mark', handLinePoints(p(0.08, 0.55), p(0.38, 0.88), random), 'pen', width, ink);
+          stroke('mark', handLinePoints(p(0.38, 0.88), p(0.95, 0.12), random), 'pen', width, ink);
+        } else if (action.verdict === 'wrong') {
+          stroke('mark', handLinePoints(p(0.12, 0.12), p(0.88, 0.88), random), 'pen', width, ink);
+          stroke('mark', handLinePoints(p(0.88, 0.12), p(0.12, 0.88), random), 'pen', width, ink);
+        } else {
+          stroke('mark', handLinePoints(p(0.5, 0.08), p(0.5, 0.66), random), 'pen', width, ink);
+          stroke('mark', [p(0.5, 0.86), p(0.5, 0.92)], 'pen', width * 1.3, ink);
+        }
+
+        // The exact spot: a wrong or shaky step is underlined in the same colour.
+        if (action.verdict !== 'correct') {
+          const uy = Math.min(ctx.page.top + ctx.page.height, rect.top + rect.height + lh * 0.25);
+
+          stroke('underline', handLinePoints({ x: rect.left - lh * 0.15, y: uy }, { x: rect.left + rect.width + lh * 0.15, y: uy }, random), 'pen', nib, ink);
+        }
+
+        if (lines.length && action.label) {
+          if (whole) {
+            const labelBox = { left: x + size + gap, top: box.top + (box.height - labelBlock) / 2, width: labelWidth, height: labelBlock };
+
+            primitives.push({ kind: 'write', role: 'label', text: action.label, lines, box: labelBox, letterHeight: labelHeight, color: ink });
+            extents.push(labelBox);
+          } else {
+            pointer({ x: x + size / 2, y: y + size / 2 }, action.label);
+          }
+        }
+
+        break;
+      }
       case 'write': {
         const letterHeight = Math.max(2, pageLength(action.size ?? PEN_DEFAULT_LETTER, ctx.page));
-        const at = toScenePoint(action.at, ctx.page);
+        const nearRect = action.near ? resolveTarget(action.near, ctx) : null;
+        const at = nearRect ? beside(nearRect) : action.at ? toScenePoint(action.at, ctx.page) : null;
+
+        if (!at) break;
 
         write('note', action.text, at, letterHeight, Math.max(letterHeight * 6, ctx.page.width * 0.42));
         break;

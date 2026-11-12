@@ -14,11 +14,18 @@ import { Check, Mic, Send, Sparkles, X } from 'lucide-react';
 
 import { buddyStatusLine, type BuddyPhase } from './status';
 
-import { ActionButton, INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { ActionButton, Badge, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { useDictation } from '@/features/tutor/useDictation';
 
 /** A press shorter than this is a tap (open the typing box), longer is hold-to-talk. */
 const HOLD_MS = 280;
+
+/** The verdict on the student's own work, in the mascot's voice (never «Wrong»). */
+const VERDICT = {
+  correct: { tone: 'ok', label: 'Correct' },
+  partly: { tone: 'warn', label: 'Almost' },
+  wrong: { tone: 'danger', label: 'Not quite' },
+} as const;
 
 export function StudyBuddy() {
   const buttonRef = useRef<HTMLSpanElement | null>(null);
@@ -30,6 +37,7 @@ export function StudyBuddy() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [marks, setMarks] = useState(0);
+  const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pressRef = useRef<{ at: number; timer: number | null; talking: boolean } | null>(null);
 
@@ -51,6 +59,7 @@ export function StudyBuddy() {
     setAnswer(null);
     setError(null);
     setMarks(0);
+    setVerdict(null);
     setPhase('reading');
     requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}) });
   }, []);
@@ -82,6 +91,7 @@ export function StudyBuddy() {
         setPhase('done');
         setAnswer(state.say?.trim() || (state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
         setMarks(state.marks);
+        setVerdict(state.verdict ?? null);
       } else if (state.phase === 'error') {
         setPhase('idle');
         setError(state.message);
@@ -185,7 +195,16 @@ export function StudyBuddy() {
           {(question || answer) && (
             <div className='scroll-shadow-y min-h-0 flex-1 overflow-y-auto px-3 pb-2'>
               {question && <p className='text-st-muted truncate text-xs' title={question}>“{question}”</p>}
-              {answer && <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>{answer}</p>}
+              {answer && (
+                <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>
+                  {verdict && (
+                    <Badge className='mr-1.5 align-middle' tone={VERDICT[verdict].tone}>
+                      {VERDICT[verdict].label}
+                    </Badge>
+                  )}
+                  {answer}
+                </p>
+              )}
             </div>
           )}
           {(marks > 0 || typing) && (

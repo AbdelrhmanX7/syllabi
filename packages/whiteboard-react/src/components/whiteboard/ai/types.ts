@@ -360,8 +360,10 @@ export type PenAction =
   | { type: 'circle'; target: PenActionTarget }
   | { type: 'underline'; target: PenActionTarget }
   | { type: 'arrow'; from: PenActionEnd; to: PenActionEnd; label?: string }
-  /** `size`: letter height as a fraction of the page height. */
-  | { type: 'write'; text: string; at: PagePoint; size?: number }
+  /** `size`: letter height as a fraction of the page height. `near` (v2): beside that region — the client finds the gap. */
+  | { type: 'write'; text: string; at?: PagePoint; near?: PenActionTarget; size?: number }
+  /** v2: ✓ / ✗ / ! beside a region, with a few words (the fix or the reason). */
+  | { type: 'mark'; target: PenActionTarget; verdict: PenMarkVerdict; label?: string }
   | { type: 'pen_stroke'; points: PagePoint[]; tool?: PenStrokeTool };
 
 export interface PenPlanRequest extends BoardAiScope {
@@ -372,10 +374,21 @@ export interface PenPlanRequest extends BoardAiScope {
   clusters: TermCluster[];
   /** What the student asked; empty = «explain what matters on this page». */
   question?: string;
+  /**
+   * 2 = this caller draws `mark` actions and `write … near`, and reads `verdict`: the tutor then
+   * checks the student's work first. Absent = the first contract (the step checker relies on it).
+   */
+  v?: 2;
 }
+
+export type PenMarkVerdict = 'correct' | 'wrong' | 'warning';
+/** Was the student's own work right? */
+export type PenPageVerdict = 'correct' | 'wrong' | 'partly';
 
 export interface PenPlanResult {
   actions: PenAction[];
+  /** v2: the verdict on the student's work; absent when there was nothing to check. */
+  verdict?: PenPageVerdict;
   /** A short spoken answer, shown in the panel next to the board. */
   say?: string;
 }

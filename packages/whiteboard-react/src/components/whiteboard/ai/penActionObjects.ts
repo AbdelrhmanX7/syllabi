@@ -66,16 +66,17 @@ const tag = <T extends FabricObject>(object: T, value: AiObjectTag): T => {
 };
 
 async function writeNote(primitive: Extract<PenPrimitive, { kind: 'write' }>, options: PenBuildOptions): Promise<Extract<PenRevealStep, { kind: 'write' }> | null> {
+  const color = primitive.color ?? options.color;
   const style: HandStyle = {
     slantDeg: options.hand?.slantDeg ?? 0,
     strokeWidth: options.hand?.strokeWidth ?? options.strokeWidth,
     letterHeight: primitive.letterHeight,
-    color: options.color,
+    color,
     samples: options.hand?.samples ?? 0,
   };
   const built = await buildHandwritingObjects([{ type: 'paragraph', text: primitive.lines.join(' ') }], {
     zoom: options.zoom,
-    color: options.color,
+    color,
     withAnswers: false,
     // The plan already wrapped the text to the box (an estimate of the hand's widths): one planned
     // line is never broken, several get a little slack — the scale below fits the result to the box.
@@ -131,14 +132,15 @@ export async function buildPenActionObjects(plan: PenPlan, options: PenBuildOpti
         steps.push({ kind: 'pointer', at: primitive.at, ...(primitive.note ? { note: primitive.note } : {}) });
         break;
       case 'stroke': {
-        const path = penPath(smoothPath(primitive.points), { color: options.color, strokeWidth: primitive.width });
+        const color = primitive.color ?? options.color;
+        const path = penPath(smoothPath(primitive.points), { color, strokeWidth: primitive.width });
         const opacity = primitive.tool === 'highlighter' ? HIGHLIGHTER_OPACITY : 1;
 
         if (opacity < 1) path.set({ opacity });
 
         tag(path, { kind: primitive.role === 'ink' ? 'pen-stroke' : 'pen-mark', source: primitive.role, batch: options.batch });
         objects.push(path);
-        steps.push({ kind: 'stroke', points: primitive.points, color: options.color, width: primitive.width, opacity, objects: [path] });
+        steps.push({ kind: 'stroke', points: primitive.points, color, width: primitive.width, opacity, objects: [path] });
         break;
       }
       case 'write': {

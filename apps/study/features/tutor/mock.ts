@@ -307,7 +307,7 @@ function clustersOf(body: BoardActionsBody): ClusterBox[] {
  * contract has (point_at, circle, underline, arrow, write, pen_stroke) so the board's execution can be
  * checked end to end. Sample mode cannot read ink: the note echoes the question, nothing more.
  */
-export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]; say: string } {
+export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]; say: string; verdict?: string } {
   const question = typeof body.question === 'string' ? body.question.trim() : '';
   const clusters = clustersOf(body);
   const first = clusters[0] ?? { id: '', box: { x: 0.2, y: 0.2, w: 0.3, h: 0.06 } };
@@ -332,8 +332,6 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
   }
 
   const noteText = question ? `Sample note on: ${question}` : 'Sample note — the real tutor writes what matters here.';
-  const tickX = round4(Math.min(0.93, first.box.x + first.box.w + 0.015));
-  const tickY = first.box.y;
 
   return {
     actions: [
@@ -347,19 +345,13 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
       {
         type: 'write',
         text: Array.from(noteText).slice(0, 120).join(''),
-        at: { x: round4(last.box.x), y: round4(Math.min(0.92, last.box.y + last.box.h + 0.03)) },
+        // The app finds the empty space next to this region.
+        near: ref(last),
         size: 0.022,
       },
-      {
-        type: 'pen_stroke',
-        tool: 'marker',
-        points: [
-          [tickX, round4(tickY + first.box.h * 0.55)],
-          [round4(tickX + 0.012), round4(tickY + first.box.h + 0.01)],
-          [round4(tickX + 0.04), round4(Math.max(0, tickY - 0.01))],
-        ],
-      },
+      { type: 'mark', target: ref(first), verdict: 'correct', label: 'sample tick' },
     ],
+    verdict: 'correct',
     say: question
       ? `Sample answer to “${question.length > 80 ? `${question.slice(0, 80)}…` : question}” — the real tutor reads your page and marks what matters.`
       : 'Sample explanation — the real tutor reads your page, points at what matters and writes a short note in your hand.',

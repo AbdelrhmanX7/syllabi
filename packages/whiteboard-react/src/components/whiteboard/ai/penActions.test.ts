@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   parsePagePoint,
+  MARK_INK,
   parsePenPlan,
   PEN_MAX_ACTIONS,
   PEN_MAX_STROKE_POINTS,
@@ -270,4 +271,64 @@ test('planPenActions is deterministic for the same input and seed', () => {
   const input = { actions: [{ type: 'circle' as const, target: { clusterId: 'c1' } }] };
 
   assert.deepEqual(planPenActions(input, ctx), planPenActions(input, ctx));
+});
+
+test('v2: a mark parses with its verdict and label; a note may name a region instead of a point; the page verdict is kept', () => {
+  const plan = parsePenPlan(
+    {
+      verdict: 'partly',
+      actions: [
+        { type: 'mark', target: { clusterId: 'c1' }, verdict: 'wrong', label: 'should be 2x' },
+        { type: 'mark', target: { clusterId: 'c1' }, verdict: 'nonsense' },
+        { type: 'write', text: 'check the sign', near: { clusterId: 'c1' } },
+      ],
+    },
+    ['c1'],
+  );
+
+  assert.equal(plan?.verdict, 'partly');
+  assert.deepEqual(plan?.actions, [
+    { type: 'mark', target: { clusterId: 'c1' }, verdict: 'wrong', label: 'should be 2x' },
+    { type: 'write', text: 'check the sign', near: { clusterId: 'c1' } },
+  ]);
+});
+
+test('v2: a wrong mark is a red ✗ beside the region with the fix written next to it and the region underlined', () => {
+  const page = { left: 0, top: 0, width: 1000, height: 1400 };
+  const rect = { left: 100, top: 200, width: 200, height: 30 };
+  const asked: Array<{ left: number; top: number; width: number; height: number }> = [];
+  const plan = planPenActions(
+    { actions: [{ type: 'mark', target: { clusterId: 'c1' }, verdict: 'wrong', label: 'should be 2x' }] },
+    {
+      page,
+      clusters: new Map([['c1', rect]]),
+      occupied: [],
+      letterHeight: 24,
+      strokeWidth: 2,
+      place: (wanted) => {
+        asked.push(wanted);
+
+        return { ...wanted, left: 400, top: 190 };
+      },
+    },
+  );
+  const strokes = plan.primitives.filter((primitive) => primitive.kind === 'stroke');
+  const label = plan.primitives.find((primitive) => primitive.kind === 'write');
+
+  assert.equal(asked.length, 1, 'the glyph and its label are placed as one box');
+  assert.ok(asked[0]!.left > rect.left + rect.width, 'wanted just right of the region');
+  assert.deepEqual(strokes.map((primitive) => primitive.kind === 'stroke' && primitive.role), ['mark', 'mark', 'underline']);
+  assert.ok(strokes.every((primitive) => primitive.kind === 'stroke' && primitive.color === MARK_INK.wrong));
+  assert.ok(label && label.kind === 'write' && label.color === MARK_INK.wrong && label.box.left > 400);
+});
+
+test('v2: with the page full, a note becomes a pointer bubble instead of covering content', () => {
+  const page = { left: 0, top: 0, width: 1000, height: 1400 };
+  const plan = planPenActions(
+    { actions: [{ type: 'write', text: 'no room for this', near: { clusterId: 'c1' } }] },
+    { page, clusters: new Map([['c1', { left: 100, top: 200, width: 200, height: 30 }]]), occupied: [], letterHeight: 24, strokeWidth: 2, place: () => null },
+  );
+
+  assert.deepEqual(plan.primitives.map((primitive) => primitive.kind), ['pointer']);
+  assert.equal(plan.primitives[0]!.kind === 'pointer' && plan.primitives[0]!.note, 'no room for this');
 });

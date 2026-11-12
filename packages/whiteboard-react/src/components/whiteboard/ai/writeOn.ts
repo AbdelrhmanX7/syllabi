@@ -20,6 +20,10 @@ export interface WriteOnPlayback {
   repaint?: () => void;
 }
 
+/** The buddy's pencil: tip at the bottom-left corner, brand blue, cream outline so it reads on ink and on paper. */
+export const PENCIL_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M2 26l2.2-7.4L19.6 3.2a2.4 2.4 0 013.4 0l1.8 1.8a2.4 2.4 0 010 3.4L9.4 23.8 2 26z" fill="#3b5bdb" stroke="#fbfaf6" stroke-width="2" stroke-linejoin="round"/><path d="M4.2 18.6l5.2 5.2" stroke="#fbfaf6" stroke-width="1.6"/><path d="M2 26l2.4-1-1.4-1.4L2 26z" fill="#18204a"/></svg>';
+
 export const prefersReducedMotion = (): boolean => {
   try {
     return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -304,6 +308,7 @@ export function playPenTurn(
     onPointer,
     maxTotalMs = 9000,
     linger = false,
+    pencil = false,
   }: {
     onPointer?: (at: { x: number; y: number }, note?: string) => void;
     maxTotalMs?: number;
@@ -312,6 +317,8 @@ export function playPenTurn(
      * the real objects — the buddy's temporary marks. `repaint()` follows pan/zoom; `dispose()` ends them.
      */
     linger?: boolean;
+    /** A pencil that travels with the drawing (its tip on the stroke being made) — the buddy's cursor. */
+    pencil?: boolean;
   } = {},
 ): WriteOnPlayback {
   const element = canvas.getElement();
@@ -332,9 +339,11 @@ export function playPenTurn(
     onPointer?.(step.at, step.note);
   };
 
+  let pencilEl: HTMLElement | null = null;
   const dispose = () => {
     if (frame !== null) cancelAnimationFrame(frame);
     overlay.remove();
+    pencilEl?.remove();
   };
 
   const instant = steps.length === 0 || prefersReducedMotion();
@@ -358,6 +367,32 @@ export function playPenTurn(
   overlay.setAttribute('aria-hidden', 'true');
   overlay.style.cssText = `position:absolute;left:${rect.left - hostRect.left}px;top:${rect.top - hostRect.top}px;width:${rect.width}px;height:${rect.height}px;pointer-events:auto;touch-action:none;cursor:pointer;`;
   host.appendChild(overlay);
+
+  if (pencil && !instant) {
+    pencilEl = document.createElement('div');
+    pencilEl.setAttribute('aria-hidden', 'true');
+    // The tip of the drawn pencil is the element's bottom-left corner; only transform/opacity move.
+    pencilEl.style.cssText = 'position:absolute;left:0;top:0;width:28px;height:28px;margin-top:-28px;pointer-events:none;z-index:43;opacity:0;transition:opacity 200ms ease;will-change:transform;';
+    pencilEl.innerHTML = PENCIL_SVG;
+    host.appendChild(pencilEl);
+  }
+
+  const movePencil = (tip: { x: number; y: number } | null) => {
+    if (!pencilEl) return;
+
+    if (!tip) {
+      pencilEl.style.opacity = '0';
+
+      return;
+    }
+
+    const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
+    const left = tip.x * vpt[0]! + vpt[4]! + (rect.left - hostRect.left);
+    const top = tip.y * vpt[3]! + vpt[5]! + (rect.top - hostRect.top);
+
+    pencilEl.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
+    pencilEl.style.opacity = '1';
+  };
 
   const ctx = overlay.getContext('2d');
   // Each step's own clock: a stroke by its on-screen length, a note by its words, a pointer a dwell.
@@ -395,6 +430,8 @@ export function playPenTurn(
 
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null;
+
+    movePencil(null);
 
     if (linger) {
       overlay.style.pointerEvents = 'none';
@@ -452,6 +489,8 @@ export function playPenTurn(
     }
 
     context.stroke();
+
+    return shown[shown.length - 1]!;
   };
 
   const t0 = performance.now();
@@ -464,6 +503,9 @@ export function playPenTurn(
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, overlay.width, overlay.height);
 
+    // Where the pen is right now (scene units): the step being drawn.
+    let tip: { x: number; y: number } | null = null;
+
     steps.forEach((step, index) => {
       const local = (elapsed - starts[index]!) / durations[index]!;
 
@@ -471,6 +513,7 @@ export function playPenTurn(
 
       if (step.kind === 'pointer') {
         point(index);
+        if (local < 1) tip = step.at;
 
         return;
       }
@@ -484,7 +527,9 @@ export function playPenTurn(
         ctx.strokeStyle = step.color;
         ctx.lineWidth = step.width;
         ctx.globalAlpha = step.opacity;
-        traceStroke(ctx, step.points, local);
+        const end = traceStroke(ctx, step.points, local);
+
+        if (local < 1) tip = end;
       } else {
         const { scale, dx, dy } = step.transform;
         const paths = writePaths.get(index)!;
@@ -515,6 +560,8 @@ export function playPenTurn(
             const shown = width * wordLocal;
             const x = left;
 
+            if (local < 1) tip = { x: (left + shown) * scale + dx, y: (top + height * 0.6) * scale + dy };
+
             ctx.beginPath();
             ctx.rect(x - pad, top - pad, shown + pad * 2, height + pad * 2);
             ctx.clip();
@@ -528,6 +575,8 @@ export function playPenTurn(
 
       ctx.restore();
     });
+
+    if (elapsed < totalMs) movePencil(tip);
   }
 
   const draw = (now: number) => {

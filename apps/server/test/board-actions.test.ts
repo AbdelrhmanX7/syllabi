@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import sharp from "sharp";
+import { buildBoardActionsPrompt, parseBoardInput, sanitizeBoardActions, tagBoardImage } from "../src/services/study/board-actions";
+
+const clusters = [
+  { id: "c1", box: { x: 0.1, y: 0.1, w: 0.3, h: 0.05 } },
+  { id: "p1", box: { x: 0.1, y: 0.3, w: 0.5, h: 0.1 } },
+];
+
+test("the contract version: absent = 1, v:2 = 2", () => {
+  const json = (extra: object) => JSON.stringify({ question: "is this right?", clusters, ...extra });
+  const v1 = parseBoardInput(json({}));
+  const v2 = parseBoardInput(json({ v: 2 }));
+  assert.ok("input" in v1 && v1.input.v === 1);
+  assert.ok("input" in v2 && v2.input.v === 2);
+  assert.match(buildBoardActionsPrompt((v2 as any).input), /solve the problem yourself first/);
+  assert.doesNotMatch(buildBoardActionsPrompt((v1 as any).input), /solve the problem yourself first/);
+});
+
+test("v2 keeps marks, notes beside a region and the verdict; v1 drops them", () => {
+  const raw = {
+    verdict: "partly",
+    say: "Almost: line 2 drops the minus sign.",
+    actions: [
+      { type: "mark", target: { clusterId: "1" }, verdict: "wrong", label: "should be −3x" },
+      { type: "mark", target: { clusterId: "9" }, verdict: "wrong" },
+      { type: "mark", target: { clusterId: "2" }, verdict: "maybe" },
+      { type: "write", text: "check the sign", near: { clusterId: "2" } },
+      { type: "write", text: "old style", at: { x: 0.5, y: 0.5 } },
+    ],
+  };
+  const v2 = sanitizeBoardActions(raw, clusters, 2);
+  assert.equal(v2?.verdict, "partly");
+  assert.deepEqual(v2?.actions, [
+    { type: "mark", target: { clusterId: "c1" }, verdict: "wrong", label: "should be −3x" },
+    { type: "write", text: "check the sign", near: { clusterId: "p1" } },
+    { type: "write", text: "old style", at: { x: 0.5, y: 0.5 } },
+  ]);
+  const v1 = sanitizeBoardActions(raw, clusters, 1);
+  assert.equal(v1?.verdict, undefined);
+  assert.deepEqual(v1?.actions, [{ type: "write", text: "old style", at: { x: 0.5, y: 0.5 } }]);
+});
+
+test("the tagged copy is a JPEG of the same size; no regions = no copy", async () => {
+  const page = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#ffffff" } }).jpeg().toBuffer();
+  const tagged = await tagBoardImage(page, clusters);
+  assert.ok(tagged);
+  const meta = await sharp(tagged).metadata();
+  assert.equal(meta.format, "jpeg");
+  assert.equal(meta.width, 400);
+  assert.equal(meta.height, 300);
+  // The outline is really drawn: a magenta-ish pixel on the first region's top edge.
+  const { data } = await sharp(tagged).raw().toBuffer({ resolveWithObject: true });
+  const o = (30 * 400 + 100) * 3;
+  assert.ok(data[o] > data[o + 1] + 40, "no outline on the region edge");
+  assert.equal(await tagBoardImage(page, []), null);
+});

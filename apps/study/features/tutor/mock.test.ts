@@ -185,7 +185,7 @@ test('board-actions: the canned plan has every action type, names the clusters s
 
   assert.deepEqual(
     plan.actions.map((action) => action.type),
-    ['point_at', 'circle', 'underline', 'arrow', 'write', 'pen_stroke'],
+    ['point_at', 'circle', 'underline', 'arrow', 'write', 'mark'],
   );
   assert.deepEqual(plan.actions[1].target, { clusterId: 'c1' });
   assert.deepEqual(plan.actions[2].target, { clusterId: 'c2' });
