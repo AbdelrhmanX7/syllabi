@@ -51,6 +51,9 @@ import { InkAutoColorLayer } from './autoColor/InkAutoColorLayer';
 import { ImageCropOverlay } from './ImageCropOverlay';
 import { PasteChip, SelectionActionBar } from './SelectionActionBar';
 import { installModernSelectionChrome, SELECTION_MARQUEE } from './utils/selectionChrome';
+import { setHandwritingFace } from './ai/handwritingObjects';
+import { DEFAULT_GRAPH } from './utils/graphAxes';
+import { buildGraphObject, graphSpecOf, replaceGraphObject } from './utils/graphObject';
 import { rasterizeSelection, selectionSceneBounds } from './utils/selectionActions';
 import { boardRuleGrid, boardSheetRuleGrid, sheetRuleGrid } from './utils/straightenInk';
 import { selectedInkStrokes, straightenSelection } from './utils/straightenInkCanvas';
@@ -2229,6 +2232,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const pendingBoardPenRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (isBoardPenTool(activeTool)) lastBoardPenToolRef.current = activeTool;
+    // What the AI writes looks like the pen in hand: the script pen's thick-and-thin, or an even line.
+    setHandwritingFace(lastBoardPenToolRef.current === 'script' ? 'script' : 'pen');
     const memory = nextBoardPenMemory(lastBoardPenToolRef.current, activeTool, strokeSettings, parkedPenColorRef.current);
     const write = () => {
       pendingBoardPenRef.current = null;
@@ -4726,6 +4731,16 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     const stencil = (active as (FabricObject & { data?: { isGeometryStencil?: boolean } }) | undefined)?.data?.isGeometryStencil;
 
     return active instanceof FabricImage && !isLockedImage(active) && !stencil && fabricCanvas.getActiveObjects().length === 1 ? active : null;
+  })();
+
+  // One graph is the whole selection: the bar offers «Edit graph» (axes, start and end).
+  const selectedGraph = (() => {
+    if (readOnly || !fabricCanvas || !selectionActions.selectionBox) return null;
+
+    const active = fabricCanvas.getActiveObject();
+    const spec = active && fabricCanvas.getActiveObjects().length === 1 ? graphSpecOf(active) : null;
+
+    return active && spec ? { object: active, spec } : null;
   })();
 
   // One picture (not a stencil) is the whole selection: host actions scoped to `picture` show, `other` ones hide.
@@ -7550,6 +7565,26 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     handleToolChange('select');
   }, [handleToolChange, strokeSettings.color, strokeSettings.opacity, strokeSettings.width]);
 
+  /** A new graph (x and y, −5…5) in the middle of the view, selected, ready for «Edit graph». */
+  const handleInsertGraph = useCallback(() => {
+    const canvas = fabricCanvasRef.current;
+
+    if (!canvas) return;
+
+    const zoom = canvas.getZoom() || 1;
+    // About 320 px of plot on screen, whatever the zoom; never wider than the view.
+    const scale = Math.min(320, canvas.getWidth() * 0.6) / 360 / zoom;
+    const graph = buildGraphObject(DEFAULT_GRAPH, scale);
+    const center = canvas.getVpCenter();
+
+    graph.setPositionByOrigin(center, 'center', 'center');
+    graph.setCoords();
+    canvas.add(graph);
+    canvas.setActiveObject(graph);
+    canvas.requestRenderAll();
+    handleToolChange('select');
+  }, [handleToolChange]);
+
   const handleToggleFullscreen = useCallback(async () => {
     if (typeof document === 'undefined') {
       return;
@@ -7880,6 +7915,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 onFillColorChange={setFillColor}
                 onInsertGeometryStencil={handleInsertGeometryStencil}
                 onInsertRadical={handleInsertRadical}
+                onInsertGraph={readOnly ? undefined : handleInsertGraph}
                 onInsertImage={handleInsertImage}
                 onOpenToolSettings={handleOpenToolSettings}
                 isExportingPdf={isExportingPdf}
@@ -8386,6 +8422,18 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               onWidth={selectionActions.restroke}
               readStyle={selectionActions.readStyle}
               readInk={selectionActions.readInk}
+              graph={
+                selectedGraph
+                  ? {
+                      spec: selectedGraph.spec,
+                      onChange: (spec) => {
+                        const canvas = fabricCanvasRef.current;
+
+                        if (canvas) replaceGraphObject(canvas, selectedGraph.object, spec);
+                      },
+                    }
+                  : null
+              }
               onStyle={selectionActions.restyle}
             />
           ) : null}

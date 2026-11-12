@@ -6470,6 +6470,10 @@ export function useWhiteboardCanvas({
 
         case 'rect':
           shape = new Rect({
+            // The drag's corner IS the shape's corner (Fabric's default origin is the centre: the shape
+            // sat half its size away from the pen).
+            originX: 'left',
+            originY: 'top',
             left: pointer.x,
             top: pointer.y,
             width: 0,
@@ -6486,6 +6490,10 @@ export function useWhiteboardCanvas({
 
         case 'circle':
           shape = new Ellipse({
+            // The drag's corner IS the shape's corner (Fabric's default origin is the centre: the shape
+            // sat half its size away from the pen).
+            originX: 'left',
+            originY: 'top',
             left: pointer.x,
             top: pointer.y,
             rx: 0,
@@ -6502,6 +6510,10 @@ export function useWhiteboardCanvas({
 
         case 'triangle':
           shape = new Triangle({
+            // The drag's corner IS the shape's corner (Fabric's default origin is the centre: the shape
+            // sat half its size away from the pen).
+            originX: 'left',
+            originY: 'top',
             left: pointer.x,
             top: pointer.y,
             width: 0,

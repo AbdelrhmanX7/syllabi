@@ -35,25 +35,68 @@ export function setHandwritingFontUrl(url: string): void {
 
 let fontPromise: Promise<boolean> | null = null;
 
-/** Loads the handwriting font once. False = not available (the board font is traced instead). */
-export function ensureHandFont(): Promise<boolean> {
+/**
+ * Which pen the written answer should look like. `script` = the calligraphy face (thick and thin, like
+ * the script pen); `pen` = an even line, like the plain pen, brush or marker. The editor sets it from
+ * the pen the student has picked, so the AI writes with «the same pen».
+ */
+export type HandFace = 'script' | 'pen';
+
+/** Patrick Hand (SIL OFL 1.1) — an even-line hand, bundled under `public/font`. */
+export const PEN_FONT_FAMILY = 'WB Hand Pen';
+let penFontUrl = '/font/PatrickHand-latin.woff2';
+let penFontPromise: Promise<boolean> | null = null;
+let handFace: HandFace = 'pen';
+
+export function setHandwritingFace(face: HandFace): void {
+  handFace = face;
+}
+
+export const handwritingFace = (): HandFace => handFace;
+
+/** Host apps that serve the even-line font somewhere else point the board at it before the first insert. */
+export function setPenHandwritingFontUrl(url: string): void {
+  penFontUrl = url;
+  penFontPromise = null;
+}
+
+function loadFace(family: string, url: string): Promise<boolean> {
+  return (async () => {
+    try {
+      const face = new FontFace(family, `url(${url}) format('woff2')`, { display: 'block' });
+
+      await Promise.race([face.load(), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))]);
+      document.fonts.add(face);
+
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+}
+
+/** Loads the handwriting font for `face` once. False = not available (the board font is traced instead). */
+export function ensureHandFont(face: HandFace = 'script'): Promise<boolean> {
   if (typeof document === 'undefined' || typeof FontFace === 'undefined') return Promise.resolve(false);
 
+  if (face === 'pen') {
+    if (!penFontPromise) {
+      penFontPromise = loadFace(PEN_FONT_FAMILY, penFontUrl).then((ok) => {
+        if (!ok) penFontPromise = null;
+
+        return ok;
+      });
+    }
+
+    return penFontPromise;
+  }
+
   if (!fontPromise) {
-    fontPromise = (async () => {
-      try {
-        const face = new FontFace(HAND_FONT_FAMILY, `url(${handFontUrl}) format('woff2')`, { display: 'block' });
+    fontPromise = loadFace(HAND_FONT_FAMILY, handFontUrl).then((ok) => {
+      if (!ok) fontPromise = null;
 
-        await Promise.race([face.load(), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))]);
-        document.fonts.add(face);
-
-        return true;
-      } catch {
-        fontPromise = null;
-
-        return false;
-      }
-    })();
+      return ok;
+    });
   }
 
   return fontPromise;
@@ -223,8 +266,10 @@ const tagObject = <T extends FabricObject>(object: T, value: AiObjectTag): T => 
 export async function buildHandwritingObjects(blocks: BoardAiBlock[], options: HandwritingOptions): Promise<HandwritingBuild> {
   registerAiObjectPersistence();
 
-  const hasFont = await ensureHandFont();
-  const family = hasFont ? `'${HAND_FONT_FAMILY}', ${BOARD_TEXT_FONT}` : BOARD_TEXT_FONT;
+  // The face follows the pen the student writes with (script pen → calligraphy; any other → an even line).
+  const face = handwritingFace();
+  const hasFont = await ensureHandFont(face);
+  const family = hasFont ? `'${face === 'pen' ? PEN_FONT_FAMILY : HAND_FONT_FAMILY}', ${BOARD_TEXT_FONT}` : BOARD_TEXT_FONT;
   const unit = 1 / (options.zoom > 0 ? options.zoom : 1);
   const widthPx = options.widthPx ?? 540;
   const style = options.style ?? null;

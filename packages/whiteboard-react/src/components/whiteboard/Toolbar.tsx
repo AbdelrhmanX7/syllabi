@@ -12,6 +12,7 @@ import {
   ClipboardPaste,
   Copy,
   CopyPlus,
+  ChartLine,
   DraftingCompass,
   Download,
   Eraser,
@@ -162,6 +163,8 @@ interface ToolbarProps {
   onInsertGeometryStencil: (kind: GeometryStencilKind) => void;
   /** Insert a clean, stretchable square-root sign (√). Omitted → no tile. */
   onInsertRadical?: () => void;
+  /** Adds graph axes (x and y, or one alone) the student can resize and edit. */
+  onInsertGraph?: () => void;
   isExportingPdf: boolean;
   isPublishingVersion?: boolean;
   isLocked: boolean;
@@ -299,11 +302,9 @@ const RadicalIcon: React.FC = () => (
   </svg>
 );
 
-const GEOMETRY_STENCILS: Array<{ icon: React.ReactNode; kind: GeometryStencilKind; label: WbStringKey }> = [
-  { kind: 'protractor', label: 'editor.geo.protractor', icon: <Ruler className='h-4 w-4' /> },
-  { kind: 'set-square', label: 'editor.geo.setSquare', icon: <Triangle className='h-4 w-4' /> },
-  { kind: 'compass', label: 'editor.geo.compass', icon: <Compass className='h-4 w-4' /> },
-];
+// The protractor, set square and compass stencils were removed (owner, 2026-11-12: never used; the
+// ruler chip covers measuring). The list stays so a host can bring one back.
+const GEOMETRY_STENCILS: Array<{ icon: React.ReactNode; kind: GeometryStencilKind; label: WbStringKey }> = [];
 
 const CORE_TOOLS: WhiteboardTool[] = ['select', 'pen', 'eraser', 'pan'];
 // The dock force-expands whenever the active tool is NOT in this set, so the teacher can always see what
@@ -493,6 +494,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onInsertImage,
   onInsertGeometryStencil,
   onInsertRadical,
+  onInsertGraph,
   onDuplicatePage,
   onPaste,
   compactSelectTool = false,
@@ -524,6 +526,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const shownFill = shapeStyle && onShapeStyleChange ? shapeStyle.fill : fillColor;
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAiMenuOpen, setIsAiMenuOpen] = useState(false);
+  // The shapes menu closes itself once something was put on the board (it covered the new object).
+  const [isGeoMenuOpen, setIsGeoMenuOpen] = useState(false);
   // Which nib the pen button re-selects when tapped. Without this, a teacher writing with the brush who
   // taps the pen button to reach its settings would be silently dropped back to the plain pen — the
   // button must return them to the nib they were actually using.
@@ -1025,7 +1029,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             {showExpandedTools ? (
               <>
                 <MemoizedToolbarSection isVertical={isVertical}>
-                  <Popover placement={popoverPlacement} portalContainer={overlayPortalContainer}>
+                  <Popover isOpen={isGeoMenuOpen} placement={popoverPlacement} portalContainer={overlayPortalContainer} onOpenChange={setIsGeoMenuOpen}>
                     <PopoverTrigger>
                       <Button
                         className={`${ICON_BUTTON_BASE_CLASS} shrink-0`}
@@ -1081,6 +1085,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
                               </span>
                             </Button>
                           ))}
+                          {onInsertGraph ? (
+                            <Button
+                              className={POPOVER_TILE_CLASS}
+                              color='default'
+                              data-geo='graph'
+                              variant='flat'
+                              onPress={() => {
+                                setIsGeoMenuOpen(false);
+                                onInsertGraph();
+                              }}
+                            >
+                              <span className='flex flex-col items-center gap-1 whitespace-normal text-center leading-tight'>
+                                <ChartLine className='h-4 w-4' />
+                                {t('editor.geo.graph')}
+                              </span>
+                            </Button>
+                          ) : null}
                           {onInsertRadical ? (
                             <Button className={POPOVER_TILE_CLASS} color='default' variant='flat' onPress={onInsertRadical}>
                               <span className='flex flex-col items-center gap-1 whitespace-normal text-center leading-tight'>

@@ -301,6 +301,8 @@ export function showsHalo(object: FabricObject): boolean {
   const active = canvas._activeObject;
 
   if (!active) return false;
+  // A graph is a grid of thin lines: tracing each one smears the whole plot. Its frame is enough.
+  if ((active as unknown as { wbGraph?: unknown }).wbGraph || (object as unknown as { wbGraph?: unknown }).wbGraph) return false;
 
   return active === object || (object.group === active && isActiveSelection(active));
 }

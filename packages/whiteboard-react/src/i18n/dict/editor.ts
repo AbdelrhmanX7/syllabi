@@ -10,6 +10,7 @@ export const EDITOR_STRINGS = {
   'editor.geo.ellipse': 'Circle / ellipse',
   'editor.geo.triangle': 'Triangle',
   'editor.geo.radical': 'Square root',
+  'editor.geo.graph': 'Graph',
   'editor.savingBoard': 'Saving board…',
   'editor.dropHereOffice': 'Drop a PDF, PowerPoint or images here',
   'editor.dropHere': 'Drop a PDF or images here',

@@ -1,14 +1,16 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { Baseline, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Pin, Scissors, Sparkles, Trash2 } from 'lucide-react';
+import { Baseline, ChartLine, Check, ClipboardPaste, Copy, CopyPlus, Crop, Network, Palette, Pin, Scissors, Sparkles, Trash2 } from 'lucide-react';
 import { ColorSwatch } from '@repo/ui';
 
+import { GraphEditPanel } from './GraphEditPanel';
 import { ShapeStylePanel } from './ShapeStylePanel';
 import { STROKE_WIDTHS } from './types';
 import { MODERN_CHROME_REACH } from './utils/selectionChrome';
 import { placePasteChip, placeSelectionBar } from './utils/selectionClipboard';
 import { useWbStrings } from '../../i18n/context';
 
+import type { GraphSpec } from './utils/graphAxes';
 import type { SelectionRaster } from './utils/selectionActions';
 import type { ShapeStylePatch } from './utils/shapeStylePaint';
 import type { ClipboardRect } from './utils/selectionClipboard';
@@ -76,6 +78,8 @@ interface SelectionActionBarProps {
   variant?: 'compact' | 'labeled';
   /** The «Style» panel (background, fill pattern, outline, opacity): what the selection has now… */
   readStyle?: () => { style: ShapeStylePatch; hasShape: boolean; canFill: boolean } | null;
+  /** The selection is ONE graph: its settings, and what to do with a change. Shows «Edit graph». */
+  graph?: { spec: GraphSpec; onChange: (spec: GraphSpec) => void } | null;
   /** The selection's current colour and pen size: shown as the picked swatch / size. */
   readInk?: () => { color: string | null; width: number | null };
   /** …and applying a choice to it. Both absent = no «Style» button. */
@@ -118,7 +122,7 @@ function StyleIcon({ className }: { className?: string }) {
   );
 }
 
-type SelectionPanel = 'color' | 'size' | 'style' | null;
+type SelectionPanel = 'color' | 'size' | 'style' | 'graph' | null;
 
 export function SelectionActionBar({
   selection,
@@ -141,6 +145,7 @@ export function SelectionActionBar({
   variant = 'compact',
   readStyle,
   readInk,
+  graph,
   onStyle,
 }: SelectionActionBarProps) {
   const { t, dir } = useWbStrings();
@@ -257,6 +262,11 @@ export function SelectionActionBar({
           </div>
         ) : null}
         {stylePanel ? <div className='border-ink/10 mb-1.5 border-b pb-1.5'>{stylePanel}</div> : null}
+        {panel === 'graph' && graph ? (
+          <div className='border-ink/10 mb-1.5 border-b pb-1.5'>
+            <GraphEditPanel value={graph.spec} onChange={graph.onChange} />
+          </div>
+        ) : null}
         {panel === 'size' ? (
           <div aria-label={t('selection.width')} className='border-ink/10 mb-1.5 flex flex-wrap gap-1 border-b px-0.5 pb-1.5' role='group'>
             {STROKE_WIDTHS.map((width) => (
@@ -306,6 +316,18 @@ export function SelectionActionBar({
             >
               <StyleIcon className='h-5 w-5' />
               <span>{t('selection.style')}</span>
+            </button>
+          ) : null}
+          {graph ? (
+            <button
+              aria-expanded={panel === 'graph'}
+              className={`${LABELED_BUTTON_CLASS} ${panel === 'graph' ? 'bg-ink/10' : ''}`}
+              data-action='graph'
+              type='button'
+              onClick={() => togglePanel('graph')}
+            >
+              <ChartLine aria-hidden className='h-5 w-5' />
+              <span>{t('selection.graph')}</span>
             </button>
           ) : null}
           <span aria-hidden className={LABELED_DIVIDER_CLASS} />
