@@ -267,7 +267,9 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
   const say = str(source.say ?? source.answer ?? source.message, PEN_MAX_SAY);
   const verdict = source.verdict === 'correct' || source.verdict === 'wrong' || source.verdict === 'partly' ? source.verdict : undefined;
 
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}) };
+  const heard = str(source.heard, 200);
+
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}) };
 }
 
 // ---------------------------------------------------------------------------

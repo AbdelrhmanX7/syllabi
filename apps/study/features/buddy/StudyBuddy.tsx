@@ -6,16 +6,19 @@
 // The board does the looking and drawing (`requestBoardBuddy` in @repo/whiteboard-react); this file
 // is only the floating button, the voice, and the answer bubble.
 import type { BoardBuddyState } from '@repo/whiteboard-react';
+import type { InkCanvasHandle } from '@/features/bank';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
-import { Check, CopyPlus, Lasso, MessagesSquare, Mic, Pencil, Send, WandSparkles, X } from 'lucide-react';
+import { Check, CopyPlus, Lasso, MessagesSquare, Mic, Pencil, Send, Undo2, WandSparkles, X } from 'lucide-react';
 
 import { BUDDY_QUICK_ASKS, buddyStatusLine, type BuddyPhase } from './status';
 
 import { ActionButton, Badge, FilterChip, INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { InkCanvas } from '@/features/bank';
 import { useDictation } from '@/features/tutor/useDictation';
+import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
 
 /** A press shorter than this is a tap (open the typing box), longer is hold-to-talk. */
 const HOLD_MS = 280;
@@ -46,6 +49,10 @@ export function StudyBuddy() {
   const [error, setError] = useState<string | null>(null);
   const [marks, setMarks] = useState(0);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
+  const [padEmpty, setPadEmpty] = useState(true);
+  const padRef = useRef<InkCanvasHandle>(null);
+  // Talking needs the voice add-on; without it the button is tap-only.
+  const voiceOn = useVoiceAiEnabled();
   const pressRef = useRef<{ at: number; timer: number | null; talking: boolean } | null>(null);
 
   const origin = () => {
@@ -54,24 +61,36 @@ export function StudyBuddy() {
     return box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : undefined;
   };
 
-  const ask = useCallback((text: string, shown?: string) => {
+  const ask = useCallback((text: string, shown?: string, questionImage?: Blob) => {
     const clean = text.trim();
 
-    if (!clean) return;
+    if (!clean && !questionImage) return;
 
     setOpen(true);
     setTyping(false);
     setDraft('');
     setQuestion(shown ?? clean);
+    setPadEmpty(true);
     setAnswer(null);
     setError(null);
     setMarks(0);
     setVerdict(null);
     setPhase('reading');
-    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}) });
+    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}) });
   }, []);
 
-  const dictation = useDictation(ask, (message) => {
+  /** The question written on the pad → a picture the tutor reads beside the page. */
+  const askWritten = useCallback(() => {
+    const b64 = padRef.current?.rasterize();
+
+    if (!b64) return;
+
+    const bytes = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
+
+    ask('', 'Your written question', new Blob([bytes], { type: 'image/png' }));
+  }, [ask]);
+
+  const dictation = useDictation((text) => ask(text), (message) => {
     setOpen(true);
     setError(message);
     setPhase('idle');
@@ -91,6 +110,7 @@ export function StudyBuddy() {
 
       if (state.phase === 'done') {
         setPhase('done');
+        if (state.heard) setQuestion(state.heard);
         setAnswer(state.say?.trim() || (state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
         setMarks(state.marks);
         setVerdict(state.verdict ?? null);
@@ -119,7 +139,12 @@ export function StudyBuddy() {
     const onTalk = (event: Event) => {
       const active = (event as CustomEvent<{ active?: boolean }>).detail?.active;
 
-      if (active) {
+      if (active && !voiceOn) {
+        // No voice on this account: the hold opens the pad to write the question instead.
+        setOpen(true);
+        setError(null);
+        setTyping(true);
+      } else if (active) {
         setOpen(true);
         setError(null);
         setTyping(false);
@@ -132,13 +157,13 @@ export function StudyBuddy() {
     window.addEventListener(BOARD_BUDDY_TALK_EVENT, onTalk);
 
     return () => window.removeEventListener(BOARD_BUDDY_TALK_EVENT, onTalk);
-  }, [start, stop]);
+  }, [start, stop, voiceOn]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const press = { at: Date.now(), timer: null as number | null, talking: false };
 
-    press.timer = window.setTimeout(() => {
+    if (voiceOn) press.timer = window.setTimeout(() => {
       press.talking = true;
       setOpen(true);
       setError(null);
@@ -185,10 +210,10 @@ export function StudyBuddy() {
   return (
     <div className='pointer-events-none absolute bottom-24 right-3 z-30 flex flex-col items-end gap-3'>
       {open && (
-        <Surface className='pointer-events-auto flex max-h-[40vh] w-[min(20rem,calc(100vw-2rem))] flex-col'>
+        <Surface className='pointer-events-auto flex max-h-[min(80vh,32rem)] w-[min(26rem,calc(100vw-2rem))] flex-col'>
           <div className='flex items-center gap-2 px-3 pt-2'>
             <span className={cn('min-w-0 flex-1 truncate text-xs font-semibold', error ? 'text-st-danger' : 'text-st-muted')}>
-              {error ?? status ?? (typing ? 'Hold the pencil to talk, or pick one' : 'Ask about this page')}
+              {error ?? status ?? (typing ? (voiceOn ? 'Hold the pencil to talk, or pick one' : 'Pick one, or write your question') : 'Ask about this page')}
             </span>
             <ActionButton aria-label='Close' className='min-h-9 w-9 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
               <X className='h-4 w-4' />
@@ -229,6 +254,28 @@ export function StudyBuddy() {
                 </div>
               )}
               {typing && (
+                <div className='flex items-stretch gap-2'>
+                  <InkCanvas
+                    ref={padRef}
+                    hideToolbar
+                    className='min-w-0 flex-1'
+                    disabled={busy}
+                    growable={false}
+                    minHeight={120}
+                    placeholder='Write your question with the pen'
+                    onChange={setPadEmpty}
+                  />
+                  <div className='flex shrink-0 flex-col justify-between gap-3'>
+                    <ActionButton aria-label='Undo' className='w-11 px-0' disabled={padEmpty} title='Undo' variant='ghost' onClick={() => padRef.current?.undo()}>
+                      <Undo2 className='h-4 w-4' />
+                    </ActionButton>
+                    <ActionButton aria-label='Ask what I wrote' className='w-11 px-0' disabled={busy || padEmpty} title='Ask' variant='primary' onClick={askWritten}>
+                      <Send className='h-4 w-4' />
+                    </ActionButton>
+                  </div>
+                </div>
+              )}
+              {typing && (
                 <form
                   className='flex items-center gap-2'
                   onSubmit={(event) => {
@@ -244,7 +291,7 @@ export function StudyBuddy() {
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                   />
-                  <ActionButton aria-label='Ask' className='w-11 shrink-0 px-0' disabled={busy || !draft.trim()} type='submit' variant='primary'>
+                  <ActionButton aria-label='Ask' className='w-11 shrink-0 px-0' disabled={busy || !draft.trim()} type='submit' variant='secondary'>
                     <Send className='h-4 w-4' />
                   </ActionButton>
                 </form>
@@ -274,10 +321,10 @@ export function StudyBuddy() {
       )}
       <span ref={buttonRef} className='pointer-events-auto inline-flex'>
       <ActionButton
-        aria-label='Study buddy: hold to talk, tap for more'
+        aria-label={voiceOn ? 'Study buddy: hold to talk, tap for more' : 'Study buddy'}
         className='pointer-events-auto h-12 min-h-12 w-12 select-none rounded-full px-0'
         loading={busy}
-        title='Hold to talk, tap for more'
+        title={voiceOn ? 'Hold to talk, tap for more' : 'Ask about this page'}
         variant={listening ? 'danger' : 'primary'}
         onContextMenu={(event) => event.preventDefault()}
         onPointerCancel={() => endPress(true)}

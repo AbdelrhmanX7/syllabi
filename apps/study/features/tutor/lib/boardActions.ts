@@ -17,6 +17,9 @@ export const NOT_AVAILABLE_CODE = 'NOT_AVAILABLE';
 
 export const PEN_UNAVAILABLE_MESSAGE = 'Explaining on the page is not available yet — coming soon.';
 
+/** The `question` text when the real one is the handwritten picture (`ask` file). */
+export const HANDWRITTEN_QUESTION = 'My question is handwritten (see the last image).';
+
 export interface BoardActionsJson {
   question: string;
   /** Always 'en': Syllabi is English only. */
@@ -27,9 +30,10 @@ export interface BoardActionsJson {
 }
 
 /** The `json` multipart field: the editor's clusters (`bbox`) become the contract's `box`; `lang` is always English. */
-export function boardActionsJson(request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters' | 'v'>): BoardActionsJson {
+export function boardActionsJson(request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters' | 'v' | 'questionImage'>): BoardActionsJson {
   return {
-    question: (request.question ?? '').trim(),
+    // A question written on the pad travels as a picture; the text only says so.
+    question: (request.question ?? '').trim() || (request.questionImage ? HANDWRITTEN_QUESTION : ''),
     lang: 'en',
     clusters: request.clusters.map((cluster) => ({ id: cluster.id, box: { ...cluster.bbox } })),
     ...(request.v === 2 ? { v: 2 as const } : {}),
@@ -50,10 +54,13 @@ export async function postBoardActions(
   json: BoardActionsJson,
   signal: AbortSignal,
   fetchImpl: typeof fetch = fetch,
+  /** The question written by hand on the buddy's pad. */
+  ask?: Blob | null,
 ): Promise<PenPlanResult> {
   const form = new FormData();
 
   form.append('image', image, image.type === 'image/png' ? 'page.png' : 'page.jpg');
+  if (ask) form.append('ask', ask, ask.type === 'image/jpeg' ? 'ask.jpg' : 'ask.png');
   form.append('json', JSON.stringify(json));
 
   const url = `${access.baseUrl.replace(/\/+$/, '').replace(/\/study$/, '')}/study/ai/board-actions`;

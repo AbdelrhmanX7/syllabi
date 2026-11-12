@@ -374,6 +374,8 @@ export interface PenPlanRequest extends BoardAiScope {
   clusters: TermCluster[];
   /** What the student asked; empty = «explain what matters on this page». */
   question?: string;
+  /** The question written by hand (the buddy's pad) — sent beside the page; needs `v: 2`. */
+  questionImage?: Blob;
   /**
    * 2 = this caller draws `mark` actions and `write … near`, and reads `verdict`: the tutor then
    * checks the student's work first. Absent = the first contract (the step checker relies on it).
@@ -389,6 +391,8 @@ export interface PenPlanResult {
   actions: PenAction[];
   /** v2: the verdict on the student's work; absent when there was nothing to check. */
   verdict?: PenPageVerdict;
+  /** v2: a handwritten question as the tutor read it. */
+  heard?: string;
   /** A short spoken answer, shown in the panel next to the board. */
   say?: string;
 }

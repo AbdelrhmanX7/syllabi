@@ -227,7 +227,7 @@ export function createStudyBoardAi({ pageId, classId, context }: StudyBoardAiOpt
 
       const image = request.image.size > MAX_IMAGE_BYTES ? ((await downscaleBlob(request.image)) ?? request.image) : request.image;
 
-      return postBoardActions(access, image, json, signal);
+      return postBoardActions(access, image, json, signal, fetch, request.questionImage ?? null);
     },
     remakePageImage: async function* (request: RemakePageRequest, signal: AbortSignal) {
       if (isForceMock()) throw new Error(SAMPLE_ONLY);

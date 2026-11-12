@@ -961,8 +961,8 @@ export function BoardAiLayer({
       question: string,
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
-      buddy?: { origin?: { x: number; y: number } },
-    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict }> => {
+      buddy?: { origin?: { x: number; y: number }; questionImage?: Blob },
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -996,7 +996,7 @@ export function BoardAiLayer({
       const pageObjects = all.filter((object) => onSheet(rectOf(object)));
       const sourceInk = (selected.length ? selected : pageObjects).filter(isInk);
 
-      if (sourceInk.length === 0 && !question) throw new Error(t('ai.pen.noInk'));
+      if (sourceInk.length === 0 && !question && !buddy?.questionImage) throw new Error(t('ai.pen.noInk'));
 
       const hand = estimateHandStyle(inkSamplesFromObjects(sourceInk)) ?? estimateHandStyle(inkSamplesFromObjects(pageObjects.filter(isInk)));
       const rects = sourceInk.map(rectOf);
@@ -1113,6 +1113,7 @@ export function BoardAiLayer({
           imageSize: { width: rendered.width, height: rendered.height },
           clusters: regions,
           ...(question ? { question } : {}),
+          ...(buddy?.questionImage ? { questionImage: buddy.questionImage } : {}),
           lang: 'en' as const,
           v: 2 as const,
         },
@@ -1193,7 +1194,12 @@ export function BoardAiLayer({
         // Temporary: the marks stay on the overlay; «Keep» adds these same objects later.
         buddyMarksRef.current = { objects: built.objects, playback, pointers, pageId: pageAtStart, vpt: [...viewportOf(canvas)] };
 
-        return { ...(result.say ? { say: result.say } : {}), ...(result.verdict ? { verdict: result.verdict } : {}), added: built.objects.length };
+        return {
+          ...(result.say ? { say: result.say } : {}),
+          ...(result.verdict ? { verdict: result.verdict } : {}),
+          ...(result.heard ? { heard: result.heard } : {}),
+          added: built.objects.length,
+        };
       }
 
       // One tick: every add lands in the same idle snapshot → ONE undo step.
@@ -1245,7 +1251,7 @@ export function BoardAiLayer({
   }, [bridge, canvas, clearBuddyMarks]);
 
   const askBuddy = useCallback(
-    async (question: string, origin?: { x: number; y: number }) => {
+    async (question: string, origin?: { x: number; y: number }, questionImage?: Blob) => {
       buddyAbortRef.current?.abort();
       clearBuddyMarks(false);
 
@@ -1254,11 +1260,14 @@ export function BoardAiLayer({
       buddyAbortRef.current = controller;
 
       try {
-        const { say, added, verdict } = await penExplain(question.trim(), controller.signal, () => undefined, origin ? { origin } : {});
+        const { say, added, verdict, heard } = await penExplain(question.trim(), controller.signal, () => undefined, {
+          ...(origin ? { origin } : {}),
+          ...(questionImage ? { questionImage } : {}),
+        });
 
         if (controller.signal.aborted) return;
 
-        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), marks: added });
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), marks: added });
 
         if (added > 0) buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true), BUDDY_MARKS_MS);
       } catch (error) {
@@ -1285,7 +1294,7 @@ export function BoardAiLayer({
       const request = (event as CustomEvent<unknown>).detail;
 
       if (!isBoardBuddyRequest(request)) return;
-      if (request.type === 'ask') void askBuddy(request.question, request.origin);
+      if (request.type === 'ask') void askBuddy(request.question, request.origin, request.questionImage instanceof Blob ? request.questionImage : undefined);
       else if (request.type === 'keep') keepBuddyMarks();
       else {
         buddyAbortRef.current?.abort();

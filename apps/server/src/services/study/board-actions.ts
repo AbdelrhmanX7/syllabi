@@ -74,6 +74,8 @@ export interface BoardReply {
   say?: string;
   /** v2: was the student's own work right? Absent when there was nothing to check. */
   verdict?: PageVerdict;
+  /** v2, handwritten question: the question as the tutor read it. */
+  heard?: string;
 }
 
 const ID_RX = /^[\w.:-]{1,64}$/;
@@ -196,7 +198,7 @@ export async function tagBoardImage(image: Buffer, clusters: BoardCluster[]): Pr
   }
 }
 
-export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | null): string {
+export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | null, images?: { tagged: boolean; ask: boolean }): string {
   const lines = input.clusters.map((c, i) => {
     const b = c.box;
     return `${i + 1}: x=${b.x.toFixed(3)} y=${b.y.toFixed(3)} w=${b.w.toFixed(3)} h=${b.h.toFixed(3)}`;
@@ -213,7 +215,16 @@ export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | 
         : "INK GROUPS: none listed — target with boxes and points.",
     ...lines,
     "",
-    `The student's question: ${input.question}`,
+    ...(images?.ask
+      ? [
+          `IMAGES: 1 = the page${images.tagged ? "; 2 = the tagged copy" : " (no tagged copy this time)"}; the LAST image = the student's question, written by hand on a separate pad (it is NOT part of the page — never mark it).`,
+          'Read that handwritten question and answer it. Also return "heard": the question as plain text (your best reading, at most 200 characters).',
+          "",
+        ]
+      : images && !images.tagged && input.v === 2
+        ? ["IMAGES: only the page was sent (no tagged copy).", ""]
+        : []),
+    images?.ask ? "The student's question: (handwritten — the last image)" : `The student's question: ${input.question}`,
     ...(retryNote ? ["", retryNote] : []),
   ].join("\n");
 }
@@ -352,7 +363,8 @@ export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], v: 
   const say = str((o as any).say, SAY_MAX);
   const pv = (o as any).verdict;
   const verdict = v === 2 && (pv === "correct" || pv === "wrong" || pv === "partly") ? (pv as PageVerdict) : null;
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}) };
+  const heard = v === 2 ? str((o as any).heard, 200) : "";
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}) };
 }
 
 /**
@@ -365,21 +377,26 @@ export async function boardActionsFromPage(o: {
   input: BoardInput;
   spend: Spend;
   signal?: AbortSignal;
+  /** v2: the student's question, handwritten on the buddy's pad (JPEG). */
+  ask?: Buffer | null;
 }): Promise<{ reply: BoardReply; attempts: number } | null> {
   let retryNote: string | null = null;
   // v2: the clean page + the tagged copy (same mime needed: the tagged copy is a JPEG, so both are sent as JPEG).
   let images: Buffer | Buffer[] = o.image;
   let mime = o.mime;
+  let shape: { tagged: boolean; ask: boolean } | undefined;
   if (o.input.v === 2) {
     const tagged = await tagBoardImage(o.image, o.input.clusters);
-    if (tagged) {
+    const ask = o.ask?.length ? o.ask : null;
+    if (tagged || ask) {
       const clean = o.mime === "image/jpeg" ? o.image : await sharp(o.image).jpeg({ quality: 88 }).toBuffer();
-      images = [clean, tagged];
+      images = [clean, ...(tagged ? [tagged] : []), ...(ask ? [ask] : [])];
       mime = "image/jpeg";
     }
+    shape = { tagged: Boolean(tagged), ask: Boolean(ask) };
   }
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const raw = await visionCall(images, mime, buildBoardActionsPrompt(o.input, retryNote), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
+    const raw = await visionCall(images, mime, buildBoardActionsPrompt(o.input, retryNote, shape), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
     if (o.signal?.aborted) return null;
     const reply = sanitizeBoardActions(raw, o.input.clusters, o.input.v);
     if (reply) return { reply, attempts: attempt };

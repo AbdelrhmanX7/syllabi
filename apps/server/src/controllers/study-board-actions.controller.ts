@@ -16,9 +16,13 @@ const IMAGE_MAX_PX = 1600;
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: IMAGE_MAX_BYTES, files: 1, fields: 1, fieldSize: 64 * 1024, parts: 3 },
+  limits: { fileSize: IMAGE_MAX_BYTES, files: 2, fields: 1, fieldSize: 64 * 1024, parts: 4 },
 });
-const single = upload.single("image") as unknown as RequestHandler;
+/** `image` = the page; `ask` (optional) = the question written by hand on the buddy's pad. */
+const single = upload.fields([
+  { name: "image", maxCount: 1 },
+  { name: "ask", maxCount: 1 },
+]) as unknown as RequestHandler;
 
 /** multer for `image` + `json`, with its errors shaped like the rest of /study (all 400). */
 export const boardActionsMultipart: RequestHandler = (req, res, next) => {
@@ -42,7 +46,18 @@ export const boardActionsMultipart: RequestHandler = (req, res, next) => {
 export const boardActions = wrap(async (req, res) => {
   const parsed = parseBoardInput(req.body?.json);
   if ("error" in parsed) return fail(res, 400, "VALIDATION_ERROR", parsed.error);
-  const file = (req as any).file as Express.Multer.File | undefined;
+  const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+  const file = files?.image?.[0];
+  // The handwritten question: flattened on white, small — unreadable input just goes without it.
+  let ask: Buffer | null = null;
+  const askFile = files?.ask?.[0];
+  if (askFile?.buffer?.length && isPngOrJpeg(askFile.buffer) && parsed.input.v === 2) {
+    try {
+      ask = await sharp(askFile.buffer).flatten({ background: "#ffffff" }).resize(1000, 1000, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
+    } catch {
+      ask = null;
+    }
+  }
   if (!file?.buffer?.length || !isPngOrJpeg(file.buffer)) return fail(res, 400, "VALIDATION_ERROR", "image must be a JPEG or PNG file");
   let image: Buffer = file.buffer;
   let mime = image[0] === 0xff ? "image/jpeg" : "image/png";
@@ -66,7 +81,7 @@ export const boardActions = wrap(async (req, res) => {
   });
   let r: Awaited<ReturnType<typeof boardActionsFromPage>>;
   try {
-    r = await boardActionsFromPage({ image, mime, input: parsed.input, spend, signal: ctrl.signal });
+    r = await boardActionsFromPage({ image, mime, input: parsed.input, spend, signal: ctrl.signal, ask });
   } catch (e) {
     const c = classifyAiError(e);
     if (!ctrl.signal.aborted) await logAiFailure("study board_actions failed", e, {}, c.code);
