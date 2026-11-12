@@ -1272,12 +1272,13 @@ function AskBody({ session, service, actions }: { session: Extract<PanelSession,
     [locale, send, service, short, turns],
   );
 
-  // «Circle new writing»: this picture continues the thread — asked the moment the panel opens (the
-  // panel remounts per picture, so this runs once per circled region).
+  // «Circle new writing»: this picture continues the thread. It is asked the moment the panel opens
+  // ONLY when the student typed a question to go with it — nothing is ever sent in their name that
+  // they did not write: with no question the panel just shows the picture and waits for a tap.
   useEffect(() => {
     const followUp = session.followUp;
 
-    if (followUp) ask('custom', inkFollowUpQuestion(followUp.question, locale), followUp.quote ?? null);
+    if (followUp && followUp.question.trim()) ask('custom', inkFollowUpQuestion(followUp.question, locale), followUp.quote ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
