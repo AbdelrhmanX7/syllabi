@@ -382,7 +382,7 @@ body {
 }
 
 /* Study buddy: transforms and opacity only (old tablets). */
-@keyframes buddy-in { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes buddy-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @keyframes buddy-rock { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
 @keyframes buddy-ring { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.6); opacity: 0; } }
 @keyframes buddy-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }

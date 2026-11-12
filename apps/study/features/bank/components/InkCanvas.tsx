@@ -160,9 +160,10 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     if (!canvas) return;
     const fit = () => {
       const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      const w = Math.max(1, Math.round(rect.width * dpr));
-      const h = Math.max(1, Math.round(rect.height * dpr));
+      // The LAYOUT size, not the on-screen box: a parent that is mid-animation (scaled) must not shrink
+      // the drawing surface — the ink then landed right of and below the pen.
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
 
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
@@ -252,9 +253,42 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
   );
 
   const localPoint = (event: React.PointerEvent | PointerEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    // Screen px → the canvas's own px: the same thing unless a parent is scaled.
+    const kx = rect.width > 0 ? canvas.clientWidth / rect.width : 1;
+    const ky = rect.height > 0 ? canvas.clientHeight / rect.height : 1;
 
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    return { x: (event.clientX - rect.left) * kx, y: (event.clientY - rect.top) * ky };
+  };
+
+  // The tool's own cursor, following the pen (hovering or down) or the mouse: a small dot for the pen, a
+  // ring the size of the eraser's reach for the eraser. A tablet shows no system cursor for a pen, so
+  // without it there is no telling which tool is in hand. Moved by transform only.
+  const cursorRef = useRef<HTMLSpanElement>(null);
+  const showCursor = (event: { pointerType: string; clientX: number; clientY: number }, erasingNow: boolean) => {
+    const cursor = cursorRef.current;
+
+    if (!cursor) return;
+
+    if (event.pointerType === 'touch' || disabled) {
+      cursor.style.opacity = '0';
+
+      return;
+    }
+
+    const point = localPoint(event as PointerEvent);
+    const size = erasingNow ? ERASER_RADIUS * 2 : 8;
+
+    cursor.style.width = `${size}px`;
+    cursor.style.height = `${size}px`;
+    cursor.style.transform = `translate(${point.x - size / 2}px, ${point.y - size / 2}px)`;
+    cursor.style.background = erasingNow ? 'rgba(255,255,255,0.35)' : 'rgb(var(--st-accent, 59 91 219))';
+    cursor.style.borderColor = erasingNow ? 'rgb(var(--st-accent, 59 91 219))' : '#ffffff';
+    cursor.style.opacity = '1';
+  };
+  const hideCursor = () => {
+    if (cursorRef.current) cursorRef.current.style.opacity = '0';
   };
 
   const pressureOf = (event: { pointerType: string; pressure: number }) =>
@@ -285,6 +319,8 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     const erasing =
       tool === 'eraser' || (event.pointerType === 'pen' && (event.buttons & 32) !== 0) || (event.buttons & 2) !== 0;
     const point = localPoint(event);
+
+    showCursor(event, erasing);
 
     if (erasing) {
       liveRef.current = {
@@ -324,6 +360,8 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
       return;
     }
     const live = liveRef.current;
+
+    showCursor(event, live ? live.erasing : tool === 'eraser' || (event.buttons & 2) !== 0 || (event.pointerType === 'pen' && (event.buttons & 32) !== 0));
 
     if (!live || live.pointerId !== event.pointerId) return;
     event.preventDefault();
@@ -455,8 +493,16 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
           onContextMenu={(event) => event.preventDefault()}
           onPointerCancel={finish}
           onPointerDown={onPointerDown}
+          onPointerLeave={hideCursor}
           onPointerMove={onPointerMove}
           onPointerUp={finish}
+        />
+        <span
+          ref={cursorRef}
+          aria-hidden
+          className='pointer-events-none absolute left-0 top-0 rounded-full border-2 opacity-0'
+          data-ink-cursor
+          style={{ willChange: 'transform' }}
         />
         {empty && !disabled && placeholder ? (
           <p className='pointer-events-none absolute left-4 top-3 text-sm text-st-muted'>{placeholder}</p>

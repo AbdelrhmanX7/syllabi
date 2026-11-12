@@ -135,10 +135,31 @@ export function StudyBuddy() {
 
   // The pen's side button erases on the pad while held (the tablet reports it apart from the pen's touch).
   useEffect(() => {
+    // Like the board: HELD while the pen writes = erase for as long as it is held; a quick press in the
+    // air = switch between pen and eraser (so a button that is simply clicked works too).
+    let pressedAt = 0;
+    let touched = false;
     const onPen = (event: Event) => {
-      const detail = (event as CustomEvent<{ kind?: string; buttonState?: number }>).detail;
+      const detail = (event as CustomEvent<{ kind?: string; buttonState?: number; contact?: boolean }>).detail;
 
-      if (detail?.kind === 'motion' && typeof detail.buttonState === 'number') setPenButton((detail.buttonState & 32) !== 0);
+      if (detail?.kind !== 'motion' || typeof detail.buttonState !== 'number') return;
+
+      const held = (detail.buttonState & 32) !== 0;
+
+      if (held && pressedAt === 0) {
+        pressedAt = Date.now();
+        touched = false;
+      }
+      if (held && detail.contact) touched = true;
+
+      if (!held && pressedAt !== 0) {
+        const quick = Date.now() - pressedAt < 400;
+
+        pressedAt = 0;
+        if (quick && !touched && typingRef.current) setErasing((was) => !was);
+      }
+
+      setPenButton(held);
     };
 
     window.addEventListener('wb-native-pen', onPen);

@@ -981,10 +981,13 @@ export function BoardAiLayer({
 
         return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
       };
+      // Handwriting = a pen path: a stroked line (the plain pen) OR a filled outline (the brush and the
+      // script pen, which carry no stroke) — never the tint laid under ink, an eraser mark or AI ink.
       const isInk = (object: FabricObject) =>
         object.isType('Path') &&
         !(object as unknown as Record<string, unknown>)[AI_OBJECT_PROP] &&
-        typeof object.stroke === 'string' &&
+        !(object as unknown as { wbInkFill?: boolean }).wbInkFill &&
+        ((typeof object.stroke === 'string' && object.stroke !== '') || (typeof object.fill === 'string' && object.fill !== '')) &&
         (object as unknown as { globalCompositeOperation?: string }).globalCompositeOperation !== 'destination-out';
       // The sheet the model's coordinates live on: under the selection in the continuous layout, else
       // the current page's.
