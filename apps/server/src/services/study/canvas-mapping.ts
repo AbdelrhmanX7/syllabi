@@ -72,7 +72,9 @@ export function externalToolName(url: unknown): string | null {
   } catch {
     return null;
   }
-  return host.includes("derivita") ? "Derivita" : host;
+  if (host.includes("derivita")) return "Derivita";
+  if (host.includes("gradescope")) return "Gradescope";
+  return host;
 }
 
 // ─── YouTube ────────────────────────────────────────────────────────────────────────────

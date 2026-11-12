@@ -17,7 +17,8 @@ import java.util.UUID
 // Android share target — the native half of features/inbox/lib/share.ts.
 //
 // Gallery, Files, a screenshot or a Quick Share (AirDrop-from-iPhone) arrival can be shared into
-// Study as ACTION_SEND / ACTION_SEND_MULTIPLE (image/* or application/pdf; see AndroidManifest.xml).
+// Study as ACTION_SEND / ACTION_SEND_MULTIPLE (image/* or application/pdf; see AndroidManifest.xml),
+// and a PDF can be opened with it (ACTION_VIEW).
 // The content:// grant only lasts as long as the receiving activity, so every stream is COPIED into
 // <cache>/shared/ on a background thread right away — on a cold start (the share launched the app,
 // before the WebView exists) as on a warm one (onNewIntent). The page then:
@@ -55,6 +56,11 @@ class ShareReceiver(private val activity: Activity) {
     val uris = when (intent.action) {
       Intent.ACTION_SEND -> listOfNotNull(streamExtra(intent))
       Intent.ACTION_SEND_MULTIPLE -> streamListExtra(intent)
+      // «Open with» on a PDF (a download tapped in Files or the browser). Only a real file: the app's
+      // own https / custom-scheme links are VIEW intents too and belong to the deep-link handler.
+      Intent.ACTION_VIEW -> listOfNotNull(
+        intent.data?.takeIf { (it.scheme == "content" || it.scheme == "file") && intent.type == "application/pdf" }
+      )
       else -> emptyList()
     }
     // A text-only share (a link) carries no stream; ignore it rather than failing.
