@@ -541,6 +541,10 @@ export interface WhiteboardEditorProps {
   hideQuickPenTrigger?: boolean;
   /** The host has its own single AI button (Study's buddy): the toolbar shows no AI buttons. The AI layer itself stays on. */
   hideAiToolbar?: boolean;
+  /** The host's top bar already has focus mode and full screen: the bottom toolbar leaves them out. */
+  hideToolbarViewButtons?: boolean;
+  /** No full-screen button anywhere (an installed app already fills the screen). */
+  hideFullscreen?: boolean;
   /**
    * Focus mode (only the canvas + the small focus dock) controlled by the host, e.g. a host button that
    * also hides the host's own overlays. Unset: the editor keeps it to itself (toolbar «Focus mode»).
@@ -1582,6 +1586,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   defaultEraserMode = 'partial',
   hideQuickPenTrigger = false,
   hideAiToolbar = false,
+  hideToolbarViewButtons = false,
+  hideFullscreen = false,
   focusMode,
   onFocusModeChange,
   allowInsertBlankPages = false,
@@ -7885,6 +7891,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 onStrokeSettingsChange={handleStrokeSettingsChange}
                 onTabletInputSettingsChange={setTabletInputSettings}
                 onToggleFullscreen={handleToggleFullscreen}
+                hideViewButtons={hideToolbarViewButtons}
+                hideFullscreen={hideFullscreen}
                 onToggleLock={handleToggleLock}
                 onToolChange={handleToolChange}
                 onUndo={handleUndo}
@@ -8035,18 +8043,20 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 {documentTitle}
               </div>
             )}
-            <Tooltip
-              content={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')}
-              portalContainer={overlayPortalContainer}
-            >
-              <button
-                className={CHROME_CHIP}
-                type='button'
-                onClick={() => void handleToggleFullscreen()}
+            {!hideFullscreen && (
+              <Tooltip
+                content={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')}
+                portalContainer={overlayPortalContainer}
               >
-                {isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
-              </button>
-            </Tooltip>
+                <button
+                  className={CHROME_CHIP}
+                  type='button'
+                  onClick={() => void handleToggleFullscreen()}
+                >
+                  {isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
+                </button>
+              </Tooltip>
+            )}
             <Tooltip content={t('editor.refresh')} portalContainer={overlayPortalContainer}>
               <button
                 className={CHROME_CHIP}

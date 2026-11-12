@@ -178,6 +178,10 @@ interface ToolbarProps {
   onEnterFocusMode: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  /** The host shows focus mode / full screen elsewhere (its top bar): leave them out of the toolbar. */
+  hideViewButtons?: boolean;
+  /** No full-screen button at all (an installed app already fills the screen). */
+  hideFullscreen?: boolean;
   onUploadSharedBackground: () => void;
   /** Board AI entry points; absent = the board has no AI service and shows no AI buttons. */
   ai?: ToolbarAiControls;
@@ -510,6 +514,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onEnterFocusMode,
   isFullscreen,
   onToggleFullscreen,
+  hideViewButtons = false,
+  hideFullscreen = false,
   onUploadSharedBackground,
   ai,
 }) => {
@@ -1357,18 +1363,22 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     </PopoverContent>
                   </Popover>
 
-                  <MemoizedActionButton
-                    icon={<EyeOff className='h-4 w-4' />}
-                    label={t('toolbar.focusMode')}
-                    overlayPortalContainer={overlayPortalContainer}
-                    onPress={onEnterFocusMode}
-                  />
-                  <MemoizedActionButton
-                    icon={isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
-                    label={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')}
-                    overlayPortalContainer={overlayPortalContainer}
-                    onPress={onToggleFullscreen}
-                  />
+                  {!hideViewButtons && (
+                    <MemoizedActionButton
+                      icon={<EyeOff className='h-4 w-4' />}
+                      label={t('toolbar.focusMode')}
+                      overlayPortalContainer={overlayPortalContainer}
+                      onPress={onEnterFocusMode}
+                    />
+                  )}
+                  {!hideViewButtons && !hideFullscreen && (
+                    <MemoizedActionButton
+                      icon={isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
+                      label={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')}
+                      overlayPortalContainer={overlayPortalContainer}
+                      onPress={onToggleFullscreen}
+                    />
+                  )}
                 </MemoizedToolbarSection>
               </>
             ) : null}

@@ -33,6 +33,7 @@ import dynamic from 'next/dynamic';
 import { ClaudeFeedback } from '@/components/notebook/ClaudeFeedback';
 import { RulerOverlay } from '@/components/notebook/RulerOverlay';
 import { StudyBuddy } from '@/features/buddy/StudyBuddy';
+import { isTauri } from '@/lib/platform/runtime';
 import { useRulerPresets, usePutRulerPreset } from '@/lib/api/hooks';
 import { ActionButton, BOARD_CHIP, BOARD_CHIP_OVERRIDE } from '@/components/ui/primitives';
 import { BOARD_DRAW_EVENT, boardGraphInput, clearBoardDraw, peekBoardDraw } from '@/features/conceptmaps/lib/boardDraw';
@@ -906,6 +907,9 @@ export function NotebookBoard({
         boardAi={boardAi}
         // The buddy is the one AI button on this screen.
         hideAiToolbar={!readOnly && Boolean(boardAi?.penPlan)}
+        // One of each: focus mode and full screen live in the top bar; the installed app has no use for full screen.
+        hideToolbarViewButtons
+        hideFullscreen={isTauri()}
         buildMergeOverlaysRef={buildMergeOverlaysRef}
         defaultEraserMode='object'
         defaultPaperSpacingMm={paperSpacingDefaults}
