@@ -28,6 +28,7 @@ export const BUDDY_EXPERTS: readonly BuddyExpert[] = [
     when: "The student wants their own work or answer checked, asks «is this right?», or asks where they went wrong.",
     job: [
       "Check the student's own work. Solve it yourself first, compare line by line, find the FIRST place it goes wrong.",
+      "Put the \"wrong\" mark on the line where the mistake FIRST appears (the step that introduces it) — not on the final answer that merely inherits it.",
       "Always give `verdict` when there is work of theirs to check. Do not return `steps`, `quiz` or `similar`.",
     ],
   },
