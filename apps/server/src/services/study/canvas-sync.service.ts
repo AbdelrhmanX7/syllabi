@@ -515,9 +515,34 @@ async function syncCourse(ctx: Ctx, cls: IStudyClass, course: Json, stampSeen: b
   );
   htmlSources.unshift(...pageDocs.filter((d): d is IStudyItem => !!d?.html).map((d) => ({ item: d, html: d.html! })));
 
+  // 6b. Files the lessons LINK to (guided notes, worksheets, solutions). Many professors keep them out
+  //     of the Files tab and only link them from a lesson page, so the file list above never has them.
+  const linked = linkedFileIds(htmlSources);
+  const metaLimit = createLimiter(3);
+  await Promise.all(
+    [...linked.keys()]
+      .filter((fid) => !fileMetas.has(fid))
+      .slice(0, LINKED_FILES_MAX)
+      .map((fid) =>
+        metaLimit(async () => {
+          try {
+            fileMetas.set(fid, await client.get(`${base}/files/${fid}`));
+          } catch (e) {
+            if (e instanceof CanvasApiError && e.status === 401) throw e;
+            ctx.skippedFiles.push({ courseId: cid, fileId: fid, name: linked.get(fid)?.text || String(fid), size: null, reason: `unavailable: ${errOf(e).message}` });
+          }
+        })
+      )
+  );
+
   // 7. Files → storage, every version kept.
   const fileLimit = createLimiter(2);
   await Promise.all([...fileMetas.values()].map((meta) => fileLimit(() => syncFile(ctx, classId, cid, meta, upsert))));
+  // A linked file sits under the lesson that links it (unless a module already places it).
+  for (const [fid, src] of linked) {
+    if (!fileMetas.has(fid)) continue;
+    await StudyItem.updateOne({ userId, classId, canvasType: "File", canvasId: String(fid), moduleId: null, parentItemId: null }, { $set: { parentItemId: src.item._id } });
+  }
 
   // 8. YouTube embeds/links in HTML → one `video` item per (class, videoId).
   for (const src of htmlSources) {
@@ -547,6 +572,25 @@ async function syncCourse(ctx: Ctx, cls: IStudyClass, course: Json, stampSeen: b
   ctx.stats.imagesSkipped = (ctx.stats.imagesSkipped ?? 0) + images.skipped;
   ctx.stats.imagesFailed = (ctx.stats.imagesFailed ?? 0) + images.failed;
   ctx.stats.imagesDeferred = (ctx.stats.imagesDeferred ?? 0) + images.deferred;
+}
+
+/** At most this many linked files are looked up per class and sync. */
+export const LINKED_FILES_MAX = 400;
+
+/**
+ * Canvas file ids linked from items' html (`<a href="…/files/123…">`, never `<img>`), each with the
+ * first item that links it and the link's words. Order = first seen.
+ */
+export function linkedFileIds<T>(sources: ReadonlyArray<{ item: T; html: string }>): Map<number, { item: T; text: string }> {
+  const out = new Map<number, { item: T; text: string }>();
+  for (const src of sources) {
+    for (const m of src.html.matchAll(/<a\b[^>]*\bhref="[^"]*\/files\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const fid = Number(m[1]);
+      if (!Number.isSafeInteger(fid) || out.has(fid)) continue;
+      out.set(fid, { item: src.item, text: m[2].replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) });
+    }
+  }
+  return out;
 }
 
 async function syncFile(

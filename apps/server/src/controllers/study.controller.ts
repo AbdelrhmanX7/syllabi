@@ -277,11 +277,23 @@ export const getModules = wrap(async (req, res) => {
       .sort({ modulePosition: 1 })
       .lean<IStudyItem[]>(),
   ]);
+  // Files a lesson links to (guided notes, worksheets, solutions) are listed right under that lesson.
+  const linked = items.length
+    ? await StudyItem.find({ userId: uid(req), classId: cls._id, type: "file", moduleId: null, parentItemId: { $in: items.map((it) => it._id) } }, LIST_PROJECTION)
+        .sort({ title: 1 })
+        .lean<IStudyItem[]>()
+    : [];
+  const linkedBy = new Map<string, IStudyItem[]>();
+  for (const file of linked) {
+    const k = String(file.parentItemId);
+    if (!linkedBy.has(k)) linkedBy.set(k, []);
+    linkedBy.get(k)!.push(file);
+  }
   const byModule = new Map<string, IStudyItem[]>();
   for (const it of items) {
     const k = String(it.moduleId);
     if (!byModule.has(k)) byModule.set(k, []);
-    byModule.get(k)!.push(it);
+    byModule.get(k)!.push(it, ...(linkedBy.get(String(it._id)) ?? []));
   }
   res.json(
     await Promise.all(
