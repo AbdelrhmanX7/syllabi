@@ -80,7 +80,8 @@ export function useNotebookConceptMaps({
         ? [
             {
               id: 'concept-map',
-              label: 'Concept map',
+              // Next to the board's own «Draw a map»: this one checks a map the student drew.
+              label: 'Grade my map',
               icon: <Network aria-hidden className='h-5 w-5' />,
               scope: 'other',
               onSelect: (selection) => {

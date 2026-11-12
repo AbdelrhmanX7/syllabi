@@ -3,8 +3,9 @@ export const SELECTION_STRINGS = {
   'selection.bar': 'Selection actions',
   'selection.color': 'Colour',
   'selection.colorN': 'Colour {color}',
-  'selection.width': 'Size',
-  'selection.widthN': 'Size {n}',
+  // «Thickness», not «Size»: it changes how thick the pen line is, not how big the selection is.
+  'selection.width': 'Thickness',
+  'selection.widthN': 'Thickness {n}',
   'selection.copy': 'Copy',
   'selection.cut': 'Cut',
   'selection.duplicate': 'Duplicate',

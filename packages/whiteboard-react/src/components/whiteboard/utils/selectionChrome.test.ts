@@ -15,8 +15,7 @@ import {
   MODERN_TOUCH_CORNER_SIZE,
   pointerInsideFrame,
   ROTATE_HANDLE_REACH,
-  showsHalo,
-} from './selectionChrome';
+  showsHalo, shownAngle } from './selectionChrome';
 
 /** Selects `object` on a minimal canvas stand-in (identity viewport at `zoom`), so Fabric's own `findControl` runs. */
 function select<T extends FabricObject>(object: T, zoom = 1): T {
@@ -148,14 +147,14 @@ describe('modern selection — a halo that hugs the ink, no box', () => {
     return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
   }
 
-  it('the frame is gone: no border on the selection or on its members', () => {
-    assert.equal(select(word()).hasBorders, false);
+  it('a thin frame around the selection; none on its members', () => {
+    assert.equal(select(word()).hasBorders, true, 'a thin frame joins the grips into a box');
 
     const a = word();
     const b = word();
     const selection = select(new ActiveSelection([a, b]));
 
-    assert.equal(selection.hasBorders, false);
+    assert.equal(selection.hasBorders, true);
     assert.equal(a.hasBorders, false);
     assert.equal(b.hasBorders, false);
   });
@@ -167,6 +166,14 @@ describe('modern selection — a halo that hugs the ink, no box', () => {
     assert.equal(line.isControlVisible('mr'), true);
     assert.equal(line.isControlVisible('mt'), false);
     assert.equal(select(word()).isControlVisible('ml'), false);
+  });
+
+  it('the angle beside the rotate grip reads in whole degrees, −180…180', () => {
+    assert.equal(shownAngle(0), 0);
+    assert.equal(shownAngle(359.6), 0);
+    assert.equal(shownAngle(90.4), 90);
+    assert.equal(shownAngle(270), -90);
+    assert.equal(shownAngle(-45), -45);
   });
 
   it('the rotate grip sits close to the ink', () => {

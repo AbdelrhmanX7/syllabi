@@ -1,3 +1,4 @@
+import { QUESTION_PAGES_RULE } from "./ai-rules";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StudyCanvasConnection } from "@/models/study/canvas-connection";
 import { StudyCanvasImage } from "@/models/study/canvas-image";
@@ -177,7 +178,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     {
       capabilities: { tools: {} },
       instructions:
-        "The owner's personal study data: Canvas classes, items (files, pages, assignments, quizzes, videos, announcements), notebook pages, and a question bank with spaced repetition. Ids are 24-hex strings returned by the tools. Before giving or making any drawing for a notebook page, call get_drawing_profile; give all lengths in real mm and angles in degrees. After creating a quiz or map page that needs measuring, call set_page_ruler.",
+        "The owner's personal study data: Canvas classes, items (files, pages, assignments, quizzes, videos, announcements), notebook pages, and a question bank with spaced repetition. Ids are 24-hex strings returned by the tools. Before giving or making any drawing for a notebook page, call get_drawing_profile; give all lengths in real mm and angles in degrees. After creating a quiz or map page that needs measuring, call set_page_ruler. " + QUESTION_PAGES_RULE,
     }
   );
 
@@ -706,7 +707,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     "render_pdf_to_inbox",
     {
       description:
-        "Render a document (markdown OR html, exactly one) to a PDF and drop it in the owner's Study inbox, where he adds it to his notes from the tablet. Use this whenever the owner asks for a PDF of something you wrote. markdown: headings, lists, quotes, code fences, tables as preformatted text; math stays as written ($LaTeX$ text); the title is printed on top. html: printed as given (the title is NOT added — put your own heading in), a fragment (gets a clean print style) or a full document with its own <style>/@page. The renderer loads NOTHING over the network and runs no scripts — inline images/fonts as data: URIs; any http(s) src is simply missing. The owner's inbox images (e.g. from generate_image) go in as src=\"inbox:<inboxItemId>\" (html) or ![alt](inbox:<inboxItemId>) (markdown), and Canvas page figures as src=\"canvas-image:<id>\" / ![alt](canvas-image:<id>) (refs from get_item_images); up to 30 images. page: A4 (default, portrait), Letter, 16:9 (13.333×7.5 in), 4:3 (10×7.5 in). With classId + asPage: true it skips the inbox and opens the PDF directly as a NEW annotatable notebook page in that class (returns pageId). With pageId (an existing notebook page, from search) the PDF is queued for that page instead: the tablet appends its pages to that note the next time it opens.",
+        QUESTION_PAGES_RULE + " — " + "Render a document (markdown OR html, exactly one) to a PDF and drop it in the owner's Study inbox, where he adds it to his notes from the tablet. Use this whenever the owner asks for a PDF of something you wrote. markdown: headings, lists, quotes, code fences, tables as preformatted text; math stays as written ($LaTeX$ text); the title is printed on top. html: printed as given (the title is NOT added — put your own heading in), a fragment (gets a clean print style) or a full document with its own <style>/@page. The renderer loads NOTHING over the network and runs no scripts — inline images/fonts as data: URIs; any http(s) src is simply missing. The owner's inbox images (e.g. from generate_image) go in as src=\"inbox:<inboxItemId>\" (html) or ![alt](inbox:<inboxItemId>) (markdown), and Canvas page figures as src=\"canvas-image:<id>\" / ![alt](canvas-image:<id>) (refs from get_item_images); up to 30 images. page: A4 (default, portrait), Letter, 16:9 (13.333×7.5 in), 4:3 (10×7.5 in). With classId + asPage: true it skips the inbox and opens the PDF directly as a NEW annotatable notebook page in that class (returns pageId). With pageId (an existing notebook page, from search) the PDF is queued for that page instead: the tablet appends its pages to that note the next time it opens.",
       inputSchema: {
         title: z.string().trim().min(1).max(200),
         markdown: z.string().min(1).max(200_000).optional(),

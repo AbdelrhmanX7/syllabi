@@ -14,6 +14,7 @@ import {
   pasteClipboard,
   recolorSelection,
   restrokeSelection,
+  selectionInk,
   selectedObjects,
   selectionStyle,
   styleSelection,
@@ -71,6 +72,13 @@ export interface PasteChipState {
 
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_SLOP_PX = 8;
+/**
+ * A pen that is WRITING holds differently: its in-between samples land a few px off the tip on some
+ * tablets (so a still pen «moves» more than a finger's slop), and a slow small letter must never be
+ * taken for a hold (the hold removes the dot it left). So: a wider circle, and a clearly longer wait.
+ */
+const PEN_HOLD_MS = 2000;
+const PEN_HOLD_SLOP_PX = 16;
 const TAP_SLOP_PX = 6;
 const PASTE_CHIP_TIMEOUT_MS = 4000;
 /** Screen pixels a duplicate lands down-and-right of its original. */
@@ -341,6 +349,9 @@ export function useSelectionActions({
     [canvas],
   );
 
+  /** The selection's current colour and pen size (the bar shows them as picked). */
+  const readInk = useCallback(() => (canvas ? selectionInk(canvas) : { color: null, width: null }), [canvas]);
+
   /** What the style panel shows for the current selection. */
   const readStyle = useCallback(() => (canvas ? selectionStyle(canvas) : null), [canvas]);
 
@@ -374,10 +385,8 @@ export function useSelectionActions({
     let dropHoldDot = false;
     let dropTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const press = createLongPress<{ view: { x: number; y: number }; inking: boolean }>({
-      delayMs: LONG_PRESS_MS,
-      slopPx: LONG_PRESS_SLOP_PX,
-      onFire: ({ data }) => {
+    const holdOptions = {
+      onFire: ({ data }: { data: { view: { x: number; y: number }; inking: boolean } }) => {
         if (!readClipboard()) return;
 
         // Holding on the selection is the start of a drag, not a paste.
@@ -396,7 +405,11 @@ export function useSelectionActions({
         holdShownRef.current = false;
         setPasteChip(null);
       },
-    });
+    };
+    const fingerHold = createLongPress<{ view: { x: number; y: number }; inking: boolean }>({ delayMs: LONG_PRESS_MS, slopPx: LONG_PRESS_SLOP_PX, ...holdOptions });
+    const penHold = createLongPress<{ view: { x: number; y: number }; inking: boolean }>({ delayMs: PEN_HOLD_MS, slopPx: PEN_HOLD_SLOP_PX, ...holdOptions });
+    /** Which hold a pointer is on: a writing pen waits longer, in a wider circle. */
+    const holds = new Map<number, typeof fingerHold>();
 
     /** Is a selectable object under the press? Then a hold is about that object, not empty canvas. */
     const onObject = (event: PointerEvent) => {
@@ -423,6 +436,9 @@ export function useSelectionActions({
       // A finger holds with any tool (as before); the pen with the select tool or while writing.
       const kind = event.pointerType === 'touch' || (event.pointerType === 'pen' && (tool === 'select' || inking));
 
+      const press = event.pointerType === 'pen' && inking ? penHold : fingerHold;
+
+      holds.set(event.pointerId, press);
       press.down(
         event.pointerId,
         event.clientX,
@@ -434,11 +450,13 @@ export function useSelectionActions({
 
     const onMove = (event: PointerEvent) => {
       lastPointerRef.current = clientToView(canvas, event.clientX, event.clientY);
-      press.move(event.pointerId, event.clientX, event.clientY);
+      holds.get(event.pointerId)?.move(event.pointerId, event.clientX, event.clientY);
     };
 
     const onUp = (event: PointerEvent) => {
-      const end = press.up(event.pointerId);
+      const end = holds.get(event.pointerId)?.up(event.pointerId) ?? { fired: false, movedAfterFire: false };
+
+      holds.delete(event.pointerId);
 
       // Fabric commits the stroke on this same release; give it a moment, then stop watching for it.
       if (end.fired && dropHoldDot) {
@@ -472,7 +490,8 @@ export function useSelectionActions({
     canvas.on('path:created', onPathCreated as never);
 
     return () => {
-      press.cancel();
+      fingerHold.cancel();
+      penHold.cancel();
       if (dropTimer !== null) clearTimeout(dropTimer);
       element.removeEventListener('pointerdown', onDown);
       element.removeEventListener('pointermove', onMove);
@@ -704,6 +723,7 @@ export function useSelectionActions({
     restroke,
     restyle,
     readStyle,
+    readInk,
     pasteAtScene,
     pasteAtViewportCentre,
     dismissPasteChip: () => setPasteChip(null),

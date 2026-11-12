@@ -44,7 +44,7 @@ export const HALO_COLOR = 'rgba(37, 99, 235, 0.24)';
 export const MODERN_FRAME_PADDING = HALO_WIDTH_PX + 2;
 const MODERN_CORNER_SIZE = 12;
 /** The modern rotate grip sits this far above the (invisible) frame: by the ink, not floating off it. */
-export const ROTATE_HANDLE_REACH = 22;
+export const ROTATE_HANDLE_REACH = 28;
 /** A single stroke whose box is this many times longer than it is tall (or the reverse) is a LINE: grips at its ends. */
 const LINE_ASPECT = 4;
 /** How far the modern frame's chrome reaches past the selection box: above (rotate handle) and elsewhere. */
@@ -66,10 +66,11 @@ const LINE_ENDS_VERTICAL = { ml: false, mr: false, mt: true, mb: true } as const
 const FRAME_HANDLE_KEYS = ['tl', 'tr', 'bl', 'br', 'ml', 'mr', 'mt', 'mb'] as const;
 
 const FRAME_STYLE = {
-  // The halo IS the selection; no rectangle around it.
-  hasBorders: false,
+  // A thin frame joins the corner grips into a box (owner, 2026-11-12: loose dots did not read as one
+  // thing to grab); the halo still shows WHICH ink is selected inside it.
+  hasBorders: true,
   borderColor: SELECTION_ACCENT,
-  borderScaleFactor: 2,
+  borderScaleFactor: 1.5,
   borderOpacityWhenMoving: 0.5,
   borderDashArray: null,
   cornerStyle: 'circle',
@@ -116,6 +117,87 @@ export function pointerInsideFrame(object: FabricObject, pointer: { x: number; y
   return insidePolygon(pointer, [coords.tl, coords.tr, coords.br, coords.bl]);
 }
 
+/** The rotate grip: a round button with a turn arrow (CSS px across). */
+const ROTATE_GRIP_SIZE = 24;
+
+/** The object's turn as people say it: whole degrees, −180…180, 0 when upright. */
+export function shownAngle(angle: number): number {
+  const turned = ((Math.round(angle) % 360) + 360) % 360;
+
+  return turned > 180 ? turned - 360 : turned;
+}
+
+/**
+ * Paints the rotate grip — a white disc with a turn arrow — and, beside it, the angle in degrees while
+ * the selection is being turned or sits at a tilt. Upright in every case (it is a button, not ink).
+ */
+function renderRotateGrip(ctx: CanvasRenderingContext2D, left: number, top: number, _style: unknown, object: FabricObject): void {
+  const r = ROTATE_GRIP_SIZE / 2;
+
+  ctx.save();
+  ctx.translate(left, top);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = SELECTION_ACCENT;
+  ctx.stroke();
+
+  // The turn arrow: most of a circle, with a head at its end.
+  const a = r * 0.5;
+  const start = -Math.PI * 0.15;
+  const end = Math.PI * 1.45;
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 1.75;
+  ctx.beginPath();
+  ctx.arc(0, 0, a, start, end);
+  ctx.stroke();
+
+  const hx = Math.cos(start) * a;
+  const hy = Math.sin(start) * a;
+
+  ctx.beginPath();
+  ctx.moveTo(hx - 4.5, hy - 0.5);
+  ctx.lineTo(hx, hy);
+  ctx.lineTo(hx + 0.5, hy - 4.5);
+  ctx.stroke();
+
+  const angle = shownAngle(object.getTotalAngle());
+  const turning = (object.canvas as unknown as { _currentTransform?: { action?: string; target?: FabricObject } } | undefined)?._currentTransform;
+
+  if (angle !== 0 || (turning?.action === 'rotate' && turning.target === object)) {
+    const label = `${angle}°`;
+
+    ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+
+    const width = ctx.measureText(label).width + 12;
+    const x = r + 6;
+
+    // A small cream tag (same look as the tutor's cards): readable over ink and paper alike.
+    ctx.beginPath();
+    ctx.moveTo(x + 6, -10);
+    ctx.arcTo(x + width, -10, x + width, 10, 6);
+    ctx.arcTo(x + width, 10, x, 10, 6);
+    ctx.arcTo(x, 10, x, -10, 6);
+    ctx.arcTo(x, -10, x + width, -10, 6);
+    ctx.closePath();
+    ctx.fillStyle = '#fbfaf6';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = SELECTION_ACCENT;
+    ctx.stroke();
+    ctx.fillStyle = '#18204a';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, x + 6, 0.5);
+  }
+
+  ctx.restore();
+}
+
 const guardedControls = new WeakSet<Control>();
 
 /**
@@ -152,6 +234,11 @@ function guardFrameHandles(object: FabricObject): void {
 
     near.offsetY = -ROTATE_HANDLE_REACH;
     near.withConnection = false;
+    near.sizeX = ROTATE_GRIP_SIZE;
+    near.sizeY = ROTATE_GRIP_SIZE;
+    near.touchSizeX = ROTATE_GRIP_SIZE + 8;
+    near.touchSizeY = ROTATE_GRIP_SIZE + 8;
+    near.render = renderRotateGrip;
     guardedControls.add(near);
     next.mtr = near;
     changed = true;

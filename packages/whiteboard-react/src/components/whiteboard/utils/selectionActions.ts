@@ -145,6 +145,46 @@ function restyleSelection(canvas: Canvas, apply: (object: RecolorableObject) => 
   return changed;
 }
 
+/**
+ * What the selection's ink looks like now, for the bar to show as picked: its colour (lower-case) when
+ * every selected stroke shares one, and its pen size when every stroked one shares one. A filled brush
+ * stroke has a colour but no single width to read back.
+ */
+export function selectionInk(canvas: Canvas): { color: string | null; width: number | null } {
+  const colors = new Set<string>();
+  const widths = new Set<number>();
+  const visit = (object: FabricObject) => {
+    const children = (object as unknown as { getObjects?: () => FabricObject[] }).getObjects?.();
+
+    if (children) {
+      children.forEach(visit);
+
+      return;
+    }
+
+    if ((object as { wbInkFill?: boolean }).wbInkFill) return;
+
+    const stroked = typeof object.stroke === 'string' && object.stroke !== '' && (object.strokeWidth ?? 0) > 0;
+
+    if (stroked) {
+      colors.add((object.stroke as string).toLowerCase());
+      widths.add(object.strokeWidth ?? 0);
+    } else if (typeof object.fill === 'string' && object.fill !== '') {
+      colors.add(object.fill.toLowerCase());
+      widths.add(Number.NaN);
+    }
+  };
+
+  selectedObjects(canvas).forEach(visit);
+
+  const [width] = Array.from(widths);
+
+  return {
+    color: colors.size === 1 ? Array.from(colors)[0]! : null,
+    width: widths.size === 1 && Number.isFinite(width) ? width! : null,
+  };
+}
+
 export function recolorSelection(canvas: Canvas, color: string): number {
   return restyleSelection(canvas, (object) => recolorObject(object, color));
 }

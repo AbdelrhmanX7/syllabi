@@ -8375,6 +8375,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               onDuplicate={() => void selectionActions.duplicate()}
               onWidth={selectionActions.restroke}
               readStyle={selectionActions.readStyle}
+              readInk={selectionActions.readInk}
               onStyle={selectionActions.restyle}
             />
           ) : null}

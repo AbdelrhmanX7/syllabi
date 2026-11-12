@@ -243,7 +243,7 @@ export const AI_STRINGS = {
   'ai.remake.fetchFailed': 'Couldn\'t fetch the new page — try again.',
   'ai.remake.placeFailed': 'Couldn\'t place the new page — try again.',
   'ai.remake.kept': 'The new page was added after the original — the original is untouched.',
-  'ai.terms.action': 'Map my terms',
+  'ai.terms.action': 'Draw a map',
   'ai.terms.reading': 'Reading your terms…',
   'ai.terms.drawing': 'Drawing the map in your ink…',
   'ai.terms.cancel': 'Cancel',

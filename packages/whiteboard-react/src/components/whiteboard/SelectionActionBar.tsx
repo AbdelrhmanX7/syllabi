@@ -76,6 +76,8 @@ interface SelectionActionBarProps {
   variant?: 'compact' | 'labeled';
   /** The «Style» panel (background, fill pattern, outline, opacity): what the selection has now… */
   readStyle?: () => { style: ShapeStylePatch; hasShape: boolean; canFill: boolean } | null;
+  /** The selection's current colour and pen size: shown as the picked swatch / size. */
+  readInk?: () => { color: string | null; width: number | null };
   /** …and applying a choice to it. Both absent = no «Style» button. */
   onStyle?: (patch: ShapeStylePatch) => void;
 }
@@ -87,6 +89,10 @@ const BUTTON_CLASS =
 const LABELED_BUTTON_CLASS =
   'flex min-h-14 min-w-14 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-xl px-2 text-[11px] font-semibold leading-none transition-colors hover:bg-ink/5 active:bg-ink/10 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:shrink-0';
 const LABELED_SWATCH_CLASS = 'hover:bg-ink/5 active:bg-ink/10 flex h-11 w-11 items-center justify-center rounded-xl';
+/** The size the selection has now: an accent ring (the same blue as the selection itself). */
+const PICKED_SIZE_CLASS = 'bg-ink/10';
+/** Inline, so the ring never depends on which utility classes the host app happens to build. */
+const PICKED_SIZE_STYLE = { boxShadow: 'inset 0 0 0 2px #2563eb' } as const;
 const LABELED_DIVIDER_CLASS = 'bg-ink/10 mx-1 my-2 w-px self-stretch';
 
 const stop = (event: React.SyntheticEvent) => event.stopPropagation();
@@ -134,6 +140,7 @@ export function SelectionActionBar({
   onExtraAction,
   variant = 'compact',
   readStyle,
+  readInk,
   onStyle,
 }: SelectionActionBarProps) {
   const { t, dir } = useWbStrings();
@@ -145,6 +152,23 @@ export function SelectionActionBar({
   // The style panel re-reads the selection when it opens, when the selection changes, and after each choice.
   const [styleInfo, setStyleInfo] = useState<ReturnType<NonNullable<typeof readStyle>>>(null);
   const styleOn = panel === 'style' && !!readStyle && !!onStyle;
+  // Which colour and size the selection has now — read when a panel opens, then kept in step with each pick.
+  const [ink, setInk] = useState<{ color: string | null; width: number | null }>({ color: null, width: null });
+
+  useEffect(() => {
+    if ((panel === 'color' || panel === 'size') && readInk) setInk(readInk());
+    // The selection's box changes when another thing is selected: read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel, selection.left, selection.top, selection.width, selection.height]);
+
+  const pickColor = (color: string) => {
+    setInk((current) => ({ ...current, color: color.toLowerCase() }));
+    onColor(color);
+  };
+  const pickWidth = (width: number) => {
+    setInk((current) => ({ ...current, width }));
+    onWidth(width);
+  };
 
   useEffect(() => {
     if (styleOn) setStyleInfo(readStyle!());
@@ -225,8 +249,9 @@ export function SelectionActionBar({
                 className='h-11 w-11'
                 color={color}
                 data-color={color}
+                isSelected={ink.color === color.toLowerCase()}
                 label={t('selection.colorN', { color })}
-                onClick={() => onColor(color)}
+                onClick={() => pickColor(color)}
               />
             ))}
           </div>
@@ -238,10 +263,12 @@ export function SelectionActionBar({
               <button
                 key={width}
                 aria-label={t('selection.widthN', { n: width })}
-                className={LABELED_SWATCH_CLASS}
+                aria-pressed={ink.width === width}
+                className={`${LABELED_SWATCH_CLASS} ${ink.width === width ? PICKED_SIZE_CLASS : ''}`}
                 data-width={width}
+                style={ink.width === width ? PICKED_SIZE_STYLE : undefined}
                 type='button'
-                onClick={() => onWidth(width)}
+                onClick={() => pickWidth(width)}
               >
                 <span className='bg-ink block rounded-full' style={{ height: Math.min(width + 2, 22), width: Math.min(width + 2, 22) }} />
               </button>
@@ -379,8 +406,9 @@ export function SelectionActionBar({
               className='h-11 w-11'
               color={color}
               data-color={color}
+              isSelected={ink.color === color.toLowerCase()}
               label={t('selection.colorN', { color })}
-              onClick={() => onColor(color)}
+              onClick={() => pickColor(color)}
             />
           ))}
         </div>
@@ -392,10 +420,12 @@ export function SelectionActionBar({
             <button
               key={width}
               aria-label={t('selection.widthN', { n: width })}
-              className='hover:bg-ink/5 flex h-11 w-11 items-center justify-center rounded-xl'
+              aria-pressed={ink.width === width}
+              className={`hover:bg-ink/5 flex h-11 w-11 items-center justify-center rounded-xl ${ink.width === width ? PICKED_SIZE_CLASS : ''}`}
               data-width={width}
+              style={ink.width === width ? PICKED_SIZE_STYLE : undefined}
               type='button'
-              onClick={() => onWidth(width)}
+              onClick={() => pickWidth(width)}
             >
               <span className='bg-ink block rounded-full' style={{ height: Math.min(width + 2, 22), width: Math.min(width + 2, 22) }} />
             </button>

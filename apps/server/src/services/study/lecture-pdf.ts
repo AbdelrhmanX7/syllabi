@@ -228,6 +228,12 @@ export function markdownToHtml(md: string): string {
       out.push(`<pre class="table">${escapeHtml(rows.filter((r) => !/^\s*\|[\s:|-]+\|\s*$/.test(r)).join("\n"))}</pre>`);
       continue;
     }
+    // A page break on its own line: \newpage / \pagebreak / <!-- pagebreak --> (one question per page).
+    if (/^\s*(\\newpage|\\pagebreak|<!--\s*pagebreak\s*-->)\s*$/i.test(line)) {
+      flush();
+      out.push('<div style="break-after: page; page-break-after: always; height: 0"></div>');
+      continue;
+    }
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     if (h) {
       flush();
