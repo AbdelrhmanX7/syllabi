@@ -32,7 +32,36 @@ export const PEN_MAX_STROKE_POINTS = 64;
 export const PEN_DEFAULT_LETTER = 0.016;
 /** Notes and labels never outgrow the page's own text: caps as a share of the page height. */
 const NOTE_CAP = 0.02;
-const MARK_CAP = 0.034;
+/** Clean mode (typed cards): the type size and the badge, as shares of the page height. */
+const CARD_FONT_MIN = 0.011;
+const CARD_FONT_MAX = 0.013;
+const BADGE_MIN = 0.016;
+const BADGE_MAX = 0.022;
+/** Average glyph width and line pitch of the card's typeface, in font sizes. */
+export const CARD_CHAR = 0.5;
+export const CARD_PITCH = 1.3;
+export const CARD_PAD = 0.45;
+
+/** Greedy wrap for the card's typeface. */
+export function wrapCardText(text: string, fontSize: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+
+    if (line && Array.from(next).length * fontSize * CARD_CHAR > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+
+  if (line) lines.push(line);
+
+  return lines.length ? lines : [text];
+}
 export const PEN_MIN_LETTER = 0.012;
 export const PEN_MAX_LETTER = 0.05;
 
@@ -285,6 +314,10 @@ export type PenPrimitive =
   | { kind: 'pointer'; at: ScenePt; note?: string }
   /** One pen stroke, scene points; `width` in scene units. */
   | { kind: 'stroke'; role: 'circle' | 'underline' | 'arrow' | 'arrow-head' | 'ink' | 'mark'; points: ScenePt[]; tool: PenStrokeTool; width: number; color?: string }
+  /** A typed note on a small cream card (clean mode): `box` is the card, `rim` its edge colour (absent = the tutor's ink). */
+  | { kind: 'chip'; role: 'note' | 'label'; text: string; lines: string[]; box: SceneRect; fontSize: number; rim?: string }
+  /** A verdict badge: a filled circle `size` across, centred on `at`, with a white ✓ / ✗ / !. */
+  | { kind: 'badge'; verdict: PenMarkVerdict; at: ScenePt; size: number; color: string }
   /** Text to write inside `box` (top-start aligned, line pitch 1.5 × letter height). `color`: a verdict's ink instead of the owner's. */
   | { kind: 'write'; role: 'note' | 'label'; text: string; lines: string[]; box: SceneRect; letterHeight: number; color?: string };
 
@@ -308,7 +341,13 @@ export interface PenPlanContext {
    * ink): the free box nearest to `wanted`, or null when there is no room. When given it replaces the
    * `occupied` nudge, and a note with no room becomes a pointer bubble instead of covering content.
    */
-  place?: (wanted: SceneRect, alt?: SceneRect) => SceneRect | null;
+  /** `home`: the region the note is about — it stays inside that region's own question (see the layer). */
+  place?: (wanted: SceneRect, alt?: SceneRect, home?: SceneRect) => SceneRect | null;
+  /**
+   * The tutor's own look (the study buddy): notes are typed on small cream cards instead of written
+   * in the owner's hand, and its strokes are thin — nothing of it can be mistaken for the student's ink.
+   */
+  clean?: boolean;
   /** The owner's letter height, scene units. */
   letterHeight: number;
   /** The pen nib, scene units. */
@@ -493,18 +532,51 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
     extents.push({ left: at.x - lh, top: at.y - lh, width: lh * 2, height: lh * 2 });
   };
   /** A free box for `wanted`: the page's real empty space when known, else the ink-box nudge. */
-  const fit = (wanted: SceneRect, alt?: SceneRect): SceneRect | null =>
-    ctx.place ? ctx.place(wanted, alt) : placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 });
+  const fit = (wanted: SceneRect, alt?: SceneRect, home?: SceneRect): SceneRect | null =>
+    ctx.place ? ctx.place(wanted, alt, home) : placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 });
+  /**
+   * The whole handwritten line a region sits on (its neighbours level with it, a few letters apart):
+   * a mark goes at the END of the line, not into the middle of it.
+   */
+  const lineOf = (rect: SceneRect): SceneRect => {
+    let line = rect;
+    let grew = true;
+
+    while (grew) {
+      grew = false;
+
+      for (const other of ctx.clusters.values()) {
+        const overlap = Math.min(line.top + line.height, other.top + other.height) - Math.max(line.top, other.top);
+        const gap = Math.max(other.left - (line.left + line.width), line.left - (other.left + other.width));
+        const inside = other.left >= line.left && other.left + other.width <= line.left + line.width;
+
+        if (inside || overlap < Math.min(line.height, other.height) * 0.5 || gap > lh * 3) continue;
+
+        const left = Math.min(line.left, other.left);
+        const top = Math.min(line.top, other.top);
+
+        line = {
+          left,
+          top,
+          width: Math.max(line.left + line.width, other.left + other.width) - left,
+          height: Math.max(line.top + line.height, other.top + other.height) - top,
+        };
+        grew = true;
+      }
+    }
+
+    return line;
+  };
   /**
    * Writes `text` in empty space near `at`. With the page's real empty space known and no room for
    * it (even a size smaller), the words go to `overflow` (shown with the answer) — never over content.
    */
-  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number, color?: string, below?: ScenePt) => {
+  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number, color?: string, below?: ScenePt, home?: SceneRect) => {
     for (const height of ctx.place ? [letterHeight, letterHeight * 0.8] : [letterHeight]) {
       const lines = wrapHandText(text, height, maxWidth);
       const width = Math.min(maxWidth, Math.max(...lines.map((line) => estimateTextWidth(line, height))));
       const size = { width, height: height * 1.5 * lines.length };
-      const box = fit({ left: at.x, top: at.y, ...size }, below ? { left: below.x, top: below.y, ...size } : undefined);
+      const box = fit({ left: at.x, top: at.y, ...size }, below ? { left: below.x, top: below.y, ...size } : undefined, home);
 
       if (box) {
         primitives.push({ kind: 'write', role, text, lines, box, letterHeight: height, ...(color ? { color } : {}) });
@@ -516,6 +588,38 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
 
     overflow.push(text);
   };
+  const thin = ctx.clean ? Math.min(nib, Math.max(1, ctx.page.height * 0.002)) : nib;
+  const cardFont = Math.min(ctx.page.height * CARD_FONT_MAX, Math.max(lh * 0.6, ctx.page.height * CARD_FONT_MIN));
+  /** The card for `text` (≤ `maxLines` lines), or null when it would be longer — that goes to the answer instead. */
+  const cardFor = (text: string, maxWidth: number, maxLines: number) => {
+    const lines = wrapCardText(text, cardFont, maxWidth);
+
+    if (lines.length > maxLines) return null;
+
+    const pad = cardFont * CARD_PAD;
+    const width = Math.max(...lines.map((line) => Array.from(line).length * cardFont * CARD_CHAR)) + pad * 2;
+
+    return { lines, width, height: lines.length * cardFont * CARD_PITCH + pad * 2 };
+  };
+  /** A typed card in empty space near `at` (or `below`), inside `home`'s question; no room → the answer. */
+  const card = (role: 'note' | 'label', text: string, at: ScenePt, maxWidth: number, maxLines: number, rim?: string, below?: ScenePt, home?: SceneRect) => {
+    const made = cardFor(text, maxWidth, maxLines);
+    const size = made ? { width: made.width, height: made.height } : null;
+    const box = size ? fit({ left: at.x, top: at.y, ...size }, below ? { left: below.x, top: below.y, ...size } : undefined, home) : null;
+
+    if (!made || !box) {
+      overflow.push(text);
+
+      return;
+    }
+
+    primitives.push({ kind: 'chip', role, text, lines: made.lines, box, fontSize: cardFont, ...(rim ? { rim } : {}) });
+    extents.push(box);
+  };
+  // A labelled mark already says what a note beside the same region would repeat.
+  const labelled = new Set(
+    result.actions.flatMap((action) => (action.type === 'mark' && action.label && 'clusterId' in action.target ? [action.target.clusterId] : [])),
+  );
   /** Just right of a region, level with its top — where a note about it reads naturally. */
   const beside = (rect: SceneRect): ScenePt => ({ x: rect.left + rect.width + lh * 0.8, y: rect.top });
   /** Just under a region, at its left edge — the second choice when there is no room beside it. */
@@ -542,7 +646,7 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
         const rx = Math.max(lh * 0.8, rect.width / 2 + lh * 0.55);
         const ry = Math.max(lh * 0.7, rect.height / 2 + lh * 0.45);
 
-        stroke('circle', handEllipsePoints(centre.x, centre.y, rx, ry, random));
+        stroke('circle', handEllipsePoints(centre.x, centre.y, rx, ry, random), 'pen', thin);
         break;
       }
       case 'underline': {
@@ -554,7 +658,7 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
         const a = { x: rect.left - lh * 0.15, y };
         const b = { x: rect.left + rect.width + lh * 0.15, y };
 
-        stroke('underline', handLinePoints(a, b, random));
+        stroke('underline', handLinePoints(a, b, random), 'pen', thin);
         break;
       }
       case 'arrow': {
@@ -571,8 +675,8 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
 
         const headSize = Math.max(lh * 0.5, Math.min(lh * 0.9, length * 0.3));
 
-        stroke('arrow', handLinePoints(start, end, random));
-        stroke('arrow-head', arrowHeadPoints(toward(end, start, Math.min(length, lh)), end, headSize, random));
+        stroke('arrow', handLinePoints(start, end, random), 'pen', thin);
+        stroke('arrow-head', arrowHeadPoints(toward(end, start, Math.min(length, lh)), end, headSize, random), 'pen', thin);
 
         if (action.label) {
           // Beside the shaft's middle, on the side that reads first (the right of a downward arrow).
@@ -591,7 +695,8 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
           const offset = lh * 0.6;
           const at = { x: middle.x + nx * offset, y: middle.y + ny * offset - labelHeight * 0.75 };
 
-          write('label', action.label, at, labelHeight, Math.max(lh * 4, ctx.page.width * 0.3));
+          if (ctx.clean) card('label', action.label, at, ctx.page.width * 0.22, 2);
+          else write('label', action.label, at, labelHeight, Math.max(lh * 4, ctx.page.width * 0.3));
         }
 
         break;
@@ -602,58 +707,48 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
         if (!rect) break;
 
         const ink = MARK_INK[action.verdict];
-        // Readable whatever the handwriting's size: never smaller than a share of the page.
-        const size = Math.min(ctx.page.height * MARK_CAP, Math.max(lh * 1.1, ctx.page.height * 0.02, Math.min(lh * 2, rect.height * 0.9)));
-        const labelHeight = Math.min(ctx.page.height * NOTE_CAP, Math.max(lh * 0.85, ctx.page.height * 0.014));
-        const maxLabel = Math.max(lh * 5, ctx.page.width * 0.28);
-        const lines = action.label ? wrapHandText(action.label, labelHeight, maxLabel) : [];
-        const labelWidth = lines.length ? Math.min(maxLabel, Math.max(...lines.map((line) => estimateTextWidth(line, labelHeight)))) : 0;
-        const labelBlock = labelHeight * 1.5 * lines.length;
-        const gap = lh * 0.4;
-        const anchor = { x: rect.left + rect.width + lh * 0.6, y: rect.top + rect.height / 2 - size / 2 };
-        // The glyph and its label as one box; with no room for both, the glyph alone and the label in a bubble.
-        const wholeSize = { width: size + (lines.length ? gap + labelWidth : 0), height: Math.max(size, labelBlock) };
-        const whole = fit({ left: anchor.x, top: anchor.y, ...wholeSize }, { left: under(rect).x, top: under(rect).y, ...wholeSize });
-        const box = whole ?? (lines.length ? fit({ left: anchor.x, top: anchor.y, width: size, height: size }) : null);
+        // Small and steady whatever the handwriting's size: a badge the size of a printed capital.
+        const size = Math.min(ctx.page.height * BADGE_MAX, Math.max(lh * 0.9, ctx.page.height * BADGE_MIN));
+        const made = action.label ? cardFor(action.label, ctx.page.width * 0.26, 2) : null;
+        const gap = size * 0.35;
+        const line = lineOf(rect);
+        const anchor = { x: line.left + line.width + lh * 0.6, y: rect.top + rect.height / 2 - size / 2 };
+        const wholeSize = { width: size + (made ? gap + made.width : 0), height: Math.max(size, made?.height ?? 0) };
+        // The badge and its card as one box: at the end of the line, else right under it — inside this question.
+        const whole = made ? fit({ left: anchor.x, top: anchor.y, ...wholeSize }, { left: under(line).x, top: under(line).y, ...wholeSize }, rect) : null;
+        const box = whole ?? fit({ left: anchor.x, top: anchor.y, width: size, height: size }, { left: under(line).x, top: under(line).y, width: size, height: size }, rect);
 
-        if (!box) {
-          pointer(centreOf(rect), action.verdict === 'correct' ? '✓' : action.verdict === 'wrong' ? '✗' : '!');
-          if (action.label) overflow.push(action.label);
-          break;
-        }
-
-        const x = box.left;
-        const y = box.top + (box.height - size) / 2;
-        const width = nib * 1.5;
-        const p = (fx: number, fy: number): ScenePt => ({ x: x + size * fx, y: y + size * fy });
-
-        if (action.verdict === 'correct') {
-          stroke('mark', handLinePoints(p(0.08, 0.55), p(0.38, 0.88), random), 'pen', width, ink);
-          stroke('mark', handLinePoints(p(0.38, 0.88), p(0.95, 0.12), random), 'pen', width, ink);
-        } else if (action.verdict === 'wrong') {
-          stroke('mark', handLinePoints(p(0.12, 0.12), p(0.88, 0.88), random), 'pen', width, ink);
-          stroke('mark', handLinePoints(p(0.88, 0.12), p(0.12, 0.88), random), 'pen', width, ink);
-        } else {
-          stroke('mark', handLinePoints(p(0.5, 0.08), p(0.5, 0.66), random), 'pen', width, ink);
-          stroke('mark', [p(0.5, 0.86), p(0.5, 0.92)], 'pen', width * 1.3, ink);
-        }
-
-        // The exact spot: a wrong or shaky step is underlined in the same colour.
+        // The exact spot: a wavy line under a wrong or shaky step (never read as a fraction bar or the student's own underline).
         if (action.verdict !== 'correct') {
-          const uy = Math.min(ctx.page.top + ctx.page.height, rect.top + rect.height + lh * 0.25);
+          const y = Math.min(ctx.page.top + ctx.page.height, rect.top + rect.height + lh * 0.3);
+          const from = rect.left - lh * 0.1;
+          const length = rect.width + lh * 0.2;
+          const wave = Math.max(4, lh * 0.5);
+          const count = Math.max(8, Math.round((length / wave) * 8));
+          const points: ScenePt[] = [];
 
-          stroke('underline', handLinePoints({ x: rect.left - lh * 0.15, y: uy }, { x: rect.left + rect.width + lh * 0.15, y: uy }, random), 'pen', nib, ink);
+          for (let k = 0; k <= count; k += 1) {
+            const t = k / count;
+
+            points.push({ x: from + length * t, y: y + Math.sin((t * length * Math.PI * 2) / wave) * Math.max(1.5, lh * 0.09) });
+          }
+
+          stroke('underline', points, 'pen', Math.max(1.5, thin), ink);
         }
 
-        if (lines.length && action.label) {
-          if (whole) {
-            const labelBox = { left: x + size + gap, top: box.top + (box.height - labelBlock) / 2, width: labelWidth, height: labelBlock };
+        // The label always reaches the student: on its card, or with the answer when the page has no room.
+        if (action.label && !whole) overflow.push(action.label);
 
-            primitives.push({ kind: 'write', role: 'label', text: action.label, lines, box: labelBox, letterHeight: labelHeight, color: ink });
-            extents.push(labelBox);
-          } else {
-            overflow.push(action.label);
-          }
+        if (!box) break;
+
+        primitives.push({ kind: 'badge', verdict: action.verdict, at: { x: box.left + size / 2, y: box.top + box.height / 2 }, size, color: ink });
+        extents.push({ left: box.left, top: box.top + (box.height - size) / 2, width: size, height: size });
+
+        if (whole && made && action.label) {
+          const chipBox = { left: box.left + size + gap, top: box.top + (box.height - made.height) / 2, width: made.width, height: made.height };
+
+          primitives.push({ kind: 'chip', role: 'label', text: action.label, lines: made.lines, box: chipBox, fontSize: cardFont, rim: ink });
+          extents.push(chipBox);
         }
 
         break;
@@ -661,11 +756,19 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
       case 'write': {
         const letterHeight = Math.max(2, pageLength(Math.min(NOTE_CAP, action.size ?? PEN_DEFAULT_LETTER), ctx.page));
         const nearRect = action.near ? resolveTarget(action.near, ctx) : null;
-        const at = nearRect ? beside(nearRect) : action.at ? toScenePoint(action.at, ctx.page) : null;
+        const nearLine = nearRect ? lineOf(nearRect) : null;
+        const at = nearLine ? beside(nearLine) : action.at ? toScenePoint(action.at, ctx.page) : null;
 
         if (!at) break;
 
-        write('note', action.text, at, letterHeight, Math.max(letterHeight * 6, ctx.page.width * 0.42), undefined, nearRect ? under(nearRect) : undefined);
+        if (ctx.clean) {
+          if (action.near && 'clusterId' in action.near && labelled.has(action.near.clusterId)) break;
+
+          card('note', action.text, at, ctx.page.width * 0.3, 3, undefined, nearLine ? under(nearLine) : undefined, nearRect ?? undefined);
+          break;
+        }
+
+        write('note', action.text, at, letterHeight, Math.max(letterHeight * 6, ctx.page.width * 0.42), undefined, nearLine ? under(nearLine) : undefined, nearRect ?? undefined);
         break;
       }
       case 'pen_stroke': {

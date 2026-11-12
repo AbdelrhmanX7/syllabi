@@ -1,6 +1,9 @@
 import type { Canvas, FabricObject } from 'fabric';
 
 import type { WriteOnStroke } from './handwritingObjects';
+import { CARD_PAD, CARD_PITCH } from './penActions';
+import { BOARD_TEXT_FONT } from './rasterize';
+
 import type { PenRevealStep } from './penActionObjects';
 
 /**
@@ -18,11 +21,15 @@ export interface WriteOnPlayback {
   dispose: () => void;
   /** `linger` only: repaints the finished marks at the board's current pan/zoom. */
   repaint?: () => void;
+  /** `linger` only: the marks go pale (they are about to leave). */
+  dim?: () => void;
+  /** `linger` only: fades the marks out over `ms`, then removes the overlay. */
+  fadeOut?: (ms: number) => void;
 }
 
 /** The buddy's pencil: tip at the bottom-left corner, brand blue, cream outline so it reads on ink and on paper. */
 export const PENCIL_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M2 26l2.2-7.4L19.6 3.2a2.4 2.4 0 013.4 0l1.8 1.8a2.4 2.4 0 010 3.4L9.4 23.8 2 26z" fill="#3b5bdb" stroke="#fbfaf6" stroke-width="2" stroke-linejoin="round"/><path d="M4.2 18.6l5.2 5.2" stroke="#fbfaf6" stroke-width="1.6"/><path d="M2 26l2.4-1-1.4-1.4L2 26z" fill="#18204a"/></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M2 26l2.2-7.4L19.6 3.2a2.4 2.4 0 013.4 0l1.8 1.8a2.4 2.4 0 010 3.4L9.4 23.8 2 26z" fill="#8b5cf6" stroke="#fbfaf6" stroke-width="2" stroke-linejoin="round"/><path d="M4.2 18.6l5.2 5.2" stroke="#fbfaf6" stroke-width="1.6"/><path d="M2 26l2.4-1-1.4-1.4L2 26z" fill="#18204a"/></svg>';
 
 export const prefersReducedMotion = (): boolean => {
   try {
@@ -309,6 +316,7 @@ export function playPenTurn(
     maxTotalMs = 9000,
     linger = false,
     pencil = false,
+    pencilFrom,
   }: {
     onPointer?: (at: { x: number; y: number }, note?: string) => void;
     maxTotalMs?: number;
@@ -319,6 +327,8 @@ export function playPenTurn(
     linger?: boolean;
     /** A pencil that travels with the drawing (its tip on the stroke being made) — the buddy's cursor. */
     pencil?: boolean;
+    /** Where the pencil starts (px inside `host`) — the buddy's button. */
+    pencilFrom?: { left: number; top: number };
   } = {},
 ): WriteOnPlayback {
   const element = canvas.getElement();
@@ -368,6 +378,9 @@ export function playPenTurn(
   overlay.style.cssText = `position:absolute;left:${rect.left - hostRect.left}px;top:${rect.top - hostRect.top}px;width:${rect.width}px;height:${rect.height}px;pointer-events:auto;touch-action:none;cursor:pointer;`;
   host.appendChild(overlay);
 
+  let lastTip: { left: number; top: number } | null = null;
+  let glideUntil = 0;
+
   if (pencil && !instant) {
     pencilEl = document.createElement('div');
     pencilEl.setAttribute('aria-hidden', 'true');
@@ -375,6 +388,13 @@ export function playPenTurn(
     pencilEl.style.cssText = 'position:absolute;left:0;top:0;width:28px;height:28px;margin-top:-28px;pointer-events:none;z-index:43;opacity:0;transition:opacity 200ms ease;will-change:transform;';
     pencilEl.innerHTML = PENCIL_SVG;
     host.appendChild(pencilEl);
+
+    if (pencilFrom) {
+      // It leaves from the buddy's button and glides to the first mark.
+      lastTip = { left: pencilFrom.left, top: pencilFrom.top };
+      pencilEl.style.transform = `translate(${pencilFrom.left.toFixed(1)}px, ${pencilFrom.top.toFixed(1)}px)`;
+      pencilEl.style.opacity = '1';
+    }
   }
 
   const movePencil = (tip: { x: number; y: number } | null) => {
@@ -390,6 +410,19 @@ export function playPenTurn(
     const left = tip.x * vpt[0]! + vpt[4]! + (rect.left - hostRect.left);
     const top = tip.y * vpt[3]! + vpt[5]! + (rect.top - hostRect.top);
 
+    // A jump to the next mark glides (lifted a little); following a stroke is frame-by-frame.
+    const jump = lastTip ? Math.hypot(left - lastTip.left, top - lastTip.top) : 0;
+
+    if (jump > 40) {
+      const ms = Math.round(Math.max(140, Math.min(420, 100 + jump * 0.5)));
+
+      pencilEl.style.transition = `transform ${ms}ms cubic-bezier(0.65,0,0.35,1), opacity 200ms ease`;
+      glideUntil = performance.now() + ms;
+    } else if (performance.now() >= glideUntil) {
+      pencilEl.style.transition = 'opacity 200ms ease';
+    }
+
+    lastTip = { left, top };
     pencilEl.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
     pencilEl.style.opacity = '1';
   };
@@ -398,10 +431,12 @@ export function playPenTurn(
   // Each step's own clock: a stroke by its on-screen length, a note by its words, a pointer a dwell.
   const polylineLength = (points: Array<{ x: number; y: number }>) => points.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - points[i - 1]!.x, p.y - points[i - 1]!.y) : 0), 0);
   let durations = steps.map((step) => {
-    if (step.kind === 'stroke') return Math.max(320, Math.min(1400, 220 + polylineLength(step.points) * zoom * 2.2));
+    if (step.kind === 'stroke') return Math.max(260, Math.min(1100, 180 + polylineLength(step.points) * zoom * 1.6));
     if (step.kind === 'write') return Math.max(600, Math.min(2600, 500 + step.strokes.length * 110));
+    if (step.kind === 'chip') return 320;
+    if (step.kind === 'badge') return 280;
 
-    return 750;
+    return 450;
   });
   const total = durations.reduce((sum, ms) => sum + ms, 0);
 
@@ -527,9 +562,62 @@ export function playPenTurn(
         ctx.strokeStyle = step.color;
         ctx.lineWidth = step.width;
         ctx.globalAlpha = step.opacity;
-        const end = traceStroke(ctx, step.points, local);
+        // A hand speeds up and slows down: ease-in-out along the stroke.
+        const t = Math.max(0, Math.min(1, local));
+        const end = traceStroke(ctx, step.points, t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
         if (local < 1) tip = end;
+      } else if (step.kind === 'chip') {
+        const { left, top, width, height } = step.box;
+        const radius = step.fontSize * 0.4;
+        const pad = step.fontSize * CARD_PAD;
+
+        ctx.globalAlpha = Math.min(1, local * 1.6);
+        // A rounded card without `roundRect` (older WebViews).
+        ctx.beginPath();
+        ctx.moveTo(left + radius, top);
+        ctx.arcTo(left + width, top, left + width, top + height, radius);
+        ctx.arcTo(left + width, top + height, left, top + height, radius);
+        ctx.arcTo(left, top + height, left, top, radius);
+        ctx.arcTo(left, top, left + width, top, radius);
+        ctx.closePath();
+        ctx.fillStyle = '#fbfaf6';
+        ctx.fill();
+        ctx.strokeStyle = step.rim;
+        ctx.lineWidth = Math.max(1, step.fontSize * 0.08);
+        ctx.stroke();
+        ctx.fillStyle = '#18204a';
+        ctx.font = `600 ${step.fontSize}px ${BOARD_TEXT_FONT}`;
+        ctx.textBaseline = 'top';
+        step.lines.forEach((line, lineIndex) => ctx.fillText(line, left + pad, top + pad + lineIndex * step.fontSize * CARD_PITCH + step.fontSize * 0.08, width - pad * 2));
+
+        if (local < 1) tip = { x: left, y: top + height / 2 };
+      } else if (step.kind === 'badge') {
+        // Pops in: a small overshoot, then rests.
+        const t = Math.max(0, Math.min(1, local));
+        const pop = t < 0.7 ? (t / 0.7) * 1.12 : 1.12 - ((t - 0.7) / 0.3) * 0.12;
+
+        ctx.translate(step.at.x, step.at.y);
+        ctx.scale(pop, pop);
+        ctx.translate(-step.at.x, -step.at.y);
+        ctx.beginPath();
+        ctx.arc(step.at.x, step.at.y, step.size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = step.color;
+        ctx.fill();
+        ctx.strokeStyle = '#fbfaf6';
+        ctx.lineWidth = Math.max(1, step.size * 0.07);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = step.size * 0.11;
+
+        for (const points of step.glyph) {
+          ctx.beginPath();
+          ctx.moveTo(points[0]!.x, points[0]!.y);
+          for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+          ctx.stroke();
+        }
+
+        if (local < 1) tip = step.at;
       } else {
         const { scale, dx, dy } = step.transform;
         const paths = writePaths.get(index)!;
@@ -593,5 +681,24 @@ export function playPenTurn(
   if (instant) finish();
   else frame = requestAnimationFrame(draw);
 
-  return { done, skip: finish, dispose, ...(linger ? { repaint: () => finished && paint(totalMs) } : {}) };
+  return {
+    done,
+    skip: finish,
+    dispose,
+    ...(linger
+      ? {
+          repaint: () => finished && paint(totalMs),
+          // Opacity only: «about to go», then gone.
+          dim: () => {
+            overlay.style.transition = 'opacity 600ms ease-out';
+            overlay.style.opacity = '0.45';
+          },
+          fadeOut: (ms: number) => {
+            overlay.style.transition = `opacity ${ms}ms cubic-bezier(0.7,0,0.84,0)`;
+            overlay.style.opacity = '0';
+            window.setTimeout(dispose, ms + 30);
+          },
+        }
+      : {}),
+  };
 }

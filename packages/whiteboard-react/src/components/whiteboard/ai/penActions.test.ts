@@ -293,40 +293,63 @@ test('v2: a mark parses with its verdict and label; a note may name a region ins
   ]);
 });
 
-test('v2: a wrong mark is a red ✗ beside the region with the fix written next to it and the region underlined', () => {
+test('v2: a wrong mark is a red badge at the end of the line with the fix on a card, and a wavy line under the step', () => {
   const page = { left: 0, top: 0, width: 1000, height: 1400 };
   const rect = { left: 100, top: 200, width: 200, height: 30 };
-  const asked: Array<{ left: number; top: number; width: number; height: number }> = [];
+  // A second group on the same handwritten line: the badge goes after IT, not into the middle.
+  const next = { left: 320, top: 202, width: 80, height: 28 };
+  const asked: Array<{ wanted: SceneRect; alt?: SceneRect; home?: SceneRect }> = [];
   const plan = planPenActions(
-    { actions: [{ type: 'mark', target: { clusterId: 'c1' }, verdict: 'wrong', label: 'should be 2x' }] },
+    { actions: [{ type: 'mark', target: { clusterId: 'c1' }, verdict: 'wrong', label: 'should be 2x' }, { type: 'write', text: 'same thing again', near: { clusterId: 'c1' } }] },
     {
       page,
-      clusters: new Map([['c1', rect]]),
+      clusters: new Map([
+        ['c1', rect],
+        ['c2', next],
+      ]),
       occupied: [],
       letterHeight: 24,
       strokeWidth: 2,
-      place: (wanted) => {
-        asked.push(wanted);
+      clean: true,
+      place: (wanted, alt, home) => {
+        asked.push({ wanted, alt, home });
 
-        return { ...wanted, left: 400, top: 190 };
+        return { ...wanted, left: 420, top: 190 };
       },
     },
   );
-  const strokes = plan.primitives.filter((primitive) => primitive.kind === 'stroke');
-  const label = plan.primitives.find((primitive) => primitive.kind === 'write');
+  const kinds = plan.primitives.map((primitive) => primitive.kind);
+  const badge = plan.primitives.find((primitive) => primitive.kind === 'badge');
+  const chip = plan.primitives.find((primitive) => primitive.kind === 'chip');
+  const wavy = plan.primitives.find((primitive) => primitive.kind === 'stroke');
 
-  assert.equal(asked.length, 1, 'the glyph and its label are placed as one box');
-  assert.ok(asked[0]!.left > rect.left + rect.width, 'wanted just right of the region');
-  assert.deepEqual(strokes.map((primitive) => primitive.kind === 'stroke' && primitive.role), ['mark', 'mark', 'underline']);
-  assert.ok(strokes.every((primitive) => primitive.kind === 'stroke' && primitive.color === MARK_INK.wrong));
-  assert.ok(label && label.kind === 'write' && label.color === MARK_INK.wrong && label.box.left > 400);
+  assert.deepEqual(kinds, ['stroke', 'badge', 'chip'], 'the note that repeats a labelled mark is dropped');
+  assert.equal(asked.length, 1, 'the badge and its card are placed as one box');
+  assert.ok(asked[0]!.wanted.left > next.left + next.width, 'wanted after the END of the line');
+  assert.ok(asked[0]!.alt && asked[0]!.alt.top > rect.top + rect.height, 'second choice: right under the line');
+  assert.deepEqual(asked[0]!.home, rect, 'placed inside the question of the region it is about');
+  assert.ok(badge && badge.kind === 'badge' && badge.color === MARK_INK.wrong && badge.size <= page.height * 0.022);
+  assert.ok(chip && chip.kind === 'chip' && chip.rim === MARK_INK.wrong && chip.box.left > 420 && chip.lines.length <= 2);
+  assert.ok(wavy && wavy.kind === 'stroke' && wavy.role === 'underline' && wavy.color === MARK_INK.wrong && wavy.points.length > 8);
+  assert.deepEqual(plan.overflow, []);
+});
+
+test('v2: a label too long for its card goes with the answer; the badge still shows', () => {
+  const page = { left: 0, top: 0, width: 1000, height: 1400 };
+  const plan = planPenActions(
+    { actions: [{ type: 'mark', target: { clusterId: 'c1' }, verdict: 'correct', label: 'word '.repeat(40).trim() }] },
+    { page, clusters: new Map([['c1', { left: 100, top: 200, width: 200, height: 30 }]]), occupied: [], letterHeight: 24, strokeWidth: 2, clean: true, place: (wanted) => wanted },
+  );
+
+  assert.deepEqual(plan.primitives.map((primitive) => primitive.kind), ['badge']);
+  assert.equal(plan.overflow.length, 1);
 });
 
 test('v2: with the page full, a note goes to the answer (overflow) instead of covering content', () => {
   const page = { left: 0, top: 0, width: 1000, height: 1400 };
   const plan = planPenActions(
     { actions: [{ type: 'write', text: 'no room for this', near: { clusterId: 'c1' } }] },
-    { page, clusters: new Map([['c1', { left: 100, top: 200, width: 200, height: 30 }]]), occupied: [], letterHeight: 24, strokeWidth: 2, place: () => null },
+    { page, clusters: new Map([['c1', { left: 100, top: 200, width: 200, height: 30 }]]), occupied: [], letterHeight: 24, strokeWidth: 2, clean: true, place: () => null },
   );
 
   assert.deepEqual(plan.primitives, []);

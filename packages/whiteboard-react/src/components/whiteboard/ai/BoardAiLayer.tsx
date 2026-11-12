@@ -22,7 +22,7 @@ import {
 } from './boardObjects';
 import { layoutToPlacements, snapLayoutToLines } from './pageLayout';
 import { BOARD_AI_COMMAND_EVENT, isBoardAiCommand } from './commands';
-import { BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
+import { BOARD_BUDDY_MARKS_MS, BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
 import { readConceptStyle, writeConceptStyle } from './conceptMap';
 import {
   boundsOf,
@@ -152,9 +152,8 @@ const DASH_STYLE_ID = 'wb-ai-ants-style';
 /** The server takes 200 regions: the student's ink groups first, the rest for printed blocks. */
 const PEN_MAX_INK_REGIONS = 160;
 const PEN_MAX_PRINT_REGIONS = 40;
-const BUDDY_INK = '#3b5bdb';
-/** How long the buddy's temporary marks (and its pointers) stay before they fade. */
-const BUDDY_MARKS_MS = 40_000;
+/** The tutor's own ink: violet — not a pen colour students write in, and it reads on white paper and the dark board. */
+const BUDDY_INK = '#8b5cf6';
 
 interface BuddyMarks {
   objects: FabricObject[];
@@ -449,6 +448,7 @@ export function BoardAiLayer({
   const penSelectionRef = useRef<FabricObject[]>([]);
   const buddyMarksRef = useRef<BuddyMarks | null>(null);
   const buddyFadeRef = useRef<number | null>(null);
+  const buddyDimRef = useRef<number | null>(null);
   const buddyAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -1052,12 +1052,17 @@ export function BoardAiLayer({
         if (signal.aborted) return { added: 0 };
       }
 
+      // Every printed block, px: where one question ends and the next begins.
+      const printBoxes: PxBox[] = [];
+
       if (printGrid && printGrid.fill <= 0.85) {
         const inkRects = clusters.map((cluster) => cluster.rect);
         const tooBig = sheet.width * sheet.height * 0.3;
         let printed = 0;
 
         for (const block of contentBlocks(printGrid, { max: PEN_MAX_PRINT_REGIONS })) {
+          printBoxes.push(block);
+
           const rect = { left: sheet.left + block.x / px, top: sheet.top + block.y / px, width: block.w / px, height: block.h / px };
           // Mostly the student's ink → already a region of its own.
           const inked = inkRects.reduce((sum, ink) => {
@@ -1104,13 +1109,41 @@ export function BoardAiLayer({
       }
 
       const place = grid
-        ? (wanted: SceneRect, alt?: SceneRect): SceneRect | null => {
+        ? (wanted: SceneRect, alt?: SceneRect, home?: SceneRect): SceneRect | null => {
+            const toPx = (rect: SceneRect): PxBox => ({ x: (rect.left - sheet.left) * px, y: (rect.top - sheet.top) * px, w: rect.width * px, h: rect.height * px });
+            const about = toPx(home ?? wanted);
+            const cy = about.y + about.h / 2;
+            const cx = about.x + about.w / 2;
+            // A note stays inside its own question: from the printed block just above the region it is
+            // about (the question itself) down to where the next printed block starts.
+            let bounds: PxBox | null = null;
+
+            if (home && printBoxes.length >= 2) {
+              const above = printBoxes.filter((block) => block.y + block.h <= cy).sort((a, b) => b.y + b.h - (a.y + a.h))[0];
+              const below = printBoxes.filter((block) => block.y > cy).sort((a, b) => a.y - b.y)[0];
+              const top = above ? above.y : 0;
+              const bottom = below ? below.y - 6 : rendered.height;
+
+              bounds = { x: 0, y: top, w: rendered.width, h: Math.max(0, bottom - top) };
+            }
+
+            // A region that is on screen gets its note on screen — never ink out of sight or under the bars.
+            if (cx >= seen.x && cx <= seen.x + seen.w && cy >= seen.y && cy <= seen.y + seen.h) {
+              const x = Math.max(bounds?.x ?? seen.x, seen.x);
+              const y = Math.max(bounds?.y ?? seen.y, seen.y);
+
+              bounds = {
+                x,
+                y,
+                w: Math.min(bounds ? bounds.x + bounds.w : Infinity, seen.x + seen.w) - x,
+                h: Math.min(bounds ? bounds.y + bounds.h : Infinity, seen.y + seen.h) - y,
+              };
+            }
+
             // Each wanted spot (beside the region, then under it) → its nearest free box; the closer one wins.
             const tries = [wanted, ...(alt ? [alt] : [])].map((rect) => {
-              const want = { x: (rect.left - sheet.left) * px, y: (rect.top - sheet.top) * px, w: rect.width * px, h: rect.height * px };
-              // A spot that is on screen gets its note on screen (or none) — never ink out of sight.
-              const inView = want.x >= seen.x && want.x <= seen.x + seen.w && want.y >= seen.y && want.y <= seen.y + seen.h;
-              const found = inView ? findFreeBox(grid!, want, placed, reach, seen) : findFreeBox(grid!, want, placed, reach);
+              const want = toPx(rect);
+              const found = findFreeBox(grid!, want, placed, reach, bounds);
 
               return found ? { found, distance: Math.hypot(found.x - want.x, found.y - want.y) } : null;
             });
@@ -1159,6 +1192,7 @@ export function BoardAiLayer({
         letterHeight,
         strokeWidth,
         ...(place ? { place } : {}),
+        ...(buddy ? { clean: true } : {}),
       });
       const built = await buildPenActionObjects(plan, {
         // The buddy writes in its own blue, so its marks never read as the student's ink.
@@ -1180,12 +1214,13 @@ export function BoardAiLayer({
         ? playPenTurn(canvas, host, built.steps, {
             linger: !!buddy,
             pencil: !!buddy,
+            ...(from ? { pencilFrom: from } : {}),
             onPointer: (at, note) => {
               const layer = sceneRectToLayer({ left: at.x, top: at.y, width: 0, height: 0 });
 
               if (layer) {
                 pointers.push(
-                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BUDDY_MARKS_MS, pencil: true, ...(from ? { from } : {}) } : undefined),
+                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BOARD_BUDDY_MARKS_MS, pencil: true } : undefined),
                 );
               }
             },
@@ -1240,16 +1275,20 @@ export function BoardAiLayer({
   );
 
   /** Ends the buddy's temporary marks (fade timer, «Clear», a new question, a page change). */
-  const clearBuddyMarks = useCallback((announce: boolean) => {
+  const clearBuddyMarks = useCallback((announce: boolean, fadeMs = 150) => {
     const marks = buddyMarksRef.current;
 
     if (buddyFadeRef.current !== null) window.clearTimeout(buddyFadeRef.current);
+    if (buddyDimRef.current !== null) window.clearTimeout(buddyDimRef.current);
     buddyFadeRef.current = null;
+    buddyDimRef.current = null;
     buddyMarksRef.current = null;
 
     if (!marks) return;
 
-    marks.playback?.dispose();
+    // They fade away (0 = at once: «Keep» swaps them for the real ink in the same tick).
+    if (fadeMs > 0 && marks.playback?.fadeOut) marks.playback.fadeOut(fadeMs);
+    else marks.playback?.dispose();
     marks.pointers.forEach((dispose) => dispose());
 
     if (announce) emitBoardBuddyState({ phase: 'cleared' });
@@ -1260,7 +1299,7 @@ export function BoardAiLayer({
 
     if (!canvas || !marks) return;
 
-    clearBuddyMarks(false);
+    clearBuddyMarks(false, 0);
 
     if (bridge.getPageId() !== marks.pageId || marks.objects.length === 0) {
       emitBoardBuddyState({ phase: 'cleared' });
@@ -1294,7 +1333,11 @@ export function BoardAiLayer({
 
         emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), marks: added });
 
-        if (added > 0) buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true), BUDDY_MARKS_MS);
+        if (added > 0) {
+          // Pale for the last seconds, then a slow fade.
+          buddyDimRef.current = window.setTimeout(() => buddyMarksRef.current?.playback?.dim?.(), BOARD_BUDDY_MARKS_MS - 6000);
+          buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true, 400), BOARD_BUDDY_MARKS_MS);
+        }
       } catch (error) {
         if (controller.signal.aborted) return;
 

@@ -1,7 +1,11 @@
+import { Circle, FabricText, Group, Rect } from 'fabric';
+
 import type { FabricObject } from 'fabric';
 
 import { AI_OBJECT_PROP, objectsBounds, registerAiObjectPersistence } from './boardObjects';
 import { buildHandwritingObjects } from './handwritingObjects';
+import { CARD_PAD, CARD_PITCH } from './penActions';
+import { BOARD_TEXT_FONT } from './rasterize';
 import { penPath } from './termsMapObjects';
 import { smoothPath } from './termsMap';
 
@@ -49,7 +53,25 @@ export type PenRevealStep =
       transform: { scale: number; dx: number; dy: number };
       objects: FabricObject[];
     }
+  /** A typed card: fades in. Colours are fixed (navy on cream) so it reads on white paper and on the dark board. */
+  | { kind: 'chip'; box: { left: number; top: number; width: number; height: number }; lines: string[]; fontSize: number; rim: string; objects: FabricObject[] }
+  /** A verdict badge: pops in. */
+  | { kind: 'badge'; at: ScenePt; size: number; color: string; glyph: ScenePt[][]; objects: FabricObject[] }
   | { kind: 'pointer'; at: ScenePt; note?: string };
+
+/** The card's fixed colours: navy on cream (≈15:1), readable on white paper and on the dark board alike. */
+export const CARD_FILL = '#fbfaf6';
+export const CARD_INK = '#18204a';
+
+/** A badge's white glyph as polylines in scene units (✓ / ✗ / !). */
+export function badgeGlyph(verdict: 'correct' | 'wrong' | 'warning', at: ScenePt, size: number): ScenePt[][] {
+  const p = (fx: number, fy: number): ScenePt => ({ x: at.x + (fx - 0.5) * size, y: at.y + (fy - 0.5) * size });
+
+  if (verdict === 'correct') return [[p(0.28, 0.53), p(0.44, 0.69), p(0.73, 0.33)]];
+  if (verdict === 'wrong') return [[p(0.33, 0.33), p(0.67, 0.67)], [p(0.67, 0.33), p(0.33, 0.67)]];
+
+  return [[p(0.5, 0.26), p(0.5, 0.58)], [p(0.5, 0.72), p(0.5, 0.74)]];
+}
 
 export interface PenBuild {
   objects: FabricObject[];
@@ -94,7 +116,12 @@ async function writeNote(primitive: Extract<PenPrimitive, { kind: 'write' }>, op
 
   // One Group per written line: fit the line pitch to the planned letter height, never wider than the box.
   const lines = Math.max(1, built.objects.length);
-  const scale = Math.max(0.4, Math.min(2.5, Math.min((primitive.letterHeight * 1.5 * lines) / bounds.height, (primitive.box.width * 1.08) / bounds.width)));
+  // Never larger than the planned box (it was placed in empty space — a spill covers the neighbours):
+  // when the hand wraps into more lines than planned, the note shrinks instead of growing down.
+  const scale = Math.max(
+    0.3,
+    Math.min(2.5, (primitive.letterHeight * 1.5 * lines) / bounds.height, primitive.box.height / bounds.height, (primitive.box.width * 1.02) / bounds.width),
+  );
   const width = bounds.width * scale;
   const left = primitive.box.left;
   const top = primitive.box.top;
@@ -141,6 +168,67 @@ export async function buildPenActionObjects(plan: PenPlan, options: PenBuildOpti
         tag(path, { kind: primitive.role === 'ink' ? 'pen-stroke' : 'pen-mark', source: primitive.role, batch: options.batch });
         objects.push(path);
         steps.push({ kind: 'stroke', points: primitive.points, color, width: primitive.width, opacity, objects: [path] });
+        break;
+      }
+      case 'chip': {
+        const rim = primitive.rim ?? options.color;
+        const pad = primitive.fontSize * CARD_PAD;
+        const text = new FabricText(primitive.lines.join('\n'), {
+          originX: 'left',
+          originY: 'top',
+          left: primitive.box.left + pad,
+          top: primitive.box.top + pad,
+          fontSize: primitive.fontSize,
+          fontWeight: 600,
+          fontFamily: BOARD_TEXT_FONT,
+          // Fabric's line pitch is fontSize × lineHeight × 1.13.
+          lineHeight: CARD_PITCH / 1.13,
+          fill: CARD_INK,
+        });
+        const room = primitive.box.width - pad * 2;
+
+        // The plan's widths are an estimate: a wider real line is squeezed, never spilled.
+        if ((text.width ?? 0) > room && (text.width ?? 0) > 0) text.set({ scaleX: room / (text.width ?? room) });
+
+        const group = new Group(
+          [
+            new Rect({
+              originX: 'left',
+              originY: 'top',
+              left: primitive.box.left,
+              top: primitive.box.top,
+              width: primitive.box.width,
+              height: primitive.box.height,
+              rx: primitive.fontSize * 0.4,
+              ry: primitive.fontSize * 0.4,
+              fill: CARD_FILL,
+              stroke: rim,
+              strokeWidth: Math.max(1, primitive.fontSize * 0.08),
+            }),
+            text,
+          ],
+          { originX: 'left', originY: 'top' },
+        );
+
+        tag(group, { kind: 'pen-note', source: primitive.text, batch: options.batch });
+        objects.push(group);
+        steps.push({ kind: 'chip', box: primitive.box, lines: primitive.lines, fontSize: primitive.fontSize, rim, objects: [group] });
+        break;
+      }
+      case 'badge': {
+        const glyph = badgeGlyph(primitive.verdict, primitive.at, primitive.size);
+        const width = primitive.size * 0.11;
+        const group = new Group(
+          [
+            new Circle({ originX: 'center', originY: 'center', left: primitive.at.x, top: primitive.at.y, radius: primitive.size / 2, fill: primitive.color, stroke: CARD_FILL, strokeWidth: Math.max(1, primitive.size * 0.07) }),
+            ...glyph.map((points) => penPath(smoothPath(points), { color: '#ffffff', strokeWidth: width })),
+          ],
+          { originX: 'left', originY: 'top' },
+        );
+
+        tag(group, { kind: 'pen-mark', source: `mark:${primitive.verdict}`, batch: options.batch });
+        objects.push(group);
+        steps.push({ kind: 'badge', at: primitive.at, size: primitive.size, color: primitive.color, glyph, objects: [group] });
         break;
       }
       case 'write': {

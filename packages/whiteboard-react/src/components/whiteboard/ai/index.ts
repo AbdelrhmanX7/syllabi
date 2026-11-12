@@ -62,6 +62,7 @@ export type { BoardAiEditorBridge, BoardAiLayerProps, BoardAiRenderRequest } fro
 export { BOARD_AI_COMMAND_EVENT, isBoardAiCommand, requestBoardAiCommand } from './commands';
 export type { BoardAiCommand, BoardAiCommandDetail } from './commands';
 export {
+  BOARD_BUDDY_MARKS_MS,
   BOARD_BUDDY_REQUEST_EVENT,
   BOARD_BUDDY_STATE_EVENT,
   BOARD_BUDDY_TALK_EVENT,

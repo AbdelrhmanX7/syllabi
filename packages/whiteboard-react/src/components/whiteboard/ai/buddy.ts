@@ -28,6 +28,9 @@ export type BoardBuddyState =
   /** «Keep»: the marks are real ink now. */
   | { phase: 'kept'; added: number };
 
+/** How long the buddy's temporary marks (and its pointers) stay before they fade away. */
+export const BOARD_BUDDY_MARKS_MS = 40_000;
+
 export const BOARD_BUDDY_REQUEST_EVENT = 'wb-board-buddy-request';
 export const BOARD_BUDDY_STATE_EVENT = 'wb-board-buddy-state';
 /** Pen button «Talk to the buddy»: `detail.active` true when the hold starts, false when it ends. */

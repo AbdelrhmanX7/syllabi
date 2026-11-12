@@ -9,13 +9,13 @@ import type { BoardBuddyState } from '@repo/whiteboard-react';
 import type { InkCanvasHandle } from '@/features/bank';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
+import { BOARD_BUDDY_MARKS_MS, BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
-import { Check, CopyPlus, Lasso, MessagesSquare, Mic, Pencil, Send, Undo2, WandSparkles, X } from 'lucide-react';
+import { Check, CopyPlus, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, WandSparkles, X } from 'lucide-react';
 
 import { BUDDY_QUICK_ASKS, buddyStatusLine, type BuddyPhase } from './status';
 
-import { ActionButton, Badge, FilterChip, INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { ActionButton, Badge, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { InkCanvas } from '@/features/bank';
 import { useDictation } from '@/features/tutor/useDictation';
 import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
@@ -32,11 +32,18 @@ const VERDICT = {
 
 /** The board's other AI tools — the buddy is the one door to all of them. */
 const TOOLS = [
-  { command: 'ai-lasso-once', label: 'Circle a part', icon: Lasso },
-  { command: 'ai-chat', label: 'Chat', icon: MessagesSquare },
-  { command: 'ai-generate', label: 'Make something', icon: WandSparkles },
-  { command: 'ai-remake-page', label: 'Similar page', icon: CopyPlus },
+  { command: 'ai-lasso-once', label: 'Circle', title: 'Circle a part and ask about it', icon: Lasso },
+  { command: 'ai-chat', label: 'Chat', title: 'Chat about this page', icon: MessagesSquare },
+  { command: 'ai-generate', label: 'Create', title: 'Make something for this page', icon: WandSparkles },
+  { command: 'ai-remake-page', label: 'Similar', title: 'Make a similar page', icon: CopyPlus },
 ] as const;
+
+/** The panel's size, px — also the area the marks keep out of (it grows up from the button). */
+const PANEL_W = 352;
+const PANEL_MAX_H = 416;
+/** The panel sits left of the board's right-edge buttons (pen shortcuts), the buddy's button stays at the edge. */
+const PANEL_INSET = 56;
+const panelSize = () => ({ w: Math.min(PANEL_W, window.innerWidth - 88), h: Math.min(window.innerHeight * 0.6, PANEL_MAX_H) });
 
 export function StudyBuddy() {
   const buttonRef = useRef<HTMLSpanElement | null>(null);
@@ -51,6 +58,10 @@ export function StudyBuddy() {
   const [notes, setNotes] = useState<string[]>([]);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const [padEmpty, setPadEmpty] = useState(true);
+  // The composer is one slot: the pen pad, or the keyboard box.
+  const [keyboard, setKeyboard] = useState(false);
+  const [turn, setTurn] = useState(0);
+  const lastAskRef = useRef<{ text: string; shown?: string; image?: Blob } | null>(null);
   const padRef = useRef<InkCanvasHandle>(null);
   // Talking needs the voice add-on; without it the button is tap-only.
   const voiceOn = useVoiceAiEnabled();
@@ -68,10 +79,9 @@ export function StudyBuddy() {
 
     if (!box) return undefined;
 
-    const w = Math.min(416, window.innerWidth - 32);
-    const h = Math.min(window.innerHeight * 0.6, 420);
+    const { w, h } = panelSize();
 
-    return { x: box.right - w, y: box.top - h, w, h: h + box.height };
+    return { x: box.right - PANEL_INSET - w, y: box.top - h, w: w + PANEL_INSET, h: h + box.height };
   };
 
   const ask = useCallback((text: string, shown?: string, questionImage?: Blob) => {
@@ -89,6 +99,8 @@ export function StudyBuddy() {
     setMarks(0);
     setVerdict(null);
     setNotes([]);
+    setTurn((value) => value + 1);
+    lastAskRef.current = { text: clean, ...(shown ? { shown } : {}), ...(questionImage ? { image: questionImage } : {}) };
     setPhase('reading');
     requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}), ...(panelArea() ? { avoid: panelArea()! } : {}) });
   }, []);
@@ -219,34 +231,37 @@ export function StudyBuddy() {
   };
 
   const busy = phase === 'reading' || phase === 'planning' || phase === 'drawing';
-  const status = buddyStatusLine({ phase, dictation: dictation.state, seconds: dictation.seconds });
+  const status = buddyStatusLine({ phase, dictation: dictation.state });
   const listening = dictation.state === 'recording';
+  const canSend = keyboard ? draft.trim().length > 0 : !padEmpty;
+  const send = () => (keyboard ? ask(draft) : askWritten());
+  const retry = () => {
+    const last = lastAskRef.current;
+
+    if (last) ask(last.text, last.shown, last.image);
+  };
 
   return (
     <div className='pointer-events-none absolute bottom-24 right-3 z-30 flex flex-col items-end gap-3'>
       {open && (
-        <Surface className='pointer-events-auto flex max-h-[min(80vh,32rem)] w-[min(26rem,calc(100vw-2rem))] flex-col'>
-          <div className='flex items-center gap-2 px-3 pt-2'>
-            <span className={cn('min-w-0 flex-1 truncate text-xs font-semibold', error ? 'text-st-danger' : 'text-st-muted')}>
-              {error ?? status ?? (typing ? (voiceOn ? 'Hold the pencil to talk, or pick one' : 'Pick one, or write your question') : 'Ask about this page')}
+        <Surface className='buddy-panel pointer-events-auto mr-14 flex max-h-[min(60vh,26rem)] w-[min(22rem,calc(100vw-5.5rem))] flex-col'>
+          <div className='flex items-center gap-2 py-1 pl-3 pr-1'>
+            {answer && verdict && <Badge className='shrink-0' tone={VERDICT[verdict].tone}>{VERDICT[verdict].label}</Badge>}
+            <span className={cn('min-w-0 flex-1 truncate text-sm font-semibold', status || !answer ? 'text-st-fg' : 'text-st-muted')} title={question || undefined}>
+              {status ?? (answer || busy ? question : 'Study buddy')}
             </span>
-            <ActionButton aria-label='Close' className='min-h-9 w-9 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
+            <ActionButton aria-label='Close' className='w-11 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
               <X className='h-4 w-4' />
             </ActionButton>
           </div>
-          {(question || answer) && (
-            <div className='scroll-shadow-y min-h-0 flex-1 overflow-y-auto px-3 pb-2'>
-              {question && <p className='text-st-muted truncate text-xs' title={question}>“{question}”</p>}
-              {answer && (
-                <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>
-                  {verdict && (
-                    <Badge className='mr-1.5 align-middle' tone={VERDICT[verdict].tone}>
-                      {VERDICT[verdict].label}
-                    </Badge>
-                  )}
-                  {answer}
-                </p>
-              )}
+          {error && (
+            <div className='px-3 pb-3'>
+              <ErrorNote message={error} onRetry={lastAskRef.current ? retry : undefined} />
+            </div>
+          )}
+          {answer && (
+            <div key={turn} className='buddy-fade scroll-shadow-y min-h-0 flex-1 overflow-y-auto px-3 pb-3'>
+              <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>{answer}</p>
               {notes.length > 0 && (
                 <ul className='text-st-fg mt-1.5 list-disc space-y-0.5 pl-4 text-sm leading-snug'>
                   {notes.map((note) => (
@@ -256,105 +271,116 @@ export function StudyBuddy() {
               )}
             </div>
           )}
-          {(marks > 0 || typing) && (
-            <div className='flex flex-col gap-3 px-3 pb-3 pt-1'>
+          {answer && !typing && (
+            <div className='flex items-center gap-2 px-3 pb-3'>
               {marks > 0 && (
-                <div className='flex items-center gap-2'>
-                  <ActionButton className='min-h-9 px-3' variant='soft' onClick={() => requestBoardBuddy({ type: 'keep' })}>
-                    <Check className='h-4 w-4' /> Keep marks
+                <ActionButton variant='primary' onClick={() => requestBoardBuddy({ type: 'keep' })}>
+                  <Check className='h-4 w-4' /> Keep on page
+                </ActionButton>
+              )}
+              <ActionButton variant='ghost' onClick={() => setTyping(true)}>
+                Ask more
+              </ActionButton>
+            </div>
+          )}
+          {/* How long the marks have left: a thin bar that runs out (they fade on their own). */}
+          {marks > 0 && (
+            <div aria-hidden className='bg-default-200 mx-3 mb-3 h-0.5 overflow-hidden rounded-full'>
+              <div key={turn} className='buddy-bar bg-st-accent h-full origin-left' style={{ animationDuration: `${BOARD_BUDDY_MARKS_MS}ms` }} />
+            </div>
+          )}
+          {typing && (
+            <div className='flex flex-col gap-3 px-3 pb-3'>
+              <div className='grid grid-cols-3 gap-2'>
+                {BUDDY_QUICK_ASKS.map((quick, index) => (
+                  <ActionButton key={quick.label} className='px-2' disabled={busy} variant={index === 0 ? 'primary' : 'secondary'} onClick={() => ask(quick.question, quick.label)}>
+                    {quick.short}
                   </ActionButton>
-                  <span className='text-st-muted text-xs'>They fade on their own.</span>
-                </div>
-              )}
-              {typing && (
-                <div className='flex flex-wrap gap-x-2 gap-y-3'>
-                  {BUDDY_QUICK_ASKS.map((quick) => (
-                    <FilterChip key={quick.label} active={false} onClick={() => !busy && ask(quick.question, quick.label)}>
-                      {quick.label}
-                    </FilterChip>
-                  ))}
-                </div>
-              )}
-              {typing && (
-                <div className='flex items-stretch gap-2'>
+                ))}
+              </div>
+              <div className='flex items-stretch gap-2'>
+                {keyboard ? (
+                  <form
+                    className='min-w-0 flex-1'
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      ask(draft);
+                    }}
+                  >
+                    <input aria-label='Your question' className={INPUT_CLASS} disabled={busy} placeholder='Type your question' value={draft} onChange={(event) => setDraft(event.target.value)} />
+                  </form>
+                ) : (
                   <InkCanvas
                     ref={padRef}
                     hideToolbar
                     className='min-w-0 flex-1'
                     disabled={busy}
+                    frameClassName='rounded-st border-2 border-st-control-edge'
                     growable={false}
-                    minHeight={120}
-                    placeholder='Write your question with the pen'
+                    minHeight={100}
+                    placeholder={voiceOn ? 'Write your question, or hold the pencil to talk' : 'Write your question'}
                     onChange={setPadEmpty}
                   />
-                  <div className='flex shrink-0 flex-col justify-between gap-3'>
-                    <ActionButton aria-label='Undo' className='w-11 px-0' disabled={padEmpty} title='Undo' variant='ghost' onClick={() => padRef.current?.undo()}>
-                      <Undo2 className='h-4 w-4' />
-                    </ActionButton>
-                    <ActionButton aria-label='Ask what I wrote' className='w-11 px-0' disabled={busy || padEmpty} title='Ask' variant='primary' onClick={askWritten}>
+                )}
+                <div className={cn('flex shrink-0 gap-3', keyboard ? 'flex-row-reverse items-center' : 'flex-col justify-between')}>
+                  <ActionButton
+                    aria-label={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
+                    className='w-11 px-0'
+                    title={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
+                    variant='ghost'
+                    onClick={() => setKeyboard((was) => !was)}
+                  >
+                    {keyboard ? <PenLine className='h-4 w-4' /> : <Keyboard className='h-4 w-4' />}
+                  </ActionButton>
+                  {canSend && (
+                    <ActionButton aria-label='Ask' className='w-11 px-0' disabled={busy} title='Ask' variant='primary' onClick={send}>
                       <Send className='h-4 w-4' />
                     </ActionButton>
-                  </div>
+                  )}
                 </div>
-              )}
-              {typing && (
-                <form
-                  className='flex items-center gap-2'
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    ask(draft);
-                  }}
-                >
-                  <input
-                    aria-label='Your question'
-                    className={INPUT_CLASS}
-                    disabled={busy}
-                    placeholder='Or type a question'
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                  />
-                  <ActionButton aria-label='Ask' className='w-11 shrink-0 px-0' disabled={busy || !draft.trim()} type='submit' variant='secondary'>
-                    <Send className='h-4 w-4' />
+              </div>
+              <div className='border-default-200 grid grid-cols-4 gap-1 border-t pt-2'>
+                {TOOLS.map((tool) => (
+                  <ActionButton
+                    key={tool.command}
+                    className='flex-col gap-0.5 px-1 py-1 text-xs'
+                    title={tool.title}
+                    variant='ghost'
+                    onClick={() => {
+                      setOpen(false);
+                      setTyping(false);
+                      requestBoardBuddy({ type: 'clear' });
+                      requestBoardAiCommand(tool.command);
+                    }}
+                  >
+                    <tool.icon className='h-4 w-4' /> {tool.label}
                   </ActionButton>
-                </form>
-              )}
-              {typing && (
-                <div className='border-default-200 -mx-1 flex flex-wrap gap-1 border-t pt-2'>
-                  {TOOLS.map((tool) => (
-                    <ActionButton
-                      key={tool.command}
-                      className='min-h-9 gap-1.5 px-2 text-xs'
-                      variant='ghost'
-                      onClick={() => {
-                        setOpen(false);
-                        setTyping(false);
-                        requestBoardBuddy({ type: 'clear' });
-                        requestBoardAiCommand(tool.command);
-                      }}
-                    >
-                      <tool.icon className='h-4 w-4' /> {tool.label}
-                    </ActionButton>
-                  ))}
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </Surface>
       )}
-      <span ref={buttonRef} className='pointer-events-auto inline-flex'>
-      <ActionButton
-        aria-label={voiceOn ? 'Study buddy: hold to talk, tap for more' : 'Study buddy'}
-        className='pointer-events-auto h-12 min-h-12 w-12 select-none rounded-full px-0'
-        loading={busy}
-        title={voiceOn ? 'Hold to talk, tap for more' : 'Ask about this page'}
-        variant={listening ? 'danger' : 'primary'}
-        onContextMenu={(event) => event.preventDefault()}
-        onPointerCancel={() => endPress(true)}
-        onPointerDown={onPointerDown}
-        onPointerUp={() => endPress(false)}
-      >
-        {!busy && (listening ? <Mic className='h-5 w-5' /> : <Pencil className='h-5 w-5' />)}
-      </ActionButton>
+      <span ref={buttonRef} className='pointer-events-auto relative inline-flex'>
+        {listening && <span aria-hidden className='buddy-ring border-st-star-lip pointer-events-none absolute inset-0 rounded-full border-2' />}
+        <ActionButton
+          aria-busy={busy}
+          aria-label={voiceOn ? 'Study buddy: hold to talk, tap for more' : 'Study buddy'}
+          className='h-[52px] min-h-[52px] w-[52px] select-none rounded-full px-0'
+          title={voiceOn ? 'Hold to talk, tap for more' : 'Ask about this page'}
+          variant={listening ? 'accent' : 'primary'}
+          onContextMenu={(event) => event.preventDefault()}
+          onPointerCancel={() => endPress(true)}
+          onPointerDown={onPointerDown}
+          onPointerUp={() => endPress(false)}
+        >
+          {listening ? (
+            <Mic className='h-5 w-5' />
+          ) : (
+            // Thinking: the pencil rocks. Drawing: it is out on the page.
+            <Pencil className={cn('h-5 w-5', phase === 'drawing' ? 'opacity-0' : busy && 'buddy-rock')} />
+          )}
+        </ActionButton>
       </span>
     </div>
   );

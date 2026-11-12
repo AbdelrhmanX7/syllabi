@@ -50,6 +50,8 @@ export interface InkCanvasProps {
   tool?: InkTool;
   /** Hint drawn on an empty canvas; null hides it. */
   placeholder?: string | null;
+  /** The writing surface's frame (radius + rim) when the host needs it to match its own fields. */
+  frameClassName?: string;
   /** Show the «More space» button (default true). */
   growable?: boolean;
 }
@@ -98,6 +100,7 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     tool: toolProp,
     placeholder = 'Work it out here with the pen…',
     growable = true,
+    frameClassName = 'rounded-2xl border border-st-line',
   },
   ref,
 ) {
@@ -439,7 +442,7 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
           </ToolButton>
         </div>
       )}
-      <div className='relative overflow-hidden rounded-2xl border border-st-line bg-st-surface'>
+      <div className={`relative overflow-hidden bg-st-surface ${frameClassName}`}>
         <canvas
           ref={canvasRef}
           className={`block w-full select-none text-st-fg/10 ${disabled ? 'opacity-70' : ''} ${tool === 'eraser' ? 'cursor-cell' : 'cursor-crosshair'}`}
