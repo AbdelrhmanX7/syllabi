@@ -101,7 +101,7 @@ export function buildBrief(expert: BuddyExpert, ctx: { memory: string[]; weakTop
     `THIS TURN YOU ARE THE ${expert.name.toUpperCase()}. Your job (it overrides anything above that conflicts with it):`,
     ...expert.job.map((line) => `- ${line}`),
     ...(ctx.memory.length
-      ? ["", "WHAT YOU REMEMBER ABOUT THIS STUDENT (from earlier turns; use it quietly, never quote it back as a list):", ...ctx.memory.map((line) => `- ${line}`)]
+      ? ["", "WHAT YOU REMEMBER ABOUT THIS STUDENT (from earlier turns). Never read it back as a list. But when what you see now is one of these again (the same slip, the same gap), say so kindly in `say` in a few words (\"this is that inside-derivative slip again\") so they notice the pattern:", ...ctx.memory.map((line) => `- ${line}`)]
       : []),
     ...(ctx.weakTopics.length ? ["", `THE STUDENT'S WEAKEST TOPICS IN THIS CLASS (lean towards these when it fits the page): ${ctx.weakTopics.join("; ")}`] : []),
     "",

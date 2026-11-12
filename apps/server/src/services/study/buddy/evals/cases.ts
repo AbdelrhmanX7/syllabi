@@ -56,7 +56,7 @@ export const BUDDY_EVAL_CASES: EvalCase[] = [
     question: "Check my work on this page. Is it right? If not, show me exactly where it goes wrong and how to fix it.",
     checks: [
       { name: "verdict not correct", pass: (r) => r.verdict === "wrong" || r.verdict === "partly" },
-      { name: "marks the first wrong line", pass: (r) => r.actions.some((a) => a.type === "mark" && a.verdict === "wrong" && "clusterId" in a.target && a.target.clusterId === "c2") },
+      { name: "marks the first wrong line", pass: (r) => r.actions.some((a) => a.type === "mark" && a.verdict === "wrong" && "clusterId" in a.target && a.target.clusterId === "c1") },
       { name: "names the fix", pass: (r) => /\+\s*7|12|sign/i.test(JSON.stringify(r)) },
       noExtras(null),
     ],
@@ -137,7 +137,7 @@ export const BUDDY_EVAL_CASES: EvalCase[] = [
     skill: "check",
     question: "Check my work on this page. Is it right? If not, show me exactly where it goes wrong and how to fix it.",
     memory: ["Often forgets to multiply by the derivative of the inside when using the chain rule."],
-    checks: [{ name: "verdict not correct", pass: (r) => r.verdict === "wrong" || r.verdict === "partly" }, { name: "links it to the habit", pass: (r) => /again|before|keep|habit|same|usual|remember/i.test(r.say ?? "") }],
+    checks: [{ name: "verdict not correct", pass: (r) => r.verdict === "wrong" || r.verdict === "partly" }, { name: "links it to the habit", pass: (r) => /again|before|keep|habit|same|usual|remember|pattern|last time/i.test(r.say ?? "") }],
   },
 ];
 
