@@ -904,6 +904,8 @@ export function NotebookBoard({
         notebookSheets={pdfLayout === 'scroll'}
         autoColor={autoColor}
         boardAi={boardAi}
+        // The buddy is the one AI button on this screen.
+        hideAiToolbar={!readOnly && Boolean(boardAi?.penPlan)}
         buildMergeOverlaysRef={buildMergeOverlaysRef}
         defaultEraserMode='object'
         defaultPaperSpacingMm={paperSpacingDefaults}

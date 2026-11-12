@@ -8,13 +8,13 @@
 import type { BoardBuddyState } from '@repo/whiteboard-react';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardBuddy } from '@repo/whiteboard-react';
+import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
-import { Check, Mic, Send, Sparkles, X } from 'lucide-react';
+import { Check, CopyPlus, Lasso, MessagesSquare, Mic, Pencil, Send, WandSparkles, X } from 'lucide-react';
 
-import { buddyStatusLine, type BuddyPhase } from './status';
+import { BUDDY_QUICK_ASKS, buddyStatusLine, type BuddyPhase } from './status';
 
-import { ActionButton, Badge, INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { ActionButton, Badge, FilterChip, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { useDictation } from '@/features/tutor/useDictation';
 
 /** A press shorter than this is a tap (open the typing box), longer is hold-to-talk. */
@@ -27,6 +27,14 @@ const VERDICT = {
   wrong: { tone: 'danger', label: 'Not quite' },
 } as const;
 
+/** The board's other AI tools — the buddy is the one door to all of them. */
+const TOOLS = [
+  { command: 'ai-lasso-once', label: 'Circle a part', icon: Lasso },
+  { command: 'ai-chat', label: 'Chat', icon: MessagesSquare },
+  { command: 'ai-generate', label: 'Make something', icon: WandSparkles },
+  { command: 'ai-remake-page', label: 'Similar page', icon: CopyPlus },
+] as const;
+
 export function StudyBuddy() {
   const buttonRef = useRef<HTMLSpanElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -38,7 +46,6 @@ export function StudyBuddy() {
   const [error, setError] = useState<string | null>(null);
   const [marks, setMarks] = useState(0);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const pressRef = useRef<{ at: number; timer: number | null; talking: boolean } | null>(null);
 
   const origin = () => {
@@ -47,7 +54,7 @@ export function StudyBuddy() {
     return box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : undefined;
   };
 
-  const ask = useCallback((text: string) => {
+  const ask = useCallback((text: string, shown?: string) => {
     const clean = text.trim();
 
     if (!clean) return;
@@ -55,7 +62,7 @@ export function StudyBuddy() {
     setOpen(true);
     setTyping(false);
     setDraft('');
-    setQuestion(clean);
+    setQuestion(shown ?? clean);
     setAnswer(null);
     setError(null);
     setMarks(0);
@@ -74,11 +81,6 @@ export function StudyBuddy() {
 
   // On screen: the pen button's long hold now talks to this buddy (elsewhere it stays a menu press).
   useEffect(() => registerBoardBuddy(), []);
-
-  // The typing box takes the keyboard as soon as it opens.
-  useEffect(() => {
-    if (typing) inputRef.current?.focus();
-  }, [typing]);
 
   // The board's side of the turn.
   useEffect(() => {
@@ -186,7 +188,7 @@ export function StudyBuddy() {
         <Surface className='pointer-events-auto flex max-h-[40vh] w-[min(20rem,calc(100vw-2rem))] flex-col'>
           <div className='flex items-center gap-2 px-3 pt-2'>
             <span className={cn('min-w-0 flex-1 truncate text-xs font-semibold', error ? 'text-st-danger' : 'text-st-muted')}>
-              {error ?? status ?? 'Ask about this page'}
+              {error ?? status ?? (typing ? 'Hold the pencil to talk, or pick one' : 'Ask about this page')}
             </span>
             <ActionButton aria-label='Close' className='min-h-9 w-9 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
               <X className='h-4 w-4' />
@@ -218,6 +220,15 @@ export function StudyBuddy() {
                 </div>
               )}
               {typing && (
+                <div className='flex flex-wrap gap-x-2 gap-y-3'>
+                  {BUDDY_QUICK_ASKS.map((quick) => (
+                    <FilterChip key={quick.label} active={false} onClick={() => !busy && ask(quick.question, quick.label)}>
+                      {quick.label}
+                    </FilterChip>
+                  ))}
+                </div>
+              )}
+              {typing && (
                 <form
                   className='flex items-center gap-2'
                   onSubmit={(event) => {
@@ -226,11 +237,10 @@ export function StudyBuddy() {
                   }}
                 >
                   <input
-                    ref={inputRef}
                     aria-label='Your question'
                     className={INPUT_CLASS}
                     disabled={busy}
-                    placeholder='Ask about this page'
+                    placeholder='Or type a question'
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                   />
@@ -239,23 +249,42 @@ export function StudyBuddy() {
                   </ActionButton>
                 </form>
               )}
+              {typing && (
+                <div className='border-default-200 -mx-1 flex flex-wrap gap-1 border-t pt-2'>
+                  {TOOLS.map((tool) => (
+                    <ActionButton
+                      key={tool.command}
+                      className='min-h-9 gap-1.5 px-2 text-xs'
+                      variant='ghost'
+                      onClick={() => {
+                        setOpen(false);
+                        setTyping(false);
+                        requestBoardBuddy({ type: 'clear' });
+                        requestBoardAiCommand(tool.command);
+                      }}
+                    >
+                      <tool.icon className='h-4 w-4' /> {tool.label}
+                    </ActionButton>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </Surface>
       )}
       <span ref={buttonRef} className='pointer-events-auto inline-flex'>
       <ActionButton
-        aria-label='Study buddy: hold to talk, tap to type'
+        aria-label='Study buddy: hold to talk, tap for more'
         className='pointer-events-auto h-12 min-h-12 w-12 select-none rounded-full px-0'
         loading={busy}
-        title='Hold to talk, tap to type'
+        title='Hold to talk, tap for more'
         variant={listening ? 'danger' : 'primary'}
         onContextMenu={(event) => event.preventDefault()}
         onPointerCancel={() => endPress(true)}
         onPointerDown={onPointerDown}
         onPointerUp={() => endPress(false)}
       >
-        {!busy && (listening ? <Mic className='h-5 w-5' /> : <Sparkles className='h-5 w-5' />)}
+        {!busy && (listening ? <Mic className='h-5 w-5' /> : <Pencil className='h-5 w-5' />)}
       </ActionButton>
       </span>
     </div>

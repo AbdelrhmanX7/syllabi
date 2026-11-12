@@ -539,6 +539,8 @@ export interface WhiteboardEditorProps {
   defaultEraserMode?: EraserMode;
   /** Hide the floating pen-shortcuts button. The S Pen side button still opens the menu. Default false. */
   hideQuickPenTrigger?: boolean;
+  /** The host has its own single AI button (Study's buddy): the toolbar shows no AI buttons. The AI layer itself stays on. */
+  hideAiToolbar?: boolean;
   /**
    * Focus mode (only the canvas + the small focus dock) controlled by the host, e.g. a host button that
    * also hides the host's own overlays. Unset: the editor keeps it to itself (toolbar «Focus mode»).
@@ -1579,6 +1581,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   initialPenTool,
   defaultEraserMode = 'partial',
   hideQuickPenTrigger = false,
+  hideAiToolbar = false,
   focusMode,
   onFocusModeChange,
   allowInsertBlankPages = false,
@@ -7891,7 +7894,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
                 penCaptureLocked={penCaptureLocked}
                 tabletInputSettings={tabletInputSettings}
                 ai={
-                  boardAi
+                  boardAi && !hideAiToolbar
                     ? {
                         lassoActive: isAiLassoActive,
                         onAsk: () => sendAiCommand('ai-lasso-once'),

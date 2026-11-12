@@ -589,8 +589,9 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
         if (!rect) break;
 
         const ink = MARK_INK[action.verdict];
-        const size = Math.max(lh * 1.1, Math.min(lh * 2, rect.height * 0.9));
-        const labelHeight = lh * 0.85;
+        // Readable whatever the handwriting's size: never smaller than a share of the page.
+        const size = Math.max(lh * 1.1, ctx.page.height * 0.02, Math.min(lh * 2, rect.height * 0.9));
+        const labelHeight = Math.max(lh * 0.85, ctx.page.height * 0.014);
         const maxLabel = Math.max(lh * 5, ctx.page.width * 0.28);
         const lines = action.label ? wrapHandText(action.label, labelHeight, maxLabel) : [];
         const labelWidth = lines.length ? Math.min(maxLabel, Math.max(...lines.map((line) => estimateTextWidth(line, labelHeight)))) : 0;
