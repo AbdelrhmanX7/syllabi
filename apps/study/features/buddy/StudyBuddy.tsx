@@ -11,11 +11,11 @@ import type { InkCanvasHandle } from '@/features/bank';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BOARD_BUDDY_MARKS_MS, BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
-import { Check, CopyPlus, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, WandSparkles, X } from 'lucide-react';
+import { Check, CopyPlus, Eraser, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, Undo2, WandSparkles, X } from 'lucide-react';
 
 import { BUDDY_QUICK_ASKS, buddyStatusLine, type BuddyPhase } from './status';
 
-import { ActionButton, Badge, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
+import { ActionButton, Badge, BOARD_CHIP_OVERRIDE, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { InkCanvas } from '@/features/bank';
 import { useDictation } from '@/features/tutor/useDictation';
 import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
@@ -39,11 +39,11 @@ const TOOLS = [
 ] as const;
 
 /** The panel's size, px — also the area the marks keep out of (it grows up from the button). */
-const PANEL_W = 352;
-const PANEL_MAX_H = 416;
+const PANEL_W = 480;
+const PANEL_MAX_H = 544;
 /** The panel sits left of the board's right-edge buttons (pen shortcuts), the buddy's button stays at the edge. */
 const PANEL_INSET = 56;
-const panelSize = () => ({ w: Math.min(PANEL_W, window.innerWidth - 88), h: Math.min(window.innerHeight * 0.6, PANEL_MAX_H) });
+const panelSize = () => ({ w: Math.min(PANEL_W, window.innerWidth - 88), h: Math.min(window.innerHeight * 0.7, PANEL_MAX_H) });
 
 export function StudyBuddy() {
   const buttonRef = useRef<HTMLSpanElement | null>(null);
@@ -60,6 +60,10 @@ export function StudyBuddy() {
   const [padEmpty, setPadEmpty] = useState(true);
   // The composer is one slot: the pen pad, or the keyboard box.
   const [keyboard, setKeyboard] = useState(false);
+  // The pad's eraser: its own button, or the pen's side button while it is held.
+  const [erasing, setErasing] = useState(false);
+  const [penButton, setPenButton] = useState(false);
+  const typingRef = useRef(false);
   const [turn, setTurn] = useState(0);
   const lastAskRef = useRef<{ text: string; shown?: string; image?: Blob } | null>(null);
   const padRef = useRef<InkCanvasHandle>(null);
@@ -81,7 +85,10 @@ export function StudyBuddy() {
 
     const { w, h } = panelSize();
 
-    return { x: box.right - PANEL_INSET - w, y: box.top - h, w: w + PANEL_INSET, h: h + box.height };
+    // The panel hangs under the top bar, its right edge PANEL_INSET in from the screen's.
+    const right = window.innerWidth - 12 - PANEL_INSET;
+
+    return { x: right - w, y: box.bottom + 8, w, h };
   };
 
   const ask = useCallback((text: string, shown?: string, questionImage?: Blob) => {
@@ -124,6 +131,21 @@ export function StudyBuddy() {
     setTyping(true);
   });
 
+  typingRef.current = typing && open;
+
+  // The pen's side button erases on the pad while held (the tablet reports it apart from the pen's touch).
+  useEffect(() => {
+    const onPen = (event: Event) => {
+      const detail = (event as CustomEvent<{ kind?: string; buttonState?: number }>).detail;
+
+      if (detail?.kind === 'motion' && typeof detail.buttonState === 'number') setPenButton((detail.buttonState & 32) !== 0);
+    };
+
+    window.addEventListener('wb-native-pen', onPen);
+
+    return () => window.removeEventListener('wb-native-pen', onPen);
+  }, []);
+
   // On screen: the pen button's long hold now talks to this buddy (elsewhere it stays a menu press).
   useEffect(() => registerBoardBuddy(), []);
 
@@ -165,6 +187,9 @@ export function StudyBuddy() {
   useEffect(() => {
     const onTalk = (event: Event) => {
       const active = (event as CustomEvent<{ active?: boolean }>).detail?.active;
+
+      // With the pad open the side button is its eraser, not the microphone.
+      if (active && typingRef.current) return;
 
       if (active && !voiceOn) {
         // No voice on this account: the hold opens the pad to write the question instead.
@@ -242,9 +267,11 @@ export function StudyBuddy() {
   };
 
   return (
-    <div className='pointer-events-none absolute bottom-24 right-3 z-30 flex flex-col items-end gap-3'>
+    // One chip in the board's top bar (no floating button over the page); its panel drops down under the
+    // bar, clear of the right-edge buttons. Positioned against the bar itself (the nearest positioned box).
+    <>
       {open && (
-        <Surface className='buddy-panel pointer-events-auto mr-14 flex max-h-[min(60vh,26rem)] w-[min(22rem,calc(100vw-5.5rem))] flex-col'>
+        <Surface className='buddy-panel pointer-events-auto absolute right-14 top-full z-40 mt-2 flex max-h-[min(70vh,34rem)] w-[min(30rem,calc(100vw-5.5rem))] flex-col text-left'>
           <div className='flex items-center gap-2 py-1 pl-3 pr-1'>
             {answer && verdict && <Badge className='shrink-0' tone={VERDICT[verdict].tone}>{VERDICT[verdict].label}</Badge>}
             <span className={cn('min-w-0 flex-1 truncate text-sm font-semibold', status || !answer ? 'text-st-fg' : 'text-st-muted')} title={question || undefined}>
@@ -298,46 +325,61 @@ export function StudyBuddy() {
                   </ActionButton>
                 ))}
               </div>
-              <div className='flex items-stretch gap-2'>
-                {keyboard ? (
-                  <form
-                    className='min-w-0 flex-1'
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      ask(draft);
-                    }}
-                  >
-                    <input aria-label='Your question' className={INPUT_CLASS} disabled={busy} placeholder='Type your question' value={draft} onChange={(event) => setDraft(event.target.value)} />
-                  </form>
-                ) : (
-                  <InkCanvas
-                    ref={padRef}
-                    hideToolbar
-                    className='min-w-0 flex-1'
-                    disabled={busy}
-                    frameClassName='rounded-st border-2 border-st-control-edge'
-                    growable={false}
-                    minHeight={100}
-                    placeholder={voiceOn ? 'Write your question, or hold the pencil to talk' : 'Write your question'}
-                    onChange={setPadEmpty}
-                  />
-                )}
-                <div className={cn('flex shrink-0 gap-3', keyboard ? 'flex-row-reverse items-center' : 'flex-col justify-between')}>
-                  <ActionButton
-                    aria-label={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
-                    className='w-11 px-0'
-                    title={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
-                    variant='ghost'
-                    onClick={() => setKeyboard((was) => !was)}
-                  >
-                    {keyboard ? <PenLine className='h-4 w-4' /> : <Keyboard className='h-4 w-4' />}
-                  </ActionButton>
-                  {canSend && (
-                    <ActionButton aria-label='Ask' className='w-11 px-0' disabled={busy} title='Ask' variant='primary' onClick={send}>
-                      <Send className='h-4 w-4' />
+              {keyboard ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    ask(draft);
+                  }}
+                >
+                  <input aria-label='Your question' className={INPUT_CLASS} disabled={busy} placeholder='Type your question' value={draft} onChange={(event) => setDraft(event.target.value)} />
+                </form>
+              ) : (
+                <InkCanvas
+                  ref={padRef}
+                  hideToolbar
+                  disabled={busy}
+                  frameClassName='rounded-st border-2 border-st-control-edge'
+                  growable={false}
+                  minHeight={200}
+                  placeholder={voiceOn ? 'Write your question, or hold Ask to talk' : 'Write your question'}
+                  tool={erasing || penButton ? 'eraser' : 'pen'}
+                  onChange={setPadEmpty}
+                />
+              )}
+              <div className='flex items-center gap-1'>
+                {!keyboard && (
+                  <>
+                    <ActionButton aria-label='Undo' className='w-11 px-0' disabled={padEmpty} title='Undo the last stroke' variant='ghost' onClick={() => padRef.current?.undo()}>
+                      <Undo2 className='h-4 w-4' />
                     </ActionButton>
-                  )}
-                </div>
+                    <ActionButton
+                      aria-label='Eraser'
+                      aria-pressed={erasing}
+                      className={cn('w-11 px-0', erasing && '!bg-st-accent-soft')}
+                      title='Eraser: rub out strokes (or hold the pen button)'
+                      variant='ghost'
+                      onClick={() => setErasing((was) => !was)}
+                    >
+                      <Eraser className='h-4 w-4' />
+                    </ActionButton>
+                  </>
+                )}
+                <ActionButton
+                  aria-label={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
+                  className='w-11 px-0'
+                  title={keyboard ? 'Write with the pen' : 'Type with the keyboard'}
+                  variant='ghost'
+                  onClick={() => setKeyboard((was) => !was)}
+                >
+                  {keyboard ? <PenLine className='h-4 w-4' /> : <Keyboard className='h-4 w-4' />}
+                </ActionButton>
+                <span className='flex-1' />
+                {canSend && (
+                  <ActionButton disabled={busy} variant='primary' onClick={send}>
+                    <Send className='h-4 w-4' /> Ask
+                  </ActionButton>
+                )}
               </div>
               <div className='border-default-200 grid grid-cols-4 gap-1 border-t pt-2'>
                 {TOOLS.map((tool) => (
@@ -362,11 +404,11 @@ export function StudyBuddy() {
         </Surface>
       )}
       <span ref={buttonRef} className='pointer-events-auto relative inline-flex'>
-        {listening && <span aria-hidden className='buddy-ring border-st-star-lip pointer-events-none absolute inset-0 rounded-full border-2' />}
+        {listening && <span aria-hidden className='buddy-ring border-st-star-lip rounded-st pointer-events-none absolute inset-0 border-2' />}
         <ActionButton
           aria-busy={busy}
           aria-label={voiceOn ? 'Study buddy: hold to talk, tap for more' : 'Study buddy'}
-          className='h-[52px] min-h-[52px] w-[52px] select-none rounded-full px-0'
+          className={cn(BOARD_CHIP_OVERRIDE, 'select-none')}
           title={voiceOn ? 'Hold to talk, tap for more' : 'Ask about this page'}
           variant={listening ? 'accent' : 'primary'}
           onContextMenu={(event) => event.preventDefault()}
@@ -375,13 +417,14 @@ export function StudyBuddy() {
           onPointerUp={() => endPress(false)}
         >
           {listening ? (
-            <Mic className='h-5 w-5' />
+            <Mic className='h-3.5 w-3.5' />
           ) : (
             // Thinking: the pencil rocks. Drawing: it is out on the page.
-            <Pencil className={cn('h-5 w-5', phase === 'drawing' ? 'opacity-0' : busy && 'buddy-rock')} />
-          )}
+            <Pencil className={cn('h-3.5 w-3.5', phase === 'drawing' ? 'opacity-0' : busy && 'buddy-rock')} />
+          )}{' '}
+          <span data-chip-label>Ask</span>
         </ActionButton>
       </span>
-    </div>
+    </>
   );
 }

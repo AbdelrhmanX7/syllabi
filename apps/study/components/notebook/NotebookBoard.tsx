@@ -949,8 +949,6 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
-      {/* The study buddy: only where the board can look at the page and mark it up (AI on, writable). */}
-      {!focusMode && !readOnly && boardAi?.penPlan && <StudyBuddy />}
       {rulerOn && !readOnly && (
         <RulerOverlay
           edgesRef={rulerEdgesRef}
@@ -967,10 +965,12 @@ export function NotebookBoard({
       )}
       <div
         ref={topEndClusterRef}
-        className={`pointer-events-none absolute right-3 top-[3.75rem] z-30 md:top-3 items-center gap-2 ${focusMode ? 'hidden' : 'flex'} ${boardTheme === 'dark' ? 'dark' : ''}`}
+        className={`pointer-events-none absolute right-3 top-[3.75rem] z-30 md:top-3 items-center gap-1.5 lg:gap-2 ${focusMode ? 'hidden' : 'flex'} ${boardTheme === 'dark' ? 'dark' : ''}`}
         // A narrow board (split screen, a side pane) shows the chips as icons: see `[data-chip-label]`.
         data-board-compact='true'
       >
+        {/* The study buddy — the one AI button: only where the board can look at the page and mark it up (AI on, writable). */}
+        {!focusMode && !readOnly && boardAi?.penPlan && <StudyBuddy />}
         {!readOnly && (
           <PageQueueChip
             busy={pageQueue.busy}
