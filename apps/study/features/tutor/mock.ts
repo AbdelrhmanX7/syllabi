@@ -19,6 +19,7 @@ import type { SseFrame } from '@/lib/api/http';
 
 import { appendMessages, conversationRow, conversationTitle, previewOf } from './lib/conversations';
 
+import { buddyMock } from '@/features/buddy/mock';
 import { StudyApiError } from '@/lib/api/errors';
 import { delay } from '@/lib/api/mock/sse';
 
@@ -769,6 +770,13 @@ export const tutorMockRoutes = {
     const { segments } = parse(path);
 
     if (segments[0] === 'board-ai' && segments[1] === 'board-actions') return json(method, path, body);
+
+    // The buddy's «Custom AI» page (experts, memory, answers): its own small sample store.
+    if (segments[0] === 'ai' && segments[1] === 'buddy') {
+      const made = buddyMock(method, segments, parse(path).query, body);
+
+      return made === undefined ? undefined : delay(80).then(() => made);
+    }
 
     return segments[0] === 'ai' && segments[1] === 'conversations' ? json(method, path) : undefined;
   },

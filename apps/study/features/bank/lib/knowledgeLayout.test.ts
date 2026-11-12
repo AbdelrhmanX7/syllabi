@@ -99,3 +99,31 @@ test('layoutKnowledge: nothing to draw, a lone concept, and a part whose topic i
   assert.equal(orphan.nodes.length, 1);
   assert.equal(orphan.edges.length, 0);
 });
+
+test('layoutKnowledge: a whole course (5 units, 45 parts) fits the width with no concept on top of another', () => {
+  const units = ['Limits and continuity', 'Derivatives', 'Applications of derivatives', 'Antiderivatives and integration', 'Review'];
+  const concepts: KnowledgeConcept[] = [];
+  const edges: ClassKnowledge['edges'] = [];
+
+  units.forEach((unit, u) => {
+    concepts.push(concept(`u${u}`, unit, null, null, ['material']));
+    for (let p = 0; p < 9; p += 1) {
+      concepts.push(concept(`u${u}p${p}`, `${['Related rates', 'Limits at infinity and horizontal asymptotes', 'Chain rule'][p % 3]} ${p}`, p % 4 === 0 ? 0.4 : null, `u${u}`, ['material']));
+      edges.push({ from: `u${u}p${p}`, to: `u${u}`, kind: 'part-of' });
+    }
+  });
+
+  for (const width of [340, 760, 1200]) {
+    const diagram = layoutKnowledge({ concepts, edges }, width);
+
+    assert.equal(diagram.nodes.length, 50);
+    assert.ok(diagram.nodes.every((node) => node.x >= 0 && node.x + node.w <= width + 0.5), `inside ${width}`);
+    for (let a = 0; a < diagram.nodes.length; a += 1) {
+      for (let b = a + 1; b < diagram.nodes.length; b += 1) {
+        const [m, n] = [diagram.nodes[a]!, diagram.nodes[b]!];
+
+        assert.ok(m.x + m.w <= n.x || n.x + n.w <= m.x || m.y + m.h <= n.y || n.y + n.h <= m.y, `${m.id} overlaps ${n.id} at ${width}`);
+      }
+    }
+  }
+});

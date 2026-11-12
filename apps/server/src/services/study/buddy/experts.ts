@@ -25,6 +25,13 @@ export interface BuddyExpert {
 
 const MATHS = "Write maths as LaTeX between dollar signs ($\\frac{dy}{dx}$, $x^2$, $\\int_0^1 x\\,dx$); never plain-text maths in this field.";
 
+/** The shape of each extra part of a reply, for experts whose own rules do not spell it out. */
+const GIVES_SHAPE: Record<"steps" | "quiz" | "similar", string> = {
+  steps: "Return `steps`: your answer as an ordered list, one short line per item (3–12 items), the last one the conclusion. " + MATHS,
+  quiz: 'Return "quiz": {"question":"…","choices":["…","…","…","…"],"answer":<index of the right choice, 0-based>,"why":"1–2 sentences","topic":"2–4 words"} — exactly 4 choices, one right. ' + MATHS,
+  similar: 'Return "similar": {"title":"3–6 words","markdown":"the new question, without its answer"}. ' + MATHS,
+};
+
 export const BUDDY_EXPERTS: readonly BuddyExpert[] = [
   {
     id: "check",
@@ -105,6 +112,8 @@ export function buildBrief(expert: BuddyExpert, ctx: { memory: string[]; weakTop
   return [
     `THIS TURN YOU ARE THE ${expert.name.toUpperCase()}. Your job (it overrides anything above that conflicts with it):`,
     ...expert.job.map((line) => `- ${line}`),
+    // A student's own expert says WHAT to give back; the exact shape is ours, so the app can show it.
+    ...(expert.gives && !expert.job.some((line) => line.includes(`"${expert.gives}"`) || line.includes(`\`${expert.gives}\``)) ? [`- ${GIVES_SHAPE[expert.gives]}`] : []),
     "- Maths anywhere in `say` goes between dollar signs as LaTeX too ($f'(x) = 0$, $\\frac{\\pi}{3}$): the app typesets it, and may write `say` on the student's page.",
     ...(ctx.memory.length
       ? ["", "WHAT YOU REMEMBER ABOUT THIS STUDENT (from earlier turns). Never read it back as a list. But when what you see now is one of these again (the same slip, the same gap), say so kindly in `say` in a few words (\"this is that inside-derivative slip again\") so they notice the pattern:", ...ctx.memory.map((line) => `- ${line}`)]

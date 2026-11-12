@@ -20,6 +20,7 @@ import {
 import { cn } from '@repo/ui';
 import { Check, ChevronDown, CopyPlus, Eraser, FilePlus2, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, ThumbsDown, ThumbsUp, Undo2, WandSparkles, X } from 'lucide-react';
 
+import { useBuddyExperts } from './api';
 import { BUDDY_LINE_MS, BUDDY_QUICK_ASKS, buddyStatus, buddyStatusLine, type BuddyPhase } from './status';
 
 import { ActionButton, Badge, BOARD_CHIP_OVERRIDE, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
@@ -88,6 +89,11 @@ export function StudyBuddy() {
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [wrote, setWrote] = useState(false);
   const [skill, setSkill] = useState<string | null>(null);
+  // Custom AI: a switched-off expert loses its button; the student's own experts get one each.
+  const experts = useBuddyExperts().data;
+  const off = new Set((experts ?? []).filter((expert) => !expert.enabled).map((expert) => expert.id));
+  const quickAsks = BUDDY_QUICK_ASKS.filter((quick) => !off.has(quick.skill));
+  const ownExperts = (experts ?? []).filter((expert) => expert.origin === 'custom' && expert.enabled);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const [padEmpty, setPadEmpty] = useState(true);
   // The composer is one slot: the pen pad, or the keyboard box.
@@ -505,7 +511,7 @@ export function StudyBuddy() {
           {/* What next, without typing: the other experts, one tap each. */}
           {answer && !typing && (
             <div className='flex flex-wrap items-center gap-2 px-3 pb-3' data-buddy-next>
-              {BUDDY_QUICK_ASKS.filter((quick) => ['solve', 'similar', 'quiz'].includes(quick.skill) && quick.skill !== skill).map((quick) => (
+              {quickAsks.filter((quick) => ['solve', 'similar', 'quiz'].includes(quick.skill) && quick.skill !== skill).map((quick) => (
                 <ActionButton key={quick.skill} className='px-3' variant='secondary' onClick={() => ask(quick.question, quick.label, undefined, quick.skill)}>
                   {quick.label}
                 </ActionButton>
@@ -543,13 +549,22 @@ export function StudyBuddy() {
           )}
           {typing && (
             <div className='flex flex-col gap-3 px-3 pb-3'>
-              <div className='grid grid-cols-6 gap-1.5'>
-                {BUDDY_QUICK_ASKS.map((quick, index) => (
+              <div className='grid gap-1.5' style={{ gridTemplateColumns: `repeat(${Math.max(1, quickAsks.length)}, minmax(0, 1fr))` }}>
+                {quickAsks.map((quick, index) => (
                   <ActionButton key={quick.label} className='px-1 text-sm' disabled={busy} title={quick.label} variant={index === 0 ? 'primary' : 'secondary'} onClick={() => ask(quick.question, quick.label, undefined, quick.skill)}>
                     {quick.short}
                   </ActionButton>
                 ))}
               </div>
+              {ownExperts.length > 0 && (
+                <div className='flex flex-wrap gap-2' data-buddy-own>
+                  {ownExperts.map((expert) => (
+                    <ActionButton key={expert.id} className='px-3 text-sm' disabled={busy} title={expert.when} variant='secondary' onClick={() => ask(`Use the ${expert.name} expert on this page.`, expert.name, undefined, expert.id)}>
+                      {expert.name}
+                    </ActionButton>
+                  ))}
+                </div>
+              )}
               {keyboard ? (
                 <form
                   onSubmit={(event) => {

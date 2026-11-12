@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
+  SlidersHorizontal,
   Sparkles,
   UserPlus,
   Users,
@@ -65,6 +66,7 @@ export const TOOL_LINKS: RailLink[] = [
   { href: '/library/', label: 'Library', icon: Library },
   { href: '/lectures/', label: 'Lectures', icon: Mic },
   { href: '/tutor/', label: 'Tutor', icon: Sparkles, ai: true },
+  { href: '/custom-ai/', label: 'Custom AI', icon: SlidersHorizontal, ai: true },
   { href: '/search/', label: 'Search', icon: Search },
   { href: '/shared/', label: 'Shared', icon: Users, serverOnly: true },
 ];
