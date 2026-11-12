@@ -393,6 +393,8 @@ export interface PenPlanResult {
   verdict?: PenPageVerdict;
   /** v2: a handwritten question as the tutor read it. */
   heard?: string;
+  /** v2, «solve it»: the worked solution, one step per item. */
+  steps?: string[];
   /** A short spoken answer, shown in the panel next to the board. */
   say?: string;
 }

@@ -59,4 +59,5 @@ export const BUDDY_QUICK_ASKS: ReadonlyArray<{ label: string; short: string; que
   { label: 'Check my work', short: 'Check', question: 'Check my work on this page. Is it right? If not, show me exactly where it goes wrong and how to fix it.' },
   { label: 'Give me a hint', short: 'Hint', question: 'Give me a hint for the next step only. Do not give the full answer or solve it for me.' },
   { label: 'Explain this', short: 'Explain', question: 'Explain what matters on this page in simple words, and point at the key parts.' },
+  { label: 'Solve it step by step', short: 'Solve', question: 'Solve this question for me step by step. Show every step in order and end with the final answer.' },
 ];

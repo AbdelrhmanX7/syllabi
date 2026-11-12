@@ -302,7 +302,12 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
 
   const heard = str(source.heard, 200);
 
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}) };
+  const steps = (Array.isArray(source.steps) ? (source.steps as unknown[]) : [])
+    .map((step) => str(step, 240) ?? '')
+    .filter((step) => step.length > 0)
+    .slice(0, 14);
+
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(steps.length ? { steps } : {}) };
 }
 
 // ---------------------------------------------------------------------------

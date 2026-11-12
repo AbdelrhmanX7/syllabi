@@ -352,6 +352,9 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
       { type: 'mark', target: ref(first), verdict: 'correct', label: 'sample tick' },
     ],
     verdict: 'correct',
+    ...(/\bsolve\b/i.test(question)
+      ? { steps: ['Sample step: write down what is given: 2x + 3 = 11', 'Subtract 3 from both sides: 2x = 8', 'Divide both sides by 2: x = 4', 'Final answer: x = 4'] }
+      : {}),
     say: question
       ? `Sample answer to “${question.length > 80 ? `${question.slice(0, 80)}…` : question}” — the real tutor reads your page and marks what matters.`
       : 'Sample explanation — the real tutor reads your page, points at what matters and writes a short note in your hand.',

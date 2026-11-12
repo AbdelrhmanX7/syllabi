@@ -21,7 +21,7 @@ export type BoardBuddyState =
   | { phase: 'reading' | 'planning' | 'drawing' }
   /** The turn finished: `marks` temporary marks are on screen (0 = it only answered). */
   /** `notes`: short notes the page had no room for. */
-  | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string; notes?: string[] }
+  | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string; notes?: string[]; steps?: string[] }
   | { phase: 'error'; message: string; code?: string }
   /** The temporary marks are gone (cleared, a new question, page changed). They never go on a timer. */
   | { phase: 'cleared' }

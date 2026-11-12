@@ -56,3 +56,13 @@ test("the tagged copy is a JPEG of the same size; no regions = no copy", async (
   assert.ok(data[o] > data[o + 1] + 40, "no outline on the region edge");
   assert.equal(await tagBoardImage(page, []), null);
 });
+
+test("«solve it»: v2 keeps the steps (trimmed, bounded); v1 and a reply without them carry none", () => {
+  const raw = { say: "Here is question 2.", actions: [], steps: ["  Subtract 3:   2x = 8 ", "", 7, "x = 4", ...Array.from({ length: 20 }, (_, i) => `extra ${i}`)] };
+  const v2 = sanitizeBoardActions(raw, clusters, 2);
+  assert.equal(v2?.steps?.length, 14);
+  assert.deepEqual(v2?.steps?.slice(0, 2), ["Subtract 3: 2x = 8", "x = 4"]);
+  assert.equal(sanitizeBoardActions(raw, clusters, 1)?.steps, undefined);
+  assert.equal(sanitizeBoardActions({ actions: [] }, clusters, 2)?.steps, undefined);
+  assert.match(buildBoardActionsPrompt((parseBoardInput(JSON.stringify({ v: 2, question: "solve", clusters: [] })) as any).input), /`steps`/);
+});

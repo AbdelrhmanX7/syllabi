@@ -63,6 +63,7 @@ export function StudyBuddy() {
   const [error, setError] = useState<string | null>(null);
   const [marks, setMarks] = useState(0);
   const [notes, setNotes] = useState<string[]>([]);
+  const [steps, setSteps] = useState<string[]>([]);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const [padEmpty, setPadEmpty] = useState(true);
   // The composer is one slot: the pen pad, or the keyboard box.
@@ -114,6 +115,7 @@ export function StudyBuddy() {
     setMarks(0);
     setVerdict(null);
     setNotes([]);
+    setSteps([]);
     setTurn((value) => value + 1);
     lastAskRef.current = { text: clean, ...(shown ? { shown } : {}), ...(questionImage ? { image: questionImage } : {}) };
     setPhase('reading');
@@ -198,10 +200,11 @@ export function StudyBuddy() {
       if (state.phase === 'done') {
         setPhase('done');
         if (state.heard) setQuestion(state.heard);
-        setAnswer(state.say?.trim() || (state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
+        setAnswer(state.say?.trim() || (state.steps?.length ? 'Here it is, step by step.' : state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
         setMarks(state.marks);
         setVerdict(state.verdict ?? null);
         setNotes(state.notes ?? []);
+        setSteps(state.steps ?? []);
       } else if (state.phase === 'error') {
         setPhase('idle');
         setError(state.message);
@@ -342,6 +345,14 @@ export function StudyBuddy() {
           {answer && (
             <div key={turn} className='buddy-fade scroll-shadow-y min-h-0 flex-1 overflow-y-auto px-3 pb-3'>
               <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>{answer}</p>
+              {/* «Solve»: the worked solution, one numbered step per line. */}
+              {steps.length > 0 && (
+                <ol className='text-st-fg mt-1.5 list-decimal space-y-1 pl-5 text-sm leading-snug' data-buddy-steps>
+                  {steps.map((step, index) => (
+                    <li key={`${index}-${step}`}>{step}</li>
+                  ))}
+                </ol>
+              )}
               {notes.length > 0 && (
                 <ul className='text-st-fg mt-1.5 list-disc space-y-0.5 pl-4 text-sm leading-snug'>
                   {notes.map((note) => (
@@ -371,7 +382,7 @@ export function StudyBuddy() {
           )}
           {typing && (
             <div className='flex flex-col gap-3 px-3 pb-3'>
-              <div className='grid grid-cols-3 gap-2'>
+              <div className='grid grid-cols-4 gap-2'>
                 {BUDDY_QUICK_ASKS.map((quick, index) => (
                   <ActionButton key={quick.label} className='px-2' disabled={busy} variant={index === 0 ? 'primary' : 'secondary'} onClick={() => ask(quick.question, quick.label)}>
                     {quick.short}

@@ -962,7 +962,7 @@ export function BoardAiLayer({
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
       buddy?: { origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number } },
-    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[] }> => {
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[]; steps?: string[] }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -1257,6 +1257,7 @@ export function BoardAiLayer({
           ...(result.verdict ? { verdict: result.verdict } : {}),
           ...(result.heard ? { heard: result.heard } : {}),
           ...(plan.overflow.length ? { notes: plan.overflow } : {}),
+          ...(result.steps?.length ? { steps: result.steps } : {}),
           added: built.objects.length,
         };
       }
@@ -1331,7 +1332,7 @@ export function BoardAiLayer({
       }, BUDDY_TURN_TIMEOUT_MS);
 
       try {
-        const { say, added, verdict, heard, notes } = await penExplain(question.trim(), controller.signal, () => undefined, {
+        const { say, added, verdict, heard, notes, steps } = await penExplain(question.trim(), controller.signal, () => undefined, {
           ...(origin ? { origin } : {}),
           ...(questionImage ? { questionImage } : {}),
           ...(avoid ? { avoid } : {}),
@@ -1344,7 +1345,7 @@ export function BoardAiLayer({
           return;
         }
 
-        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), marks: added });
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), ...(steps ? { steps } : {}), marks: added });
         // The marks stay until the student keeps them, hides them or asks again: nothing runs out on a timer.
       } catch (error) {
         if (controller.signal.aborted) {

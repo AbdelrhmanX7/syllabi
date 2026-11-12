@@ -20,6 +20,9 @@ export const WRITE_TEXT_MAX = 120;
 export const NOTE_MAX = 120;
 export const LABEL_MAX = 60;
 export const SAY_MAX = 600;
+/** «Solve it»: how many steps, and how long each may be. */
+export const STEPS_MAX = 14;
+export const STEP_MAX = 240;
 export const STROKE_POINTS_MAX = 64;
 export const QUESTION_MAX = 2000;
 export const BOARD_CLUSTERS_MAX = 200;
@@ -76,6 +79,8 @@ export interface BoardReply {
   verdict?: PageVerdict;
   /** v2, handwritten question: the question as the tutor read it. */
   heard?: string;
+  /** v2, «solve it»: the worked solution, one step per item, the last one the final answer. */
+  steps?: string[];
 }
 
 const ID_RX = /^[\w.:-]{1,64}$/;
@@ -153,6 +158,7 @@ export const BOARD_ACTIONS_PROMPT_V2_EN = [
   "- Target regions by tag: {\"clusterId\":\"<tag>\"}. Only when what you mean has no tag, give a tight box {\"box\":{\"x\",\"y\",\"w\",\"h\"}} in 0..1 of image 1 (origin top-left).",
   "- Few, purposeful marks: usually 1 to 5, never more than 12. Label what you mark; do not decorate.",
   "- `say`: 1–3 short sentences in plain English. The FIRST sentence answers directly — when you checked their work it gives the verdict (\"Yes, this is right.\" / \"Almost: line 3 drops the minus sign.\"). Be encouraging; never shame.",
+  "- ONLY when the student asks you to SOLVE it (work it out, show the full solution, step by step): return `steps` — the whole worked solution in order, one step per item: what you do and the line it gives (e.g. \"Subtract 3 from both sides: 2x = 8\"). 3 to 12 steps, each at most 200 characters, plain text maths (x^2, sqrt(3), a/b — no LaTeX), the last step states the final answer. If the page has several questions, solve the one they point at or wrote about, else the first unsolved one, and name it in `say`. Then `say` is one sentence, and the page gets at most one circle on the question you solved — the steps are NOT written on the page. For any other request leave `steps` out.",
   "Action types (use only these):",
   '- {"type":"mark","target":{"clusterId":"4"},"verdict":"wrong","label":"should be 2x, not x²"}   (verdict: correct | wrong | warning)',
   '- {"type":"circle","target":{"clusterId":"3"}}',
@@ -160,7 +166,7 @@ export const BOARD_ACTIONS_PROMPT_V2_EN = [
   '- {"type":"arrow","from":{"clusterId":"1"},"to":{"clusterId":"5"},"label":"optional"}',
   '- {"type":"point_at","at":{"x":0.5,"y":0.4},"note":"optional short note"}',
   '- {"type":"write","text":"short note","near":{"clusterId":"2"}}',
-  'Return ONE JSON object: {"verdict":"correct|wrong|partly (optional)","actions":[...],"say":"..."}',
+  'Return ONE JSON object: {"verdict":"correct|wrong|partly (optional)","actions":[...],"say":"...","steps":["..."] (only when asked to solve)}',
 ].join("\n");
 
 /** The page with every cluster outlined and numbered (image 2 of the v2 call); null when it cannot be drawn. */
@@ -365,7 +371,9 @@ export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], v: 
   const pv = (o as any).verdict;
   const verdict = v === 2 && (pv === "correct" || pv === "wrong" || pv === "partly") ? (pv as PageVerdict) : null;
   const heard = v === 2 ? str((o as any).heard, 200) : "";
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}) };
+  const rawSteps = v === 2 && Array.isArray((o as any).steps) ? ((o as any).steps as unknown[]) : [];
+  const steps = rawSteps.map((step) => str(step, STEP_MAX)).filter(Boolean).slice(0, STEPS_MAX);
+  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(steps.length ? { steps } : {}) };
 }
 
 /**
