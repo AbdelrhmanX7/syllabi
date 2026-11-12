@@ -57,3 +57,23 @@ export function isBoardBuddyRequest(value: unknown): value is BoardBuddyRequest 
 
   return request.type === 'ask' && typeof request.question === 'string';
 }
+
+let buddiesMounted = 0;
+
+/**
+ * The host's buddy says it is on screen (returns the disposer for its unmount). The pen button's
+ * «Talk to the buddy» hold only applies while one is mounted; elsewhere (focus mode, exams, AI off)
+ * a long hold acts like «Nothing», so the press still opens the menu on release.
+ */
+export function registerBoardBuddy(): () => void {
+  buddiesMounted += 1;
+  let done = false;
+
+  return () => {
+    if (done) return;
+    done = true;
+    buddiesMounted = Math.max(0, buddiesMounted - 1);
+  };
+}
+
+export const isBoardBuddyMounted = (): boolean => buddiesMounted > 0;

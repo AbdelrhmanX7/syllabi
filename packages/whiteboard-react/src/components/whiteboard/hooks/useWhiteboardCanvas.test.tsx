@@ -9,6 +9,8 @@ import type { Canvas as FabricCanvas } from 'fabric';
 import type { TabletInputSettings } from '@repo/whiteboard-core';
 import type { UseWhiteboardCanvasProps } from './useWhiteboardCanvas';
 
+import { registerBoardBuddy } from '../ai/buddy';
+
 // The state this file pins lives in refs inside the hook; `window.__wbInputDebug` is the hook's OWN
 // shipped diagnostic (see publishInputDebug — it feeds the gated on-device input overlay) and is
 // published from the TOP of every pointer handler. So a snapshot read after dispatching event N
@@ -1872,6 +1874,7 @@ test('S Pen button in the air (default): a quick press opens the menu on RELEASE
 
   globals.CustomEvent = window.CustomEvent;
 
+  const unregister = registerBoardBuddy();
   const harness = await mountWhiteboard({
     onShortcutQuickMenu: (anchor) => menus.push(anchor),
     onShortcutColorToggle: () => {
@@ -1894,7 +1897,7 @@ test('S Pen button in the air (default): a quick press opens the menu on RELEASE
 
     // Held past the long-press threshold: the buddy listens while held, stops on release; no menu.
     nativePen(32, 0, false);
-    await wait(520);
+    await wait(720);
 
     assert.deepEqual(talk, [true], 'the long hold did not start the buddy');
     assert.equal(menus.length, 1);
@@ -1905,7 +1908,36 @@ test('S Pen button in the air (default): a quick press opens the menu on RELEASE
     assert.equal(menus.length, 1, 'a long hold must not also open the menu');
     assert.equal(colorSwaps, 0);
   } finally {
+    unregister();
     globals.CustomEvent = nodeCustomEvent;
+    window.removeEventListener('wb-board-buddy-talk', onTalk);
+    setStubRect({ left: 0, top: 0, width: 0, height: 0 });
+    await harness.unmount();
+    forgetPenDevice();
+  }
+});
+
+test('S Pen button in the air without a buddy on screen: a press opens the menu on RELEASE, however long it was held', async () => {
+  const menus: unknown[] = [];
+  const talk: boolean[] = [];
+  const onTalk = (event: Event) => talk.push(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+
+  window.addEventListener('wb-board-buddy-talk', onTalk);
+
+  const harness = await mountWhiteboard({ onShortcutQuickMenu: (anchor) => menus.push(anchor) });
+
+  try {
+    setStubRect({ left: 0, top: 0, width: 1000, height: 800 });
+    firePen(harness.container, 'pointermove', { pointerId: 6, clientX: 500, clientY: 200, buttons: 0 });
+
+    nativePen(32, 0, false);
+    await wait(720);
+    assert.equal(menus.length, 0);
+    nativePen(0, 32, false);
+
+    assert.equal(menus.length, 1, 'a long hover press must still open the menu on release when no buddy is mounted');
+    assert.deepEqual(talk, []);
+  } finally {
     window.removeEventListener('wb-board-buddy-talk', onTalk);
     setStubRect({ left: 0, top: 0, width: 0, height: 0 });
     await harness.unmount();

@@ -67,7 +67,9 @@ export {
   BOARD_BUDDY_TALK_EVENT,
   emitBoardBuddyState,
   emitBoardBuddyTalk,
+  isBoardBuddyMounted,
   isBoardBuddyRequest,
+  registerBoardBuddy,
   requestBoardBuddy,
 } from './buddy';
 export type { BoardBuddyRequest, BoardBuddyState } from './buddy';

@@ -85,7 +85,7 @@ import {
   type PenSignal,
 } from '../utils/penButtonMap';
 import { requestBoardAiCommand } from '../ai/commands';
-import { emitBoardBuddyTalk } from '../ai/buddy';
+import { emitBoardBuddyTalk, isBoardBuddyMounted } from '../ai/buddy';
 import {
   PEN_BUTTON_GESTURE_IDLE,
   stepPenButtonGesture,
@@ -134,6 +134,9 @@ registerLockedImagePersistence();
  * touch model: on a pen device a single finger PANS (the pen draws), on a touch-only panel (ViewSonic —
  * its capacitive pen reports as 'touch', so this stays false forever) a single finger DRAWS.
  */
+/** «Talk to the buddy» needs a longer in-air hold than other long-press actions (a slow menu press stays a menu press). */
+const BUDDY_TALK_HOLD_MS = 650;
+
 const HAS_SEEN_PEN_STORAGE_KEY = 'whiteboard-has-seen-pen';
 
 function readPersistedHasSeenPen(): boolean {
@@ -3492,9 +3495,18 @@ export function useWhiteboardCanvas({
         penButtonGestureTimersRef.current.delete(bindingId);
       }
     };
+    // «Talk to the buddy» only means something while a buddy is on screen; elsewhere the long hold is
+    // «Nothing» (the press opens the menu on release). It also needs a slightly longer hold, so a slow
+    // menu press does not open the mic.
+    const longActionOf = (binding: PenButtonBinding): PenButtonAction =>
+      binding.longHoverAction === 'buddy-talk' && !isBoardBuddyMounted() ? 'none' : binding.longHoverAction;
     const stepGesture = (binding: PenButtonBinding, input: PenButtonGestureInput) => {
       const current = penButtonGesturesRef.current.get(binding.id) ?? PEN_BUTTON_GESTURE_IDLE;
-      const step = stepPenButtonGesture(current, input, { longPress: binding.longHoverAction !== 'none' });
+      const longAction = longActionOf(binding);
+      const step = stepPenButtonGesture(current, input, {
+        longPress: longAction !== 'none',
+        ...(longAction === 'buddy-talk' ? { longPressMs: BUDDY_TALK_HOLD_MS } : {}),
+      });
 
       if (step.state.phase === 'idle') {
         penButtonGesturesRef.current.delete(binding.id);
@@ -3524,9 +3536,9 @@ export function useWhiteboardCanvas({
             // No vibrator / not allowed — the on-canvas cue still shows.
           }
 
-          runPenButtonAction(binding.longHoverAction, true, `long hover press (${binding.id})`);
+          runPenButtonAction(longAction, true, `long hover press (${binding.id})`);
         } else if (effect === 'long-hover-end') {
-          if (binding.longHoverAction === 'buddy-talk') emitBoardBuddyTalk(false);
+          if (longAction === 'buddy-talk') emitBoardBuddyTalk(false);
         } else if (effect === 'contact-start') {
           if (binding.action === 'erase-hold') {
             setPenButtonOverride('eraser');

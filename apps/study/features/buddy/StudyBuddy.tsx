@@ -8,7 +8,7 @@
 import type { BoardBuddyState } from '@repo/whiteboard-react';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, requestBoardBuddy } from '@repo/whiteboard-react';
+import { BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardBuddy } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
 import { Check, Mic, Send, Sparkles, X } from 'lucide-react';
 
@@ -62,6 +62,9 @@ export function StudyBuddy() {
     // No voice here: offer the typing box straight away.
     setTyping(true);
   });
+
+  // On screen: the pen button's long hold now talks to this buddy (elsewhere it stays a menu press).
+  useEffect(() => registerBoardBuddy(), []);
 
   // The typing box takes the keyboard as soon as it opens.
   useEffect(() => {
