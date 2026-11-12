@@ -28,6 +28,8 @@ export type PenButtonAction =
   | 'pen-shortcuts'
   | 'undo'
   | 'ai-lasso'
+  /** Hold in the air to talk to the study buddy (long hover only): listens while held. */
+  | 'buddy-talk'
   | 'none';
 
 /** Where the pen was when the button went down — each context has its own action (see penButtonGesture). */
@@ -58,6 +60,7 @@ export const PEN_BUTTON_HOVER_ACTIONS: ReadonlyArray<{ action: PenButtonAction; 
 
 /** Actions for a long press while HOVERING (fires at the threshold, with a short vibration). */
 export const PEN_BUTTON_LONG_HOVER_ACTIONS: ReadonlyArray<{ action: PenButtonAction; label: string; hint: string }> = [
+  { action: 'buddy-talk', label: 'Talk to the buddy', hint: 'Hold the button in the air and ask your question; let go and the buddy answers on your page.' },
   { action: 'color-toggle', label: 'Swap to secondary colour', hint: 'Swaps between your two chosen colours.' },
   { action: 'pen-shortcuts', label: 'Open pen shortcuts', hint: 'Opens the quick menu at the pen.' },
   { action: 'undo', label: 'Undo', hint: 'Undoes one step.' },
@@ -69,12 +72,16 @@ export const PEN_BUTTON_LONG_HOVER_ACTIONS: ReadonlyArray<{ action: PenButtonAct
 export const DEFAULT_PEN_BUTTON_HOVER_ACTION: PenButtonAction = 'pen-shortcuts';
 // Owner decision 2026-10-04: no in-air long-press action by default — a press in the air opens the
 // menu on release however long it was held. Still configurable on the «Pen buttons» page.
-export const DEFAULT_PEN_BUTTON_LONG_HOVER_ACTION: PenButtonAction = 'none';
+// Owner decision 2026-11-11: a long hold in the air talks to the study buddy (a quick press still
+// opens the menu). Maps saved as version 2 move their untouched «Nothing» over (see normalize).
+export const DEFAULT_PEN_BUTTON_LONG_HOVER_ACTION: PenButtonAction = 'buddy-talk';
 export const DEFAULT_PEN_BUTTON_CONTACT_ACTION: PenButtonAction = 'erase-hold';
 
 const ACTION_SET = new Set<PenButtonAction>([...PEN_BUTTON_ACTIONS.map((entry) => entry.action), 'eraser-toggle']);
 // The in-air slots also accept the AI lasso; the while-touching slot does not (the pen is writing).
 const AIR_ACTION_SET = new Set<PenButtonAction>([...Array.from(ACTION_SET), 'ai-lasso']);
+// Only the long in-air hold can talk to the buddy (it needs a release to stop listening).
+const LONG_AIR_ACTION_SET = new Set<PenButtonAction>([...Array.from(AIR_ACTION_SET), 'buddy-talk']);
 
 /** The board AI command a pen-button action fires, if any (see ai/commands). */
 export function boardAiCommandForPenAction(action: PenButtonAction): BoardAiCommand | null {
@@ -96,12 +103,12 @@ export interface PenButtonBinding {
 }
 
 export interface PenButtonMap {
-  /** 2 since the in-air long press defaulted to «Nothing» (see normalizePenButtonMap). */
-  version: 2;
+  /** 3 since the in-air long hold defaulted to «Talk to the buddy» (see normalizePenButtonMap). */
+  version: 3;
   bindings: PenButtonBinding[];
 }
 
-export const EMPTY_PEN_BUTTON_MAP: PenButtonMap = { version: 2, bindings: [] };
+export const EMPTY_PEN_BUTTON_MAP: PenButtonMap = { version: 3, bindings: [] };
 
 /** Android MotionEvent constants (mirrored so the log reads in words). */
 export const ANDROID_BUTTON_NAMES: Record<number, string> = {
@@ -305,7 +312,7 @@ export function withDefaultStylusBinding(map: PenButtonMap): PenButtonMap {
   if (findBindingForSignature(map, NATIVE_STYLUS_PRIMARY_SIGNATURE)) return map;
 
   return {
-    version: 2,
+    version: 3,
     bindings: [
       ...map.bindings,
       {
@@ -332,7 +339,10 @@ export function normalizePenButtonMap(value: unknown): PenButtonMap {
   const bindings: PenButtonBinding[] = [];
   // Maps written before version 2 carry the OLD default long press (colour swap) that nobody chose:
   // it becomes «Nothing». A version-2 map keeps whatever the teacher picked.
-  const isLegacyMap = (value as { version?: unknown }).version !== 2;
+  const version = (value as { version?: unknown }).version;
+  const isLegacyMap = version !== 2 && version !== 3;
+  // Version 2 carried «Nothing» as the in-air long hold by default; it becomes «Talk to the buddy».
+  const isV2Map = version === 2;
 
   for (const raw of rawBindings) {
     if (!raw || typeof raw !== 'object') continue;
@@ -362,8 +372,9 @@ export function normalizePenButtonMap(value: unknown): PenButtonMap {
         ? (entry.hoverAction as PenButtonAction)
         : DEFAULT_PEN_BUTTON_HOVER_ACTION,
       longHoverAction:
-        AIR_ACTION_SET.has(entry.longHoverAction as PenButtonAction) &&
-        !(isLegacyMap && entry.longHoverAction === 'color-toggle')
+        LONG_AIR_ACTION_SET.has(entry.longHoverAction as PenButtonAction) &&
+        !(isLegacyMap && entry.longHoverAction === 'color-toggle') &&
+        !(isV2Map && entry.longHoverAction === 'none')
           ? (entry.longHoverAction as PenButtonAction)
           : DEFAULT_PEN_BUTTON_LONG_HOVER_ACTION,
       signatures,
@@ -371,7 +382,7 @@ export function normalizePenButtonMap(value: unknown): PenButtonMap {
     });
   }
 
-  return { version: 2, bindings };
+  return { version: 3, bindings };
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -420,11 +431,11 @@ export function addPenButtonBinding(
     .map((binding) => ({ ...binding, signatures: binding.signatures.filter((sig) => !incoming.has(sig)) }))
     .filter((binding) => binding.signatures.length > 0);
 
-  return normalizePenButtonMap({ version: 2, bindings: [...kept, { ...input, signatures: Array.from(incoming) }] });
+  return normalizePenButtonMap({ version: 3, bindings: [...kept, { ...input, signatures: Array.from(incoming) }] });
 }
 
 export function removePenButtonBinding(map: PenButtonMap, bindingId: string): PenButtonMap {
-  return { version: 2, bindings: map.bindings.filter((binding) => binding.id !== bindingId) };
+  return { version: 3, bindings: map.bindings.filter((binding) => binding.id !== bindingId) };
 }
 
 export function updatePenButtonBinding(
@@ -433,7 +444,7 @@ export function updatePenButtonBinding(
   patch: Partial<Pick<PenButtonBinding, 'label' | 'action' | 'hoverAction' | 'longHoverAction'>>,
 ): PenButtonMap {
   return normalizePenButtonMap({
-    version: 2,
+    version: 3,
     bindings: map.bindings.map((binding) => (binding.id === bindingId ? { ...binding, ...patch } : binding)),
   });
 }

@@ -325,7 +325,7 @@ test('the S Pen works without learning: a built-in binding for native BUTTON_STY
 
   assert.ok(binding);
   assert.equal(binding.hoverAction, 'pen-shortcuts');
-  assert.equal(binding.longHoverAction, 'none', 'no in-air long-press action by default');
+  assert.equal(binding.longHoverAction, 'buddy-talk', 'a long hold in the air talks to the buddy by default');
   assert.equal(binding.action, 'erase-hold');
 
   const learned = addPenButtonBinding(EMPTY_PEN_BUTTON_MAP, {
@@ -345,9 +345,9 @@ test('a binding saved before the hover actions existed reads back with the defau
   }).bindings;
 
   assert.equal(binding.hoverAction, 'pen-shortcuts');
-  assert.equal(binding.longHoverAction, 'none');
+  assert.equal(binding.longHoverAction, 'buddy-talk');
   assert.equal(
-    updatePenButtonBinding({ version: 2, bindings: [binding] }, 'old', { longHoverAction: 'eraser-toggle' }).bindings[0]
+    updatePenButtonBinding({ version: 3, bindings: [binding] }, 'old', { longHoverAction: 'eraser-toggle' }).bindings[0]
       .longHoverAction,
     'eraser-toggle',
   );
@@ -387,13 +387,13 @@ test('migration: a version-1 map still holding the old default long press (colou
     ],
   });
 
-  assert.equal(legacy.version, 2);
+  assert.equal(legacy.version, 3);
   assert.deepEqual(
     legacy.bindings.map((binding) => binding.longHoverAction),
-    ['none', 'undo'],
+    ['buddy-talk', 'undo'],
   );
 
-  // A colour swap chosen on a version-2 map is the teacher's choice and stays.
+  // A colour swap chosen on a current map is the teacher's choice and stays.
   const chosen = updatePenButtonBinding(legacy, 'a', { longHoverAction: 'color-toggle' });
 
   assert.equal(chosen.bindings[0].longHoverAction, 'color-toggle');
@@ -455,4 +455,14 @@ test('«Ask AI (select)» is offered on both in-air slots only, maps to ai-lasso
 
   assert.equal(kept.hoverAction, 'ai-lasso');
   assert.equal(kept.longHoverAction, 'ai-lasso');
+});
+
+test('the buddy hold: v2 maps move their default «Nothing» over, v3 keeps an explicit «Nothing», the touching slot refuses it', () => {
+  const entry = { id: 'b', label: 'B', action: 'erase-hold', hoverAction: 'pen-shortcuts', longHoverAction: 'none', signatures: ['native:button:32'] };
+
+  assert.equal(normalizePenButtonMap({ version: 2, bindings: [entry] }).bindings[0]?.longHoverAction, 'buddy-talk');
+  assert.equal(normalizePenButtonMap({ version: 3, bindings: [entry] }).bindings[0]?.longHoverAction, 'none');
+  assert.equal(normalizePenButtonMap({ version: 3, bindings: [{ ...entry, longHoverAction: 'eraser-toggle' }] }).bindings[0]?.longHoverAction, 'eraser-toggle');
+  assert.equal(normalizePenButtonMap({ version: 3, bindings: [{ ...entry, hoverAction: 'buddy-talk' }] }).bindings[0]?.hoverAction, 'pen-shortcuts');
+  assert.equal(normalizePenButtonMap({ version: 3, bindings: [{ ...entry, action: 'buddy-talk' }] }).bindings.length, 0);
 });

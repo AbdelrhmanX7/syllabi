@@ -22,6 +22,7 @@ import {
 } from './boardObjects';
 import { layoutToPlacements, snapLayoutToLines } from './pageLayout';
 import { BOARD_AI_COMMAND_EVENT, isBoardAiCommand } from './commands';
+import { BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
 import { readConceptStyle, writeConceptStyle } from './conceptMap';
 import {
   boundsOf,
@@ -56,6 +57,7 @@ import { parsePenPlan, planPenActions } from './penActions';
 import { buildPenActionObjects } from './penActionObjects';
 import { showPointerSprite } from './penPointer';
 import { playObjectReveal, playPenTurn, playWriteOn } from './writeOn';
+import type { WriteOnPlayback } from './writeOn';
 
 import type { BoardAiPanelActions, CircleFollowUp, PanelSession } from './BoardAiPanel';
 import type { PanelPlacement, PanelPoint, PanelSize } from './panelDrag';
@@ -145,6 +147,16 @@ export interface BoardAiLayerProps {
 }
 
 const DASH_STYLE_ID = 'wb-ai-ants-style';
+/** How long the buddy's temporary marks (and its pointers) stay before they fade. */
+const BUDDY_MARKS_MS = 40_000;
+
+interface BuddyMarks {
+  objects: FabricObject[];
+  playback: WriteOnPlayback | null;
+  pointers: Array<() => void>;
+  pageId: string | null;
+  vpt: number[];
+}
 
 function ensureAntsStyle() {
   if (typeof document === 'undefined' || document.getElementById(DASH_STYLE_ID)) return;
@@ -429,6 +441,9 @@ export function BoardAiLayer({
   const termsAbortRef = useRef<AbortController | null>(null);
   /** «Explain on my page»: what was selected when the panel opened (empty = the whole page). */
   const penSelectionRef = useRef<FabricObject[]>([]);
+  const buddyMarksRef = useRef<BuddyMarks | null>(null);
+  const buddyFadeRef = useRef<number | null>(null);
+  const buddyAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     ensureAntsStyle();
@@ -936,12 +951,20 @@ export function BoardAiLayer({
    * step. Cancelling (the signal) discards the overlay and nothing joins the board.
    */
   const penExplain = useCallback(
-    async (question: string, signal: AbortSignal, onStatus: (line: string | null) => void): Promise<{ say?: string; added: number }> => {
+    async (
+      question: string,
+      signal: AbortSignal,
+      onStatus: (line: string | null) => void,
+      buddy?: { origin?: { x: number; y: number } },
+    ): Promise<{ say?: string; added: number }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
       const onCanvas = new Set(canvas.getObjects());
-      const selected = penSelectionRef.current.filter((object) => onCanvas.has(object));
+      // The buddy asks about the live selection (if any); the panel about the one it remembered.
+      const selected = buddy
+        ? canvas.getActiveObjects().filter((object) => object.visible !== false && !(object as unknown as Record<string, unknown>)[AI_OBJECT_PROP])
+        : penSelectionRef.current.filter((object) => onCanvas.has(object));
       const all = canvas.getObjects().filter((object) => object.visible !== false);
       const rectOf = (object: FabricObject): SceneRect => {
         object.setCoords();
@@ -976,6 +999,7 @@ export function BoardAiLayer({
       const clusters = clusterInk(rects, { letterHeight });
 
       onStatus(t('ai.pen.reading'));
+      if (buddy) emitBoardBuddyState({ phase: 'reading' });
 
       // The whole sheet as the model sees it: a JPEG with the long edge at 1600 px.
       const scale = Math.min(4, 1600 / Math.max(sheet.width, sheet.height));
@@ -986,6 +1010,7 @@ export function BoardAiLayer({
       if (signal.aborted) return { added: 0 };
 
       onStatus(t('ai.pen.planning'));
+      if (buddy) emitBoardBuddyState({ phase: 'planning' });
 
       const raw = await service.penPlan(
         {
@@ -1006,6 +1031,7 @@ export function BoardAiLayer({
       if (bridge.getPageId() !== pageAtStart) throw new Error(t('ai.layer.pageChanged'));
 
       onStatus(t('ai.pen.drawing'));
+      if (buddy) emitBoardBuddyState({ phase: 'drawing' });
 
       const zoom = viewportOf(canvas)[0] || 1;
       const strokeWidth = hand?.strokeWidth || Math.max(1, penWidth);
@@ -1029,12 +1055,19 @@ export function BoardAiLayer({
 
       const host = rootRef.current;
       const pointers: Array<() => void> = [];
+      const hostBox = host?.getBoundingClientRect();
+      const from = buddy?.origin && hostBox ? { left: buddy.origin.x - hostBox.left, top: buddy.origin.y - hostBox.top } : undefined;
       const playback = host
         ? playPenTurn(canvas, host, built.steps, {
+            linger: !!buddy,
             onPointer: (at, note) => {
               const layer = sceneRectToLayer({ left: at.x, top: at.y, width: 0, height: 0 });
 
-              if (layer) pointers.push(showPointerSprite(host, { left: layer.left, top: layer.top }, note));
+              if (layer) {
+                pointers.push(
+                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BUDDY_MARKS_MS, ...(from ? { from } : {}) } : undefined),
+                );
+              }
             },
           })
         : null;
@@ -1057,6 +1090,13 @@ export function BoardAiLayer({
         return { added: 0 };
       }
 
+      if (buddy) {
+        // Temporary: the marks stay on the overlay; «Keep» adds these same objects later.
+        buddyMarksRef.current = { objects: built.objects, playback, pointers, pageId: pageAtStart, vpt: [...viewportOf(canvas)] };
+
+        return { ...(result.say ? { say: result.say } : {}), added: built.objects.length };
+      }
+
       // One tick: every add lands in the same idle snapshot → ONE undo step.
       if (built.objects.length > 0) {
         canvas.add(...built.objects);
@@ -1068,6 +1108,128 @@ export function BoardAiLayer({
       return { ...(result.say ? { say: result.say } : {}), added: built.objects.length };
     },
     [bridge, canvas, penColor, penWidth, sceneRectToLayer, service, t],
+  );
+
+  /** Ends the buddy's temporary marks (fade timer, «Clear», a new question, a page change). */
+  const clearBuddyMarks = useCallback((announce: boolean) => {
+    const marks = buddyMarksRef.current;
+
+    if (buddyFadeRef.current !== null) window.clearTimeout(buddyFadeRef.current);
+    buddyFadeRef.current = null;
+    buddyMarksRef.current = null;
+
+    if (!marks) return;
+
+    marks.playback?.dispose();
+    marks.pointers.forEach((dispose) => dispose());
+
+    if (announce) emitBoardBuddyState({ phase: 'cleared' });
+  }, []);
+
+  const keepBuddyMarks = useCallback(() => {
+    const marks = buddyMarksRef.current;
+
+    if (!canvas || !marks) return;
+
+    clearBuddyMarks(false);
+
+    if (bridge.getPageId() !== marks.pageId || marks.objects.length === 0) {
+      emitBoardBuddyState({ phase: 'cleared' });
+
+      return;
+    }
+
+    // One tick → one undo step, exactly like the panel's «Explain on my page».
+    canvas.add(...marks.objects);
+    canvas.renderAll();
+    emitBoardBuddyState({ phase: 'kept', added: marks.objects.length });
+  }, [bridge, canvas, clearBuddyMarks]);
+
+  const askBuddy = useCallback(
+    async (question: string, origin?: { x: number; y: number }) => {
+      buddyAbortRef.current?.abort();
+      clearBuddyMarks(false);
+
+      const controller = new AbortController();
+
+      buddyAbortRef.current = controller;
+
+      try {
+        const { say, added } = await penExplain(question.trim(), controller.signal, () => undefined, origin ? { origin } : {});
+
+        if (controller.signal.aborted) return;
+
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), marks: added });
+
+        if (added > 0) buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true), BUDDY_MARKS_MS);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        const code = (error as { code?: unknown })?.code;
+
+        emitBoardBuddyState({
+          phase: 'error',
+          message: error instanceof Error && error.message ? error.message : t('ai.pen.failed'),
+          ...(typeof code === 'string' ? { code } : {}),
+        });
+      } finally {
+        if (buddyAbortRef.current === controller) buddyAbortRef.current = null;
+      }
+    },
+    [clearBuddyMarks, penExplain, t],
+  );
+
+  useEffect(() => {
+    if (!canvas || !service.penPlan) return;
+
+    const onRequest = (event: Event) => {
+      const request = (event as CustomEvent<unknown>).detail;
+
+      if (!isBoardBuddyRequest(request)) return;
+      if (request.type === 'ask') void askBuddy(request.question, request.origin);
+      else if (request.type === 'keep') keepBuddyMarks();
+      else {
+        buddyAbortRef.current?.abort();
+        clearBuddyMarks(true);
+      }
+    };
+    // The marks follow pan/zoom; the pointers (screen sprites) go once the view moves; a new page ends it all.
+    const onRender = () => {
+      const marks = buddyMarksRef.current;
+
+      if (!marks) return;
+
+      if (bridge.getPageId() !== marks.pageId) {
+        clearBuddyMarks(true);
+
+        return;
+      }
+
+      const vpt = viewportOf(canvas);
+
+      if (marks.pointers.length > 0 && vpt.some((value, index) => Math.abs(value - (marks.vpt[index] ?? value)) > 0.5)) {
+        marks.pointers.forEach((dispose) => dispose());
+        marks.pointers = [];
+      }
+
+      marks.playback?.repaint?.();
+    };
+
+    window.addEventListener(BOARD_BUDDY_REQUEST_EVENT, onRequest);
+    canvas.on('after:render', onRender as never);
+
+    return () => {
+      window.removeEventListener(BOARD_BUDDY_REQUEST_EVENT, onRequest);
+      canvas.off('after:render', onRender as never);
+    };
+  }, [askBuddy, bridge, canvas, clearBuddyMarks, keepBuddyMarks, service.penPlan]);
+
+  useEffect(
+    () => () => {
+      buddyAbortRef.current?.abort();
+      clearBuddyMarks(false);
+    },
+    [clearBuddyMarks],
   );
 
   const renderPage = useCallback(

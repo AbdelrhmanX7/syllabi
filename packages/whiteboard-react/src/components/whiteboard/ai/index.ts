@@ -61,6 +61,16 @@ export { BoardAiLayer } from './BoardAiLayer';
 export type { BoardAiEditorBridge, BoardAiLayerProps, BoardAiRenderRequest } from './BoardAiLayer';
 export { BOARD_AI_COMMAND_EVENT, isBoardAiCommand, requestBoardAiCommand } from './commands';
 export type { BoardAiCommand, BoardAiCommandDetail } from './commands';
+export {
+  BOARD_BUDDY_REQUEST_EVENT,
+  BOARD_BUDDY_STATE_EVENT,
+  BOARD_BUDDY_TALK_EVENT,
+  emitBoardBuddyState,
+  emitBoardBuddyTalk,
+  isBoardBuddyRequest,
+  requestBoardBuddy,
+} from './buddy';
+export type { BoardBuddyRequest, BoardBuddyState } from './buddy';
 export { blocksToMarkdown, extractJsonObject, markdownToBlocks } from './markdownBlocks';
 export { parsePageAnalysis } from './pageAnalysis';
 export { DEFAULT_CONCEPT_STYLE, parseConceptMap, parseConceptMapAnalysis } from './conceptMap';

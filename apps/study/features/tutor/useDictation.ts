@@ -17,6 +17,9 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
   const [state, setState] = useState<DictationState>('idle');
   const [seconds, setSeconds] = useState(0);
   const stopRef = useRef<(() => void) | null>(null);
+  // A stop that arrived while the mic was still opening (a quick hold-to-talk release): honour it
+  // the moment recording starts, so the mic never stays on after the finger or pen button is up.
+  const stopPendingRef = useRef(false);
   const cbRef = useRef({ onText, onError });
 
   cbRef.current = { onText, onError };
@@ -65,6 +68,7 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
 
   const start = useCallback(async () => {
     if (state !== 'idle') return;
+    stopPendingRef.current = false;
     if ((backendMissing || !canRecordAudio()) && startBrowserEngine()) return;
 
     let stream: MediaStream;
@@ -73,6 +77,13 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
       stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
     } catch {
       cbRef.current.onError('Microphone blocked — allow it in Settings.');
+
+      return;
+    }
+
+    if (stopPendingRef.current) {
+      stopPendingRef.current = false;
+      stream.getTracks().forEach((track) => track.stop());
 
       return;
     }
@@ -117,7 +128,10 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
     setState('recording');
   }, [state]);
 
-  const stop = useCallback(() => stopRef.current?.(), []);
+  const stop = useCallback(() => {
+    if (stopRef.current) stopRef.current();
+    else stopPendingRef.current = true;
+  }, []);
 
   return { state, seconds, start, stop };
 }

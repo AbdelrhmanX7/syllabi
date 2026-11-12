@@ -37,7 +37,7 @@ test('short hover press fires on RELEASE, never on press', () => {
   );
 });
 
-test('long hover press fires AT the threshold; its release does nothing', () => {
+test('long hover press fires AT the threshold; its release ends the hold', () => {
   const result = run([
     { type: 'press', contact: false, now: 0 },
     { type: 'tick', now: 449 },
@@ -45,7 +45,7 @@ test('long hover press fires AT the threshold; its release does nothing', () => 
     { type: 'release', now: 900 },
   ]);
 
-  assert.deepEqual(result.effects, ['long-hover']);
+  assert.deepEqual(result.effects, ['long-hover', 'long-hover-end']);
   assert.deepEqual(result.state, PEN_BUTTON_GESTURE_IDLE);
   // An early tick asks to be called back for the rest.
   assert.equal(stepPenButtonGesture({ phase: 'hover-pressed', at: 0 }, { type: 'tick', now: 300 }).tickIn, 150);
@@ -57,7 +57,7 @@ test('a late timer never turns a long hold into a short press', () => {
       { type: 'press', contact: false, now: 0 },
       { type: 'release', now: 700 },
     ]).effects,
-    ['long-hover'],
+    ['long-hover', 'long-hover-end'],
   );
 });
 
@@ -91,7 +91,7 @@ test('pressed in the air then put down: the pending hover gesture is cancelled a
       { type: 'contact-start', now: 600 },
       { type: 'release', now: 900 },
     ]).effects,
-    ['long-hover', 'contact-start', 'contact-end'],
+    ['long-hover', 'long-hover-end', 'contact-start', 'contact-end'],
   );
 });
 

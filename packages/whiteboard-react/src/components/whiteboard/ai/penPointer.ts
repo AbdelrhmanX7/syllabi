@@ -29,13 +29,17 @@ function ensurePointerStyle(): void {
 
 export interface PointerSpriteOptions {
   ttlMs?: number;
+  /** Fly in from this point (px inside `host`, e.g. the buddy button) instead of popping in place. */
+  from?: { left: number; top: number };
 }
+
+const FLY_MS = 520;
 
 /**
  * Shows the pointer at `(left, top)` px inside `host` (positioned). Returns a disposer; the sprite
  * removes itself after the TTL anyway.
  */
-export function showPointerSprite(host: HTMLElement, at: { left: number; top: number }, note: string | undefined, { ttlMs = POINTER_TTL_MS }: PointerSpriteOptions = {}): () => void {
+export function showPointerSprite(host: HTMLElement, at: { left: number; top: number }, note: string | undefined, { ttlMs = POINTER_TTL_MS, from }: PointerSpriteOptions = {}): () => void {
   ensurePointerStyle();
 
   const root = document.createElement('div');
@@ -60,7 +64,20 @@ export function showPointerSprite(host: HTMLElement, at: { left: number; top: nu
     root.appendChild(bubble);
   }
 
+  const fly = from && !(typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+  if (fly) {
+    // Transform only: start at the buddy, glide to the spot.
+    root.style.transform = `translate(${Math.round(from.left - at.left)}px, ${Math.round(from.top - at.top)}px)`;
+    root.style.transition = `transform ${FLY_MS}ms cubic-bezier(.3,.8,.3,1), opacity ${FADE_MS}ms ease`;
+  }
+
   host.appendChild(root);
+
+  if (fly) {
+    void root.offsetWidth;
+    root.style.transform = 'translate(0px, 0px)';
+  }
 
   let removed = false;
   const remove = () => {

@@ -1858,9 +1858,20 @@ test('S Pen button held in the air then put down: eraser from the first touch; a
   }
 });
 
-test('S Pen button in the air (default): a press opens the menu at the pen on RELEASE, however long it was held', async () => {
+test('S Pen button in the air (default): a quick press opens the menu on RELEASE; a long hold talks to the buddy instead', async () => {
   const menus: unknown[] = [];
   let colorSwaps = 0;
+  const talk: boolean[] = [];
+  const onTalk = (event: Event) => talk.push(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+
+  window.addEventListener('wb-board-buddy-talk', onTalk);
+
+  // Same realm swap as the «Ask AI (select)» test below: jsdom's window refuses Node's CustomEvent.
+  const globals = globalThis as unknown as { CustomEvent: typeof CustomEvent };
+  const nodeCustomEvent = globals.CustomEvent;
+
+  globals.CustomEvent = window.CustomEvent;
+
   const harness = await mountWhiteboard({
     onShortcutQuickMenu: (anchor) => menus.push(anchor),
     onShortcutColorToggle: () => {
@@ -1879,18 +1890,23 @@ test('S Pen button in the air (default): a press opens the menu at the pen on RE
     assert.equal(menus.length, 1, 'a hover press did not open the menu');
     assert.deepEqual(menus[0], { x: 0.5, y: 0.25 }, 'the menu was not placed at the pen');
 
-    // Held well past the old long-press threshold: still the menu on release, and no colour swap.
+    assert.deepEqual(talk, [], 'a quick press must not wake the buddy');
+
+    // Held past the long-press threshold: the buddy listens while held, stops on release; no menu.
     nativePen(32, 0, false);
     await wait(520);
 
-    assert.equal(colorSwaps, 0, 'the in-air long press must do nothing by default');
+    assert.deepEqual(talk, [true], 'the long hold did not start the buddy');
     assert.equal(menus.length, 1);
 
     nativePen(0, 32, false);
 
-    assert.equal(menus.length, 2, 'a long hover press must still open the menu on release');
+    assert.deepEqual(talk, [true, false], 'the release did not stop the buddy');
+    assert.equal(menus.length, 1, 'a long hold must not also open the menu');
     assert.equal(colorSwaps, 0);
   } finally {
+    globals.CustomEvent = nodeCustomEvent;
+    window.removeEventListener('wb-board-buddy-talk', onTalk);
     setStubRect({ left: 0, top: 0, width: 0, height: 0 });
     await harness.unmount();
     forgetPenDevice();

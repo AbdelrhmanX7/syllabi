@@ -16,6 +16,8 @@ export interface WriteOnPlayback {
   skip: () => void;
   /** Removes the overlay — call after the real objects have been rendered. */
   dispose: () => void;
+  /** `linger` only: repaints the finished marks at the board's current pan/zoom. */
+  repaint?: () => void;
 }
 
 export const prefersReducedMotion = (): boolean => {
@@ -298,7 +300,19 @@ export function playPenTurn(
   canvas: Canvas,
   host: HTMLElement,
   steps: PenRevealStep[],
-  { onPointer, maxTotalMs = 9000 }: { onPointer?: (at: { x: number; y: number }, note?: string) => void; maxTotalMs?: number } = {},
+  {
+    onPointer,
+    maxTotalMs = 9000,
+    linger = false,
+  }: {
+    onPointer?: (at: { x: number; y: number }, note?: string) => void;
+    maxTotalMs?: number;
+    /**
+     * Keep the finished marks painted on the overlay (pass-through to touches) instead of waiting for
+     * the real objects — the buddy's temporary marks. `repaint()` follows pan/zoom; `dispose()` ends them.
+     */
+    linger?: boolean;
+  } = {},
 ): WriteOnPlayback {
   const element = canvas.getElement();
   const overlay = document.createElement('canvas');
@@ -323,7 +337,9 @@ export function playPenTurn(
     overlay.remove();
   };
 
-  if (steps.length === 0 || prefersReducedMotion() || typeof Path2D === 'undefined') {
+  const instant = steps.length === 0 || prefersReducedMotion();
+
+  if (typeof Path2D === 'undefined' || (instant && !linger)) {
     // No animation: the pointers still show, so the «look here» is not lost.
     steps.forEach((_, index) => point(index));
     resolve();
@@ -379,6 +395,12 @@ export function playPenTurn(
 
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null;
+
+    if (linger) {
+      overlay.style.pointerEvents = 'none';
+      paint(totalMs);
+    }
+
     resolve();
   };
 
@@ -434,10 +456,9 @@ export function playPenTurn(
 
   const t0 = performance.now();
 
-  const draw = (now: number) => {
-    if (!ctx || finished) return;
+  function paint(elapsed: number) {
+    if (!ctx) return;
 
-    const elapsed = Math.min(totalMs, now - t0);
     const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -507,12 +528,21 @@ export function playPenTurn(
 
       ctx.restore();
     });
+  }
+
+  const draw = (now: number) => {
+    if (!ctx || finished) return;
+
+    const elapsed = Math.min(totalMs, now - t0);
+
+    paint(elapsed);
 
     if (elapsed >= totalMs) finish();
     else frame = requestAnimationFrame(draw);
   };
 
-  frame = requestAnimationFrame(draw);
+  if (instant) finish();
+  else frame = requestAnimationFrame(draw);
 
-  return { done, skip: finish, dispose };
+  return { done, skip: finish, dispose, ...(linger ? { repaint: () => finished && paint(totalMs) } : {}) };
 }

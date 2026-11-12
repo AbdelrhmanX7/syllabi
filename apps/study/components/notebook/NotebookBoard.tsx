@@ -32,6 +32,7 @@ import dynamic from 'next/dynamic';
 
 import { ClaudeFeedback } from '@/components/notebook/ClaudeFeedback';
 import { RulerOverlay } from '@/components/notebook/RulerOverlay';
+import { StudyBuddy } from '@/features/buddy/StudyBuddy';
 import { useRulerPresets, usePutRulerPreset } from '@/lib/api/hooks';
 import { ActionButton, BOARD_CHIP, BOARD_CHIP_OVERRIDE } from '@/components/ui/primitives';
 import { BOARD_DRAW_EVENT, boardGraphInput, clearBoardDraw, peekBoardDraw } from '@/features/conceptmaps/lib/boardDraw';
@@ -946,6 +947,8 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
+      {/* The study buddy: only where the board can look at the page and mark it up (AI on, writable). */}
+      {!focusMode && !readOnly && boardAi?.penPlan && <StudyBuddy />}
       {rulerOn && !readOnly && (
         <RulerOverlay
           edgesRef={rulerEdgesRef}

@@ -85,6 +85,7 @@ import {
   type PenSignal,
 } from '../utils/penButtonMap';
 import { requestBoardAiCommand } from '../ai/commands';
+import { emitBoardBuddyTalk } from '../ai/buddy';
 import {
   PEN_BUTTON_GESTURE_IDLE,
   stepPenButtonGesture,
@@ -3478,6 +3479,9 @@ export function useWhiteboardCanvas({
         commitInterruptedFreehandStroke(canvas);
         endObjectEraseDrag();
         onShortcutToolToggleRef.current?.();
+      } else if (action === 'buddy-talk') {
+        // Hold-to-talk: the host's buddy listens until the matching `long-hover-end`.
+        emitBoardBuddyTalk(true);
       }
     };
     const clearGestureTimer = (bindingId: string) => {
@@ -3521,6 +3525,8 @@ export function useWhiteboardCanvas({
           }
 
           runPenButtonAction(binding.longHoverAction, true, `long hover press (${binding.id})`);
+        } else if (effect === 'long-hover-end') {
+          if (binding.longHoverAction === 'buddy-talk') emitBoardBuddyTalk(false);
         } else if (effect === 'contact-start') {
           if (binding.action === 'erase-hold') {
             setPenButtonOverride('eraser');

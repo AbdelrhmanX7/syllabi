@@ -4,7 +4,7 @@
  * The same physical button means three different things depending on where the pen is:
  *   - pressed and released while HOVERING                    → `short-hover`  (default: quick pen menu)
  *   - held while HOVERING past {@link PEN_BUTTON_LONG_PRESS_MS} → `long-hover`, fired AT the threshold;
- *     its release does nothing. ONLY when the button has a long-press action: with none (the default)
+ *     its release (or touching down) sends `long-hover-end` (the buddy's hold-to-talk stops there). ONLY when the button has a long-press action: with none (the default)
  *     there is no timer and a hover press opens the menu on release however long it was held.
  *   - held while the pen TOUCHES — pressed on the glass, or pressed in the air and then put down —
  *                                                           → `contact-start` … `contact-end`
@@ -23,7 +23,7 @@ export type PenButtonGestureState =
   | { phase: 'hover-long-fired' }
   | { phase: 'contact-held' };
 
-export type PenButtonGestureEffect = 'short-hover' | 'long-hover' | 'contact-start' | 'contact-end';
+export type PenButtonGestureEffect = 'short-hover' | 'long-hover' | 'long-hover-end' | 'contact-start' | 'contact-end';
 
 export type PenButtonGestureInput =
   | { type: 'press'; contact: boolean; now: number }
@@ -75,8 +75,10 @@ export function stepPenButtonGesture(
       return { state: { phase: 'hover-long-fired' }, effects: ['long-hover'], tickIn: null };
 
     case 'contact-start':
-      if (state.phase === 'hover-pressed' || state.phase === 'hover-long-fired') {
-        return { state: { phase: 'contact-held' }, effects: ['contact-start'], tickIn: null };
+      if (state.phase === 'hover-pressed') return { state: { phase: 'contact-held' }, effects: ['contact-start'], tickIn: null };
+
+      if (state.phase === 'hover-long-fired') {
+        return { state: { phase: 'contact-held' }, effects: ['long-hover-end', 'contact-start'], tickIn: null };
       }
 
       return stay();
@@ -84,13 +86,13 @@ export function stepPenButtonGesture(
     case 'release':
       if (state.phase === 'hover-pressed') {
         // A late timer must not turn a long hold into a short press.
-        const effect: PenButtonGestureEffect =
-          longPress && input.now - state.at >= longPressMs ? 'long-hover' : 'short-hover';
+        const effects: PenButtonGestureEffect[] =
+          longPress && input.now - state.at >= longPressMs ? ['long-hover', 'long-hover-end'] : ['short-hover'];
 
-        return { state: PEN_BUTTON_GESTURE_IDLE, effects: [effect], tickIn: null };
+        return { state: PEN_BUTTON_GESTURE_IDLE, effects, tickIn: null };
       }
 
-      if (state.phase === 'hover-long-fired') return { state: PEN_BUTTON_GESTURE_IDLE, effects: [], tickIn: null };
+      if (state.phase === 'hover-long-fired') return { state: PEN_BUTTON_GESTURE_IDLE, effects: ['long-hover-end'], tickIn: null };
 
       if (state.phase === 'contact-held') {
         return { state: PEN_BUTTON_GESTURE_IDLE, effects: ['contact-end'], tickIn: null };
