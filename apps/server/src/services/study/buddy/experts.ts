@@ -120,7 +120,7 @@ export function buildBrief(expert: BuddyExpert, ctx: { memory: string[]; weakTop
       : []),
     ...(ctx.weakTopics.length ? ["", `THE STUDENT'S WEAKEST TOPICS IN THIS CLASS (lean towards these when it fits the page): ${ctx.weakTopics.join("; ")}`] : []),
     "",
-    'MEMORY: if this turn shows something lasting about the student that would help next time (a mistake they keep making, a method they prefer, something they have clearly mastered), add "remember": ["one short sentence"] — at most one, about the STUDENT, not about this page. Usually leave it out.',
+    'MEMORY: if this turn shows something lasting about the student that would help next time (a mistake they keep making, a method they prefer, something they have clearly mastered), add "remember": ["one short sentence"] — at most one, about the STUDENT, not about this page. Never save something you already remember (same idea in other words). Usually leave it out.',
   ].join("\n");
 }
 
