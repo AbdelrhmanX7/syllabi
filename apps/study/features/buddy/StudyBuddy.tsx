@@ -247,6 +247,8 @@ export function StudyBuddy() {
         setSimilar(state.similar ?? null);
         setTrace(state.trace ?? []);
         setTurnId(state.turnId ?? null);
+        // The app's own step (did the answer get written on the page, and if not why) joins the answer's log.
+        if (state.turnId && state.pageStep && !isMockRoute('/ai/buddy/turns', 'POST')) void studyPost(`/ai/buddy/turns/${state.turnId}/page`, { ms: state.pageStep.ms, detail: state.pageStep.detail }).catch(() => undefined);
         setWrote(Boolean(state.wrote));
         if (state.skill) setSkill(state.skill);
         setMarks(state.marks);

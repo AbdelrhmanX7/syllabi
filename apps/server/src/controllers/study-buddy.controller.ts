@@ -141,3 +141,16 @@ export const addBuddyNote = wrap(async (req, res) => {
   const kept = await rememberForBuddy(uid(req), isOid(req.body?.classId) ? new Types.ObjectId(String(req.body.classId)) : null, [text], "you");
   res.json({ ok: kept.length > 0 });
 });
+
+/** POST /study/ai/buddy/turns/:id/page {ms, detail} — the app's own step: was the answer written on the page, and if not, why. Once per turn. */
+export const reportBuddyPageStep = wrap(async (req, res) => {
+  if (!isOid(req.params.id)) return fail(res, 404, "NOT_FOUND", "Not found");
+  const detail = typeof req.body?.detail === "string" ? req.body.detail.replace(/\s+/g, " ").trim().slice(0, 400) : "";
+  if (!detail) return fail(res, 400, "VALIDATION_ERROR", "detail is required");
+  const ms = Math.max(0, Math.min(120_000, Number(req.body?.ms) || 0));
+  await StudyBuddyTurn.updateOne(
+    { _id: req.params.id, userId: uid(req), "trace.kind": { $ne: "page" } },
+    { $push: { trace: { kind: "page", name: "Writing on your page", models: [], ms, costUsd: 0, detail } } }
+  );
+  res.json({ ok: true });
+});

@@ -344,7 +344,17 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
     return {
       actions: [{ type: 'circle', target: ref(first) }],
       say: 'Sample solution — the real tutor solves the question on your page.',
-      steps: ['Write down what is given: $2x + 3 = 11$', 'Subtract 3 from both sides: $2x = 8$', 'Divide both sides by 2: $x = \\frac{8}{2} = 4$', 'Final answer: $x = 4$'],
+      steps: [
+        'Since $f(x) = x - 2\\sin x$ is continuous on $[0, \\pi]$, absolute extrema exist and occur at endpoints or interior critical points.',
+        "Differentiate: $f'(x) = 1 - 2\\cos x$.",
+        'Set the derivative equal to zero: $1 - 2\\cos x = 0 \\implies \\cos x = \\frac{1}{2}$.',
+        'Find the only critical point in $(0, \\pi)$: $x = \\frac{\\pi}{3}$; the derivative exists everywhere.',
+        'Evaluate the left endpoint: $f(0) = 0 - 2\\sin 0 = 0$.',
+        'Evaluate the critical point: $f\\left(\\frac{\\pi}{3}\\right) = \\frac{\\pi}{3} - 2\\left(\\frac{\\sqrt{3}}{2}\\right) = \\frac{\\pi}{3} - \\sqrt{3}$.',
+        'Evaluate the right endpoint: $f(\\pi) = \\pi - 2\\sin \\pi = \\pi$.',
+        'Compare the values: $\\frac{\\pi}{3} - \\sqrt{3} \\approx -0.685 < 0 < \\pi$.',
+        'Final answer: $\\boxed{\\text{absolute min } \\frac{\\pi}{3} - \\sqrt{3} \\text{ at } x = \\frac{\\pi}{3},\\ \\text{absolute max } \\pi \\text{ at } x = \\pi}$',
+      ],
       skill,
       turnId: 'sample',
       trace: sampleTrace('Solver', '1 mark on the page, 4 steps.'),

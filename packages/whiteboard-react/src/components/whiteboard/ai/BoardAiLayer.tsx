@@ -55,7 +55,7 @@ import { buildTermsMapObjects } from './termsMapObjects';
 import { checkCaptureRegion, groupInkLines, linesToClusters, parseStepCheck, pixelBoxToScene, placeStepMarks, stepCheckQuestion } from './stepCheck';
 import { buildStepMarkObjects, isStepMark } from './stepCheckObjects';
 import { parsePenPlan, planPenActions } from './penActions';
-import { buildOccupancy, contentBlocks, findFreeBox } from './pageOccupancy';
+import { buildOccupancy, contentBlocks, findFreeBox, rulingOf } from './pageOccupancy';
 import type { PxBox } from './pageOccupancy';
 import { buildPenActionObjects, CARD_INK } from './penActionObjects';
 import { buildWorkedSteps } from './workedSteps';
@@ -70,7 +70,7 @@ import type { PlaceOverlay } from './useRemakeDraft';
 import type { PageBackgroundInfo, SnapshotLayers } from './remakeSnapshot';
 import type { BoardAiCommand } from './commands';
 import type { StepCheckResult } from './stepCheck';
-import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, PenPageVerdict, PenPlanResult, SceneRect, ScenePoint } from './types';
+import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, PenPageVerdict, PenPlanResult, PenTraceStep, SceneRect, ScenePoint } from './types';
 import type { WhiteboardTool } from '../types';
 
 import { measureChromeInsets } from '../utils/chromeInsets';
@@ -966,7 +966,7 @@ export function BoardAiLayer({
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
       buddy?: { origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number }; skill?: string },
-    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[]; steps?: string[]; wrote?: boolean; extra?: Pick<PenPlanResult, 'quiz' | 'similar' | 'skill' | 'turnId' | 'trace'> }> => {
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[]; steps?: string[]; wrote?: boolean; extra?: Pick<PenPlanResult, 'quiz' | 'similar' | 'skill' | 'turnId' | 'trace'> & { pageStep?: PenTraceStep } }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -1116,7 +1116,7 @@ export function BoardAiLayer({
       }
 
       const place = grid
-        ? (wanted: SceneRect, alt?: SceneRect, home?: SceneRect, far = false): SceneRect | null => {
+        ? (wanted: SceneRect, alt?: SceneRect, home?: SceneRect, far = false, anywhere = false): SceneRect | null => {
             const toPx = (rect: SceneRect): PxBox => ({ x: (rect.left - sheet.left) * px, y: (rect.top - sheet.top) * px, w: rect.width * px, h: rect.height * px });
             const about = toPx(home ?? wanted);
             const cy = about.y + about.h / 2;
@@ -1135,7 +1135,8 @@ export function BoardAiLayer({
             }
 
             // A region that is on screen gets its note on screen — never ink out of sight or under the bars.
-            if (cx >= seen.x && cx <= seen.x + seen.w && cy >= seen.y && cy <= seen.y + seen.h) {
+            // (`anywhere`: a long written answer that does not fit on screen may run on down the page.)
+            if (!anywhere && cx >= seen.x && cx <= seen.x + seen.w && cy >= seen.y && cy <= seen.y + seen.h) {
               const x = Math.max(bounds?.x ?? seen.x, seen.x);
               const y = Math.max(bounds?.y ?? seen.y, seen.y);
 
@@ -1215,6 +1216,8 @@ export function BoardAiLayer({
       // «Solve it»: the worked steps are written on the page, typeset, under the question they solve.
       // An explanation or a hint (no steps, nothing of theirs judged) is written there too, as a paragraph.
       let stepsWritten = false;
+      // What happened to the writing, in plain words — it joins the turn's steps («How I answered»).
+      let pageStep: PenTraceStep | null = null;
       const written = result.steps?.length ? result.steps : buddy && result.say && !result.verdict && !result.quiz && !result.similar ? [result.say] : [];
 
       if (written.length) {
@@ -1224,6 +1227,9 @@ export function BoardAiLayer({
         const stepsAt = about
           ? { left: Math.max(sheet.left + sheet.width * 0.04, about.left), top: about.top + about.height + letterHeight * 0.9 }
           : { left: sheet.left + sheet.width * 0.06, top: sheet.top + sheet.height * 0.08 };
+        const pageRuling = grid ? rulingOf(grid) : null;
+        const writeStart = Date.now();
+        let writeError = '';
         const worked = await buildWorkedSteps({
           steps: written,
           numbered: Boolean(result.steps?.length),
@@ -1232,8 +1238,31 @@ export function BoardAiLayer({
           fontSize: Math.max(letterHeight * 0.85, sheet.height * 0.013),
           color: buddy ? CARD_INK : (hand?.color ?? readableInk(penColor)),
           batch: `ai-pen-${Date.now().toString(36)}`,
-          ...(place ? { place: (wanted: SceneRect) => place(wanted, undefined, undefined, true) } : {}),
-        }).catch(() => null);
+          ...(place ? { place: (wanted: SceneRect, anywhere: boolean) => place(wanted, undefined, undefined, true, anywhere) } : {}),
+          // Lined paper: write on the lines.
+          ruling: pageRuling ? { pitch: pageRuling.pitch / px, at: sheet.top + pageRuling.at / px } : null,
+        }).catch((error: unknown) => {
+          // Never silent: a line that cannot be typeset must show up in the logs, not as a missing answer.
+          console.warn('[buddy] could not write the answer on the page', error);
+          writeError = error instanceof Error ? error.message : String(error);
+
+          return null;
+        });
+
+        pageStep = {
+          kind: 'page',
+          name: 'Writing on your page',
+          models: [],
+          ms: Date.now() - writeStart,
+          costUsd: 0,
+          detail: worked
+            ? `Wrote ${written.length} ${written.length === 1 ? 'paragraph' : 'lines'} under the question${pageRuling ? ", on the page's own lines" : ''}.`
+            : writeError
+              ? `Could not write it (${writeError.slice(0, 160)}), so the answer is in the box.`
+              : !grid
+                ? 'Could not read the page to find empty space, so the answer is in the box.'
+                : 'Found no empty space on the page for it, so the answer is in the box.',
+        };
 
         if (worked) {
           built.objects.push(...worked.objects);
@@ -1300,7 +1329,8 @@ export function BoardAiLayer({
             ...(result.similar ? { similar: result.similar } : {}),
             ...(result.skill ? { skill: result.skill } : {}),
             ...(result.turnId ? { turnId: result.turnId } : {}),
-            ...(result.trace ? { trace: result.trace } : {}),
+            ...(result.trace || pageStep ? { trace: [...(result.trace ?? []), ...(pageStep ? [pageStep] : [])] } : {}),
+            ...(pageStep ? { pageStep } : {}),
           },
           added: built.objects.length,
         };

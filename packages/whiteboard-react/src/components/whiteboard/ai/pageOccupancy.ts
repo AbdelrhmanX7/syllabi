@@ -32,10 +32,52 @@ export interface Occupancy {
   fineH: number;
   fineRows: number;
   fine: Uint8Array;
+  /** Ruled paper: the y (px) of every writing line found, top to bottom. Empty on plain paper. */
+  rules: number[];
+}
+
+/**
+ * The writing lines' spacing and where one of them is (px), when the sheet is evenly ruled: at
+ * least four lines whose gaps agree within 15%. Null on plain paper or uneven lines.
+ */
+export function rulingOf(grid: Pick<Occupancy, 'rules'>): { pitch: number; at: number } | null {
+  if (grid.rules.length < 4) return null;
+
+  const gaps = grid.rules.slice(1).map((y, index) => y - grid.rules[index]!);
+  const pitch = [...gaps].sort((a, b) => a - b)[gaps.length >> 1]!;
+  const even = gaps.filter((gap) => Math.abs(gap - pitch) <= pitch * 0.15).length;
+
+  return pitch >= 8 && even >= gaps.length * 0.7 ? { pitch, at: grid.rules[0]! } : null;
 }
 
 /** How far a pixel's brightness must sit from the paper's to count as content (0..255). */
 const CONTRAST = 64;
+/** A ruled line fills at least this share of the sheet's width (a margin line: of its height)… */
+const RULE_FILL = 0.55;
+/** …and is at most this thick, as a share of the other side (never under 3 px). */
+const RULE_THICKNESS = 0.004;
+
+/**
+ * Which pixel rows (or columns) are ruling: runs of lines filled ≥ RULE_FILL of `span`, at most
+ * `maxThick` thick. A thicker filled band is real content (a table's header bar, a picture).
+ */
+function ruleBands(fill: Uint32Array, span: number, maxThick: number): Uint8Array {
+  const out = new Uint8Array(fill.length);
+  const need = span * RULE_FILL;
+  let start = -1;
+
+  for (let i = 0; i <= fill.length; i += 1) {
+    const full = i < fill.length && fill[i]! >= need;
+
+    if (full && start < 0) start = i;
+    if (!full && start >= 0) {
+      if (i - start <= maxThick) out.fill(1, start, i);
+      start = -1;
+    }
+  }
+
+  return out;
+}
 
 /**
  * RGBA pixels → the occupancy grid. The paper colour is the most common brightness on the page
@@ -59,20 +101,40 @@ export function buildOccupancy(rgba: Uint8ClampedArray | Uint8Array, width: numb
   for (let bin = 1; bin < 64; bin += 1) if (histogram[bin]! > histogram[paperBin]!) paperBin = bin;
 
   const paper = paperBin * 4 + 2;
+  // Ruled paper: a writing line is a hairline right across the sheet. It is paper, not content — a
+  // page of them would otherwise leave no «empty» box taller than one line, and nothing could be
+  // written under a question. A pixel row (or column, for a margin line) is ruling when content fills
+  // most of its length and the band is only a few pixels thick.
+  const isContent = (o: number) => Math.abs((rgba[o]! * 3 + rgba[o + 1]! * 6 + rgba[o + 2]!) / 10 - paper) > CONTRAST;
+  const rowFill = new Uint32Array(height);
+  const colFill = new Uint32Array(width);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (isContent((y * width + x) * 4)) {
+        rowFill[y]! += 1;
+        colFill[x]! += 1;
+      }
+    }
+  }
+
+  const ruleRows = ruleBands(rowFill, width, Math.max(3, Math.round(height * RULE_THICKNESS)));
+  const ruleCols = ruleBands(colFill, height, Math.max(3, Math.round(width * RULE_THICKNESS)));
   const counts = new Uint16Array(cols * rows);
   const fineH = Math.max(2, Math.round(cell / 4));
   const fineRows = Math.max(1, Math.ceil(height / fineH));
   const fine = new Uint8Array(cols * fineRows);
 
   for (let y = 0; y < height; y += 1) {
+    if (ruleRows[y]) continue;
+
     const row = Math.floor(y / cell) * cols;
     const fineRow = Math.floor(y / fineH) * cols;
 
     for (let x = 0; x < width; x += 1) {
-      const o = (y * width + x) * 4;
-      const brightness = (rgba[o]! * 3 + rgba[o + 1]! * 6 + rgba[o + 2]!) / 10;
+      if (ruleCols[x]) continue;
 
-      if (Math.abs(brightness - paper) > CONTRAST) {
+      if (isContent((y * width + x) * 4)) {
         const index = row + Math.floor(x / cell);
 
         if (counts[index]! < 65535) counts[index]! += 1;
@@ -91,7 +153,20 @@ export function buildOccupancy(rgba: Uint8ClampedArray | Uint8Array, width: numb
     }
   }
 
-  return { cell, cols, rows, cells, sat: summedArea(cells, cols, rows), fill: taken / cells.length, fineH, fineRows, fine };
+  // Each ruled band's middle.
+  const rules: number[] = [];
+
+  for (let y = 0; y < height; y += 1) {
+    if (!ruleRows[y]) continue;
+
+    let end = y;
+
+    while (end + 1 < height && ruleRows[end + 1]) end += 1;
+    rules.push((y + end) / 2);
+    y = end;
+  }
+
+  return { cell, cols, rows, cells, sat: summedArea(cells, cols, rows), fill: taken / cells.length, fineH, fineRows, fine, rules };
 }
 
 function summedArea(cells: Uint8Array, cols: number, rows: number): Uint32Array {

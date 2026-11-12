@@ -41,6 +41,8 @@ export type BoardBuddyState =
       skill?: string;
       turnId?: string;
       trace?: PenTraceStep[];
+      /** What the app did with the written answer (also the last entry of `trace`): the host reports it to its log. */
+      pageStep?: PenTraceStep;
     }
   | { phase: 'error'; message: string; code?: string }
   /** The temporary marks are gone (cleared, a new question, page changed). They never go on a timer. */

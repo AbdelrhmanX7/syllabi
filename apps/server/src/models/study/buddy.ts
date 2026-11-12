@@ -32,8 +32,8 @@ export const StudyBuddyMemory = mongoose.model<IStudyBuddyMemory>("StudyBuddyMem
 
 /** One thing the buddy did during a turn, in order — what the student and the owner can inspect. */
 export interface BuddyTraceStep {
-  /** pick = choosing the expert; memory / knowledge = what was read; expert = the answer; remember = what was saved. */
-  kind: "pick" | "memory" | "knowledge" | "expert" | "remember";
+  /** page = what the app did with the written answer (wrote it on the page, or why not), reported by the app. pick = choosing the expert; memory / knowledge = what was read; expert = the answer; remember = what was saved. */
+  kind: "pick" | "memory" | "knowledge" | "expert" | "remember" | "page";
   name: string;
   /** Models that ran in this step (empty for reads). */
   models: string[];

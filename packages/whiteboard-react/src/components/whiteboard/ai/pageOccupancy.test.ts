@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildOccupancy, contentBlocks, findFreeBox } from './pageOccupancy';
+import { buildOccupancy, contentBlocks, findFreeBox, rulingOf } from './pageOccupancy';
 
 /** A white page with dark rectangles (and optional faint ruling). */
 function page(width: number, height: number, dark: Array<[number, number, number, number]>, ruleEvery = 0, paper = 255, ink = 20): Uint8ClampedArray {
@@ -100,4 +100,33 @@ test('content regions: a dense page still fits the cap (lines are grouped)', () 
   const blocks = contentBlocks(grid, { max: 10 });
 
   assert.ok(blocks.length <= 10 && blocks.length >= 8, String(blocks.length));
+});
+
+test('ruled paper: the writing lines are paper, not content — the space between questions stays free, and the spacing is known', () => {
+  const width = 400;
+  const height = 600;
+  const rgba = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (x: number, y: number, v = 0) => {
+    const o = (y * width + x) * 4;
+
+    rgba[o] = v;
+    rgba[o + 1] = v;
+    rgba[o + 2] = v;
+  };
+
+  // A question at the top (a block of print), then a ruled line every 40 px, 2 px thick, almost edge to edge.
+  for (let y = 20; y < 44; y += 1) for (let x = 30; x < 300; x += 2) ink(x, y);
+  for (let y = 100; y < height - 20; y += 40) for (let x = 20; x < 380; x += 1) for (let t = 0; t < 2; t += 1) ink(x, y + t, 150);
+  // …and a thick bar (a table header): that IS content.
+  for (let y = 560; y < 580; y += 1) for (let x = 20; x < 380; x += 1) ink(x, y);
+
+  const grid = buildOccupancy(rgba, width, height);
+
+  assert.deepEqual(rulingOf(grid), { pitch: 40, at: 100.5 });
+  assert.ok(grid.rules.length >= 11);
+  // Room for a tall answer under the question, across several ruled lines.
+  assert.ok(findFreeBox(grid, { x: 30, y: 80, w: 300, h: 300 }));
+  // The thick bar still blocks.
+  assert.equal(findFreeBox(grid, { x: 30, y: 540, w: 300, h: 50 }, [], 10), null);
+  assert.equal(rulingOf(buildOccupancy(new Uint8ClampedArray(width * height * 4).fill(255), width, height)), null);
 });
