@@ -1,13 +1,13 @@
 import sharp from "sharp";
 import { Types } from "mongoose";
-import { StudyBuddyTurn, type BuddyTraceStep } from "@/models/study/buddy";
+import { StudyBuddyExpert, StudyBuddyTurn, type BuddyTraceStep } from "@/models/study/buddy";
 import { StudyClass } from "@/models/study/class";
 import { logger } from "@/services/logger.service";
 import { spendTotal, textJson, visionCall, parseJsonLoose, type Spend } from "../ai-models";
 import { boardActionsFromPage, type BoardInput, type BoardReply } from "../board-actions";
 import { classKnowledge } from "../concepts";
 import { putStudyObject } from "../storage";
-import { BUDDY_EXPERTS, DEFAULT_EXPERT, PICKER_SYSTEM, buildBrief, expertById, pickerTurn, type BuddyExpert } from "./experts";
+import { BUDDY_EXPERTS, DEFAULT_EXPERT, PICKER_SYSTEM, buildBrief, mergeExperts, pickerTurn, type BuddyExpert } from "./experts";
 import { readBuddyMemory, rememberForBuddy } from "./memory";
 
 /**
@@ -39,19 +39,25 @@ async function timed<T>(spend: Spend, fn: () => Promise<T>): Promise<{ value: T;
 }
 
 /** The picker: a small model reads the request (typed, or the handwritten pad image) and names an expert. */
-export async function pickExpert(question: string | null, ask: Buffer | null, spend: Spend, signal?: AbortSignal): Promise<{ expert: BuddyExpert; heard: string; ok: boolean }> {
+export async function pickExpert(
+  question: string | null,
+  ask: Buffer | null,
+  spend: Spend,
+  signal?: AbortSignal,
+  experts: readonly BuddyExpert[] = BUDDY_EXPERTS
+): Promise<{ expert: BuddyExpert; heard: string; ok: boolean }> {
   try {
     const out = ask
-      ? parseJsonLoose(await visionCall(ask, "image/jpeg", `${PICKER_SYSTEM}\n\n${pickerTurn(null)}`, spend, { signal, json: true, deadlineMs: 20_000, claude: "haiku", maxTokens: 300, reasoning: { effort: "low" } }))
-      : await textJson(PICKER_SYSTEM, pickerTurn(question), spend, { signal, maxTokens: 300, disableThinking: true, claude: "haiku", effort: "low" });
-    const expert = expertById(typeof out?.skill === "string" ? out.skill : null);
+      ? parseJsonLoose(await visionCall(ask, "image/jpeg", `${PICKER_SYSTEM}\n\n${pickerTurn(null, experts)}`, spend, { signal, json: true, deadlineMs: 20_000, claude: "haiku", maxTokens: 300, reasoning: { effort: "low" } }))
+      : await textJson(PICKER_SYSTEM, pickerTurn(question, experts), spend, { signal, maxTokens: 300, disableThinking: true, claude: "haiku", effort: "low" });
+    const expert = experts.find((e) => e.id === out?.skill) ?? null;
     const heard = typeof out?.heard === "string" ? out.heard.replace(/\s+/g, " ").trim().slice(0, 200) : "";
     if (expert) return { expert, heard, ok: true };
   } catch (e) {
     if (signal?.aborted) throw e;
     await logger.error("study buddy picker failed", e as Error, {});
   }
-  return { expert: DEFAULT_EXPERT, heard: "", ok: false };
+  return { expert: experts.find((e) => e.id === DEFAULT_EXPERT.id) ?? experts[0] ?? DEFAULT_EXPERT, heard: "", ok: false };
 }
 
 export async function runBuddyTurn(o: {
@@ -74,13 +80,15 @@ export async function runBuddyTurn(o: {
   let question = o.ask ? "" : o.input.question;
   let ask = o.ask;
 
-  // 1 pick
-  let expert = expertById(o.input.skill);
+  // 1 pick — among this student's experts: ours, their edits of ours, and their own (switched-off ones left out).
+  const all = o.dryRun ? mergeExperts([]) : mergeExperts(await StudyBuddyExpert.find({ userId: o.userId }).lean().catch(() => []));
+  const experts = all.filter((e) => e.enabled !== false);
+  let expert = experts.find((e) => e.id === o.input.skill) ?? null;
   let pickedBy: "button" | "picker" | "fallback" = "button";
   if (expert) {
     trace.push({ kind: "pick", name: expert.name, models: [], ms: 0, costUsd: 0, detail: "You tapped this one." });
   } else {
-    const pick = await timed(o.spend, () => pickExpert(o.ask ? null : o.input.question, o.ask, o.spend, o.signal));
+    const pick = await timed(o.spend, () => pickExpert(o.ask ? null : o.input.question, o.ask, o.spend, o.signal, experts.length ? experts : all));
     expert = pick.value.expert;
     pickedBy = pick.value.ok ? "picker" : "fallback";
     // A handwritten request that was read once is passed on as text: the expert does not read the pad again.

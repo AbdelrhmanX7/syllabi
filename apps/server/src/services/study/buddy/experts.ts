@@ -17,6 +17,10 @@ export interface BuddyExpert {
   weakTopics?: boolean;
   /** The extra part of the reply this expert must fill. */
   gives?: "steps" | "quiz" | "similar";
+  /** Off (a student switched it off): no button, and the picker never chooses it. */
+  enabled?: boolean;
+  /** Where it comes from: ours, ours edited by the student, or the student's own. */
+  origin?: "builtin" | "edited" | "custom";
 }
 
 const MATHS = "Write maths as LaTeX between dollar signs ($\\frac{dy}{dx}$, $x^2$, $\\int_0^1 x\\,dx$); never plain-text maths in this field.";
@@ -116,11 +120,73 @@ export const PICKER_SYSTEM = [
   'Reply with ONE JSON object: {"skill":"<id>","heard":"<the request as plain text, at most 200 characters>"}. Nothing else.',
 ].join("\n");
 
-export function pickerTurn(question: string | null): string {
+export function pickerTurn(question: string | null, experts: readonly BuddyExpert[] = BUDDY_EXPERTS): string {
   return [
     "EXPERTS:",
-    ...BUDDY_EXPERTS.map((e) => `- ${e.id}: ${e.when}`),
+    ...experts.map((e) => `- ${e.id}: ${e.when}`),
     "",
     question ? `The student's request: ${question}` : "The student's request is handwritten in the image. Read it.",
   ].join("\n");
+}
+
+// ─── a student's own experts ────────────────────────────────────────────────────────────
+
+export const EXPERT_JOB_LINES_MAX = 16;
+export const EXPERT_JOB_LINE_MAX = 500;
+const ID_RX = /^[a-z][a-z0-9_]{1,23}$/;
+
+/** A name → an id («Essay coach» → `essay_coach`), or null when nothing usable is left. */
+export const expertIdFromName = (name: string): string | null => {
+  const id = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/^([0-9])/, "x$1")
+    .slice(0, 24);
+  return ID_RX.test(id) ? id : null;
+};
+
+export interface ExpertEdit {
+  name: string;
+  when: string;
+  job: string[];
+  gives: "steps" | "quiz" | "similar" | null;
+  weakTopics: boolean;
+  enabled: boolean;
+}
+
+/** A student's edit, checked: `{edit}` or `{error}` in plain words. `job` may come as lines or as one text. */
+export function parseExpertEdit(raw: any): { edit: ExpertEdit } | { error: string } {
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[ \t]+/g, " ").trim().slice(0, max) : "");
+  const name = text(raw?.name, 40);
+  if (name.length < 2) return { error: "Give the expert a name." };
+  const when = text(raw?.when, 300);
+  if (when.length < 10) return { error: "Say when this expert should be used (a sentence)." };
+  const lines = (Array.isArray(raw?.job) ? raw.job : typeof raw?.job === "string" ? raw.job.split(/\r?\n/) : [])
+    .map((line: unknown) => text(line, EXPERT_JOB_LINE_MAX).replace(/^[-•*]\s*/, ""))
+    .filter(Boolean)
+    .slice(0, EXPERT_JOB_LINES_MAX);
+  if (!lines.length) return { error: "Write at least one rule for the expert's job." };
+  const gives = raw?.gives === "steps" || raw?.gives === "quiz" || raw?.gives === "similar" ? raw.gives : null;
+  return { edit: { name, when, job: lines, gives, weakTopics: raw?.weakTopics === true, enabled: raw?.enabled !== false } };
+}
+
+/** The built-ins with the student's rows laid over them (an edit replaces, a new id adds), in a stable order. */
+export function mergeExperts(rows: ReadonlyArray<{ id: string; name: string; when: string; job: string[]; gives: "steps" | "quiz" | "similar" | null; weakTopics: boolean; enabled: boolean }>): BuddyExpert[] {
+  const mine = new Map(rows.map((row) => [row.id, row]));
+  const shape = (row: (typeof rows)[number], origin: "edited" | "custom"): BuddyExpert => ({
+    id: row.id,
+    name: row.name,
+    when: row.when,
+    job: row.job,
+    ...(row.gives ? { gives: row.gives } : {}),
+    ...(row.weakTopics ? { weakTopics: true } : {}),
+    enabled: row.enabled,
+    origin,
+  });
+  const builtinIds = new Set(BUDDY_EXPERTS.map((e) => e.id));
+  return [
+    ...BUDDY_EXPERTS.map((e) => (mine.has(e.id) ? shape(mine.get(e.id)!, "edited") : { ...e, enabled: true, origin: "builtin" as const })),
+    ...rows.filter((row) => !builtinIds.has(row.id)).map((row) => shape(row, "custom")),
+  ];
 }

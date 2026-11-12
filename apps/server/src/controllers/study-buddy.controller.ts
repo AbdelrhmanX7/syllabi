@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
-import { StudyBuddyMemory, StudyBuddyTurn } from "@/models/study/buddy";
-import { BUDDY_EXPERTS } from "@/services/study/buddy/experts";
+import { BUDDY_CUSTOM_EXPERTS_MAX, StudyBuddyExpert, StudyBuddyMemory, StudyBuddyTurn } from "@/models/study/buddy";
+import { BUDDY_EXPERTS, expertIdFromName, mergeExperts, parseExpertEdit } from "@/services/study/buddy/experts";
 import { forgetBuddyMemory, rememberForBuddy } from "@/services/study/buddy/memory";
 import { signedGetUrl } from "@/services/study/storage";
 import { fail, isOid, uid, wrap } from "./study.controller";
@@ -100,7 +100,44 @@ export const forgetBuddyNote = wrap(async (req, res) => {
   res.json({ ok: true });
 });
 
-/** GET /study/ai/buddy/experts → the experts and their jobs, as written (so the app can show them). */
-export const listBuddyExperts = wrap(async (_req, res) => {
-  res.json({ experts: BUDDY_EXPERTS.map((e) => ({ id: e.id, name: e.name, when: e.when, job: e.job })) });
+/** GET /study/ai/buddy/experts → this account's experts (ours, edited, own), with their jobs as written. */
+export const listBuddyExperts = wrap(async (req, res) => {
+  const rows = await StudyBuddyExpert.find({ userId: uid(req) }).lean();
+  res.json({
+    experts: mergeExperts(rows).map((e) => ({ id: e.id, name: e.name, when: e.when, job: e.job, gives: e.gives ?? null, weakTopics: e.weakTopics === true, enabled: e.enabled !== false, origin: e.origin ?? "builtin" })),
+  });
+});
+
+/** PUT /study/ai/buddy/experts/:id {name, when, job, gives, weakTopics, enabled} — edit one (ours or own); id "new" creates one named after `name`. */
+export const saveBuddyExpert = wrap(async (req, res) => {
+  const userId = uid(req);
+  const parsed = parseExpertEdit(req.body);
+  if ("error" in parsed) return fail(res, 400, "VALIDATION_ERROR", parsed.error);
+  let id = String(req.params.id ?? "");
+  if (id === "new") {
+    const made = expertIdFromName(parsed.edit.name);
+    if (!made) return fail(res, 400, "VALIDATION_ERROR", "Use letters in the expert's name.");
+    const taken = new Set([...BUDDY_EXPERTS.map((e) => e.id), ...(await StudyBuddyExpert.distinct("id", { userId }))]);
+    if ((await StudyBuddyExpert.countDocuments({ userId, id: { $nin: BUDDY_EXPERTS.map((e) => e.id) } })) >= BUDDY_CUSTOM_EXPERTS_MAX) return fail(res, 400, "LIMIT", `You can have up to ${BUDDY_CUSTOM_EXPERTS_MAX} experts of your own.`);
+    id = made;
+    for (let n = 2; taken.has(id); n++) id = `${made.slice(0, 21)}_${n}`;
+  } else if (!BUDDY_EXPERTS.some((e) => e.id === id) && !(await StudyBuddyExpert.exists({ userId, id }))) {
+    return fail(res, 404, "NOT_FOUND", "Not found");
+  }
+  await StudyBuddyExpert.updateOne({ userId, id }, { $set: parsed.edit }, { upsert: true });
+  res.json({ id });
+});
+
+/** DELETE /study/ai/buddy/experts/:id — removes an own expert; for one of ours, drops the edit (ours comes back). */
+export const deleteBuddyExpert = wrap(async (req, res) => {
+  await StudyBuddyExpert.deleteOne({ userId: uid(req), id: String(req.params.id ?? "") });
+  res.json({ ok: true });
+});
+
+/** POST /study/ai/buddy/memory {text, classId?} — a note the student adds by hand. */
+export const addBuddyNote = wrap(async (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (text.length < 8) return fail(res, 400, "VALIDATION_ERROR", "Write a full sentence.");
+  const kept = await rememberForBuddy(uid(req), isOid(req.body?.classId) ? new Types.ObjectId(String(req.body.classId)) : null, [text], "you");
+  res.json({ ok: kept.length > 0 });
 });

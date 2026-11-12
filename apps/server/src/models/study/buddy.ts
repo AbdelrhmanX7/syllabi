@@ -100,3 +100,39 @@ const TurnSchema = new Schema<IStudyBuddyTurn>(
 );
 TurnSchema.index({ userId: 1, createdAt: -1 });
 export const StudyBuddyTurn = mongoose.model<IStudyBuddyTurn>("StudyBuddyTurn", TurnSchema, "study_buddy_turns");
+
+/**
+ * A student's own expert, or their edit of a built-in one (`study_buddy_experts`, one row per
+ * account + expert id). A row whose `id` is a built-in's replaces that built-in for this account;
+ * deleting it brings the built-in back. See services/study/buddy/experts.ts.
+ */
+export const BUDDY_CUSTOM_EXPERTS_MAX = 20;
+export interface IStudyBuddyExpert {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  id: string;
+  name: string;
+  when: string;
+  /** The rules, one per line. */
+  job: string[];
+  gives: "steps" | "quiz" | "similar" | null;
+  weakTopics: boolean;
+  /** Off = the picker never chooses it and it has no button. */
+  enabled: boolean;
+  updatedAt: Date;
+}
+const ExpertSchema = new Schema<IStudyBuddyExpert>(
+  {
+    userId: { type: Schema.Types.ObjectId, required: true },
+    id: { type: String, required: true },
+    name: { type: String, required: true, maxlength: 40 },
+    when: { type: String, default: "", maxlength: 300 },
+    job: { type: [String], default: [] },
+    gives: { type: String, enum: ["steps", "quiz", "similar", null], default: null },
+    weakTopics: { type: Boolean, default: false },
+    enabled: { type: Boolean, default: true },
+  },
+  { timestamps: { createdAt: false, updatedAt: true } }
+);
+ExpertSchema.index({ userId: 1, id: 1 }, { unique: true });
+export const StudyBuddyExpert = mongoose.model<IStudyBuddyExpert>("StudyBuddyExpert", ExpertSchema, "study_buddy_experts");
