@@ -12,6 +12,7 @@ import { IStudyClassGuide, StudyClassGuide } from "@/models/study/library";
 import { StudyQuestion } from "@/models/study/question";
 import { logger } from "@/services/logger.service";
 import { normTerm } from "./concept-map-parse";
+import { classOutline } from "./concept-outline";
 
 /**
  * The class knowledge map: a list of CONCEPTS per class, built without a model from what the
@@ -113,9 +114,21 @@ async function gatherCandidates(userId: Types.ObjectId, cls: Pick<IStudyClass, "
     c.parentNorm ??= parent;
   }
   for (const m of maps) for (const t of m.promptTerms ?? []) add(t, "map-term");
+  // What the class's own material names (units, and the ideas under them): the map grows as the professor opens the class.
+  const known = [...out.values()].map((c) => c.labels[0]!).filter(Boolean);
+  const outline = await classOutline(userId, cls._id, known).catch(() => []);
+  for (const o of outline) {
+    const norm = add(o.label, "material");
+    const parent = o.parent ? conceptNorm(clean(o.parent)) : null;
+    if (!norm || !parent || parent === norm || SKIP_NORMS.has(parent)) continue;
+    out.get(norm)!.parentNorm ??= parent;
+  }
   for (const e of guides[0]?.examsSchedule ?? []) for (const t of e.topics ?? []) add(t, "exam-topic");
-  // A name that is a topic somewhere is a main concept, never a part of another one.
-  for (const c of out.values()) if (c.sources.has("topic")) c.parentNorm = null;
+  // A name that is a topic somewhere is a main concept, never a part of another one — unless the
+  // class's material files it under a unit (a question tagged «Chain rule» still belongs to «Derivatives»).
+  for (const c of out.values()) if (c.sources.has("topic") && !c.sources.has("material")) c.parentNorm = null;
+  // A parent that is itself filed under something, or is not a concept at all, is no parent.
+  for (const c of out.values()) if (c.parentNorm && !out.has(c.parentNorm)) c.parentNorm = null;
   return out;
 }
 

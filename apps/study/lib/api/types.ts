@@ -344,7 +344,7 @@ export interface KnowledgeConcept {
   /** A subtopic's topic; null for a main concept. */
   parentId: string | null;
   /** Where the concept is found: a question topic / subtopic, a concept-map term, an exam topic. */
-  sources: ('topic' | 'subtopic' | 'map-term' | 'exam-topic')[];
+  sources: ('topic' | 'subtopic' | 'map-term' | 'exam-topic' | 'material')[];
   /** 0..1; null = not tried yet. */
   strength: number | null;
   attempts: number;

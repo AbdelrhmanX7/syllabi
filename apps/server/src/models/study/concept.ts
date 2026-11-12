@@ -1,6 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 
-export const STUDY_CONCEPT_SOURCES = ["topic", "subtopic", "map-term", "exam-topic"] as const;
+export const STUDY_CONCEPT_SOURCES = ["topic", "subtopic", "map-term", "exam-topic", "material"] as const;
 export type StudyConceptSource = (typeof STUDY_CONCEPT_SOURCES)[number];
 export const STUDY_CONCEPT_EVIDENCE_KINDS = ["question", "exam", "map", "buddy"] as const;
 export type StudyConceptEvidenceKind = (typeof STUDY_CONCEPT_EVIDENCE_KINDS)[number];
