@@ -438,15 +438,27 @@ export class PdfScrollSession {
   // Viewport tracking
   // ---------------------------------------------------------------------------------------------
 
+  private unmeasuredChecks = 0;
+
   private handleAfterRender(): void {
     if (this.disposed || this.suspended) return;
 
     const vt = this.canvas.viewportTransform;
-    const signature = vt ? `${vt[0]?.toFixed(4)},${vt[4]?.toFixed(1)},${vt[5]?.toFixed(1)}` : '';
+    // The canvas SIZE is part of what is visible: a board that opened before its box was measured
+    // (a slow tablet) saw no page at all, and with the same pan/zoom nothing ever looked again —
+    // the PDF stayed blank until the first move.
+    const signature = vt ? `${vt[0]?.toFixed(4)},${vt[4]?.toFixed(1)},${vt[5]?.toFixed(1)},${this.canvas.getWidth()}x${this.canvas.getHeight()}` : '';
 
     if (signature === this.lastViewportSignature) return;
 
     this.lastViewportSignature = signature;
+    this.scheduleViewportCheck();
+  }
+
+  /** The canvas box changed (first measure, rotation, split screen): look again at what is visible. */
+  refreshViewport(): void {
+    if (this.disposed || this.suspended) return;
+
     this.scheduleViewportCheck();
   }
 
@@ -470,6 +482,16 @@ export class PdfScrollSession {
 
     const viewport = this.viewport();
     const canvasHeight = this.canvas.getHeight();
+
+    // Not measured yet: nothing is visible in a zero-height box. Ask again shortly (bounded), so the
+    // first pages load by themselves once the box has its size.
+    if (canvasHeight <= 1 && this.unmeasuredChecks < 40 && typeof window !== 'undefined') {
+      this.unmeasuredChecks += 1;
+      window.setTimeout(() => this.scheduleViewportCheck(), 150);
+
+      return;
+    }
+
     const current = resolvePdfScrollCurrentPage(this.layout, viewport, canvasHeight);
 
     if (current >= 0) this.setCurrentIndex(current);

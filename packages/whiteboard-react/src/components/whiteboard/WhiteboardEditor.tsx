@@ -5378,6 +5378,9 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     const next = session.getConstraints();
 
     viewportConstraintsRef.current = next;
+    // A new box shows different pages even at the same pan/zoom (the first measure on a slow tablet).
+    session.refreshViewport();
+    backgroundRepaintRef.current?.();
 
     const transform = freeZoomRef.current
       ? canvas.viewportTransform
