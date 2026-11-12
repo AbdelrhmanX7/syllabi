@@ -22,6 +22,8 @@ export interface EvalCase {
   /** The expert the student tapped; absent = the picker chooses from `question`. */
   skill?: string;
   question: string;
+  /** The question is WRITTEN BY HAND on the pad (sent as a picture, `question` is only the placeholder). */
+  askByHand?: string;
   memory?: string[];
   checks: EvalCheck[];
 }
@@ -125,6 +127,18 @@ export const BUDDY_EVAL_CASES: EvalCase[] = [
       noExtras("quiz"),
     ],
   },
+  {
+    id: "handwritten-question",
+    lines: [...PRODUCT, { text: "u = x², v = sin(3x)", hand: true }, { text: "dy/dx = 2x·sin(3x) + x²·3cos(3x)", hand: true }],
+    question: "(handwritten question)",
+    askByHand: "why did we multiply by 3 in the second part?",
+    checks: [
+      { name: "read the question", pass: (r) => /multipl|3/i.test(r.heard ?? "") },
+      { name: "picked the explainer", pass: (r) => r.skill === "explain" },
+      { name: "answers it (chain rule)", pass: (r) => /chain|inside|inner|derivative of 3x/i.test(r.say ?? "") },
+      { name: "does not ask for an upload", pass: (r) => !/upload|no handwritten|not visible|cannot see/i.test(r.say ?? "") },
+    ],
+  },
   { id: "pick-check", lines: LINEAR_RIGHT, question: "did i do this right?", checks: [skillIs("check")] },
   { id: "pick-hint", lines: LINEAR, question: "im stuck, what do i do next", checks: [skillIs("hint")] },
   { id: "pick-explain", lines: PRODUCT, question: "why do we use the product rule here", checks: [skillIs("explain")] },
@@ -164,4 +178,10 @@ export function renderCase(lines: EvalLine[]): { svg: string; clusters: BoardClu
     y += line.hand ? 90 : 110;
   }
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="100%" height="100%" fill="#fff"/>${parts.join("")}</svg>`, clusters };
+}
+
+/** A question as written on the pad: blue script on white, like the app's pad picture. */
+export function renderAsk(text: string): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="160"><rect width="100%" height="100%" fill="#fff"/><text x="30" y="95" font-family="Comic Sans MS, Purisa, cursive" font-style="italic" font-size="38" fill="#111">${esc(text)}</text></svg>`;
 }

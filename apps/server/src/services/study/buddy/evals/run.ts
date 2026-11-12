@@ -6,7 +6,7 @@ import mongoose, { Types } from "mongoose";
 import sharp from "sharp";
 import { newSpend, spendTotal } from "../../ai-models";
 import { runBuddyTurn } from "../turn";
-import { BUDDY_EVAL_CASES, renderCase, type EvalReply } from "./cases";
+import { BUDDY_EVAL_CASES, renderAsk, renderCase, type EvalReply } from "./cases";
 
 /**
  * Runs the buddy's cases against the real models and writes a report (JSON + readable text).
@@ -35,12 +35,13 @@ async function main() {
         cases.slice(i, i + 3).map(async (c) => {
           const { svg, clusters } = renderCase(c.lines);
           const image = await sharp(Buffer.from(svg)).jpeg({ quality: 88 }).toBuffer();
+          const ask = c.askByHand ? await sharp(Buffer.from(renderAsk(c.askByHand))).jpeg({ quality: 88 }).toBuffer() : null;
           const spend = newSpend(route, String(userId));
           const t0 = Date.now();
           let reply: EvalReply | null = null;
           let error: string | null = null;
           try {
-            const turn = await runBuddyTurn({ userId, image, mime: "image/jpeg", input: { question: c.question, clusters, v: 3, ...(c.skill ? { skill: c.skill } : {}) }, ask: null, spend, dryRun: true, ...(c.memory ? { memory: c.memory } : {}) });
+            const turn = await runBuddyTurn({ userId, image, mime: "image/jpeg", input: { question: c.question, clusters, v: 3, ...(c.skill ? { skill: c.skill } : {}) }, ask, spend, dryRun: true, ...(c.memory ? { memory: c.memory } : {}) });
             reply = turn ? (turn.reply as EvalReply) : null;
             if (!turn) error = "no usable answer";
           } catch (e) {

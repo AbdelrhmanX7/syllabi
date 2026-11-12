@@ -52,7 +52,7 @@ export const boardActions = wrap(async (req, res) => {
   // The handwritten question: flattened on white, small — unreadable input just goes without it.
   let ask: Buffer | null = null;
   const askFile = files?.ask?.[0];
-  if (askFile?.buffer?.length && isPngOrJpeg(askFile.buffer) && parsed.input.v === 2) {
+  if (askFile?.buffer?.length && isPngOrJpeg(askFile.buffer) && parsed.input.v >= 2) {
     try {
       ask = await sharp(askFile.buffer).flatten({ background: "#ffffff" }).resize(1000, 1000, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
     } catch {
