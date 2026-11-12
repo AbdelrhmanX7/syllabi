@@ -244,7 +244,8 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
 
         if (!target || !verdict) break;
 
-        const label = str(action.label ?? action.text ?? action.note, PEN_MAX_NOTE);
+        // The glyph is drawn; a label that repeats it («✓ Correct») loses the copy.
+        const label = str(String(action.label ?? action.text ?? action.note ?? '').replace(/^[\s✓✔✗✘×!]+/u, ''), PEN_MAX_NOTE);
 
         actions.push({ type: 'mark', target, verdict, ...(label ? { label } : {}) });
         break;
