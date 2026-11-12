@@ -485,6 +485,8 @@ export interface StrokeSettings {
    * (see `highlighterWidthPx` in whiteboard-react).
    */
   highlighterWidth?: number;
+  /** How strong the highlighter's colour is, 0.1–0.6. Absent = 0.22 (the look it always had). */
+  highlighterOpacity?: number;
   opacity: number;
   /**
    * Straight-line mode of the pen family. `free` (default / absent) = freehand; `hold` = a pause of

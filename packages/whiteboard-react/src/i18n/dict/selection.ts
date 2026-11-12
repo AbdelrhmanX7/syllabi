@@ -16,6 +16,8 @@ export const SELECTION_STRINGS = {
   'selection.crop': 'Crop',
   'selection.style': 'Style',
   'selection.graph': 'Edit graph',
+  'selection.pin': 'Pin',
+  'selection.pinGraphHint': 'Pin the graph so erasing your points never removes it',
   'graph.both': 'X and Y',
   'graph.xOnly': 'X only',
   'graph.yOnly': 'Y only',

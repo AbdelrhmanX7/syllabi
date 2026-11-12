@@ -18,6 +18,20 @@ test('a graph is one object that carries its spec through save and load, and is 
   canvas.add(graph);
 
   assert.deepEqual(graphSpecOf(graph), { mode: 'xy', xMin: -5, xMax: 5, yMin: -5, yMax: 5 });
+
+  // A white card sits behind everything (first = lowest), and nothing of the graph pokes out of it.
+  const [card, ...rest] = graph.getObjects();
+
+  assert.equal(card!.fill, '#ffffff');
+
+  const cardBox = card!.getBoundingRect();
+
+  // (Lines and arrow heads only: jsdom cannot measure text.)
+  for (const part of rest.filter((object) => !object.isType('Text'))) {
+    const box = part.getBoundingRect();
+
+    assert.ok(box.left >= cardBox.left - 1 && box.top >= cardBox.top - 1 && box.left + box.width <= cardBox.left + cardBox.width + 1 && box.top + box.height <= cardBox.top + cardBox.height + 1, 'a part sticks out of the white card');
+  }
   assert.equal(graphSpecOf({}), null);
 
   // Save → load: still a graph.

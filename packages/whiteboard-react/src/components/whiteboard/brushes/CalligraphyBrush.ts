@@ -51,7 +51,14 @@ import { markInkPen } from './inkPenMark';
 interface OutlinePoint {
   x: number;
   y: number;
+  /** The (smoothed) pen pressure at this point, when «Pressure» is on and the pen reports one. */
+  p?: number;
 }
+
+type PressurePoint = Point & { pressure?: number };
+
+/** Weight of the newest sample in the pressure average: the nib swells and thins, it does not wobble. */
+const PRESSURE_SMOOTHING = 0.25;
 
 /** One frame's swept-nib geometry: the cached prefix, plus the few offsets still in flux. */
 interface OutlineGeometry {
@@ -127,8 +134,56 @@ const DEGENERATE_TANGENT_EPS = 1e-9;
 
 export class CalligraphyBrush extends LowLatencyPencilBrush {
   /** Fabric's own points for the stroke in progress — the single source of truth. */
-  private get strokePoints(): Point[] {
-    return (this as unknown as { _points?: Point[] })._points ?? [];
+  private get strokePoints(): PressurePoint[] {
+    return (this as unknown as { _points?: PressurePoint[] })._points ?? [];
+  }
+
+  /**
+   * PRESSURE (optional). The nib's SHAPE stays fixed — thick across its edge, thin along it — and with
+   * «Pressure» on the whole nib grows and shrinks with the hand: 0.5× at the lightest touch, 1.5× pressed
+   * hard. Off (the default here), or with a pen / finger / panel that reports no pressure, the factor is
+   * exactly 1 and the brush is the direction-only nib described above.
+   *
+   * The pressure rides ON Fabric's own points (stamped in `_addPoint`, like the script pen), never in a
+   * parallel array — the ghost-line history above is why.
+   */
+  private pressureMin = 1;
+  private pressureMax = 1;
+  private smoothedPressure = Number.NaN;
+
+  setPressure(on: boolean): void {
+    this.pressureMin = on ? 0.5 : 1;
+    this.pressureMax = on ? 1.5 : 1;
+  }
+
+  private pressureScale(pressure: number | undefined): number {
+    if (this.pressureMin === this.pressureMax) return 1;
+    if (typeof pressure !== 'number' || !Number.isFinite(pressure) || pressure <= 0) return 1;
+
+    return this.pressureMin + (this.pressureMax - this.pressureMin) * Math.min(1, pressure);
+  }
+
+  override onMouseDown(pointer: Point, eventData: Parameters<LowLatencyPencilBrush['onMouseDown']>[1]): void {
+    if (this.canvas._isMainEvent(eventData.e)) this.smoothedPressure = Number.NaN;
+
+    super.onMouseDown(pointer, eventData);
+  }
+
+  override _addPoint(point: Point): boolean {
+    const added = super._addPoint(point);
+
+    if (added) {
+      const points = this.strokePoints;
+      const raw = this.livePressure;
+
+      if (Number.isFinite(raw)) {
+        this.smoothedPressure = Number.isFinite(this.smoothedPressure) ? this.smoothedPressure + PRESSURE_SMOOTHING * (raw - this.smoothedPressure) : raw;
+      }
+
+      points[points.length - 1]!.pressure = this.smoothedPressure;
+    }
+
+    return added;
   }
 
   /**
@@ -325,7 +380,9 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
     // Unit normal to the direction of travel — the direction the nib's silhouette spreads in.
     const normalX = -unitTangentY;
     const normalY = unitTangentX;
-    const offset = this.nibOffset(normalX, normalY);
+    const nib = this.nibOffset(normalX, normalY);
+    const scale = this.pressureScale(point.p);
+    const offset = scale === 1 ? nib : { x: nib.x * scale, y: nib.y * scale };
 
     return {
       left: { x: point.x + offset.x, y: point.y + offset.y },
@@ -371,7 +428,7 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
       const previous = cache.sig[cache.sig.length - 1];
 
       if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) >= MIN_SAMPLE_DISTANCE) {
-        cache.sig.push({ x: point.x, y: point.y });
+        cache.sig.push({ x: point.x, y: point.y, p: point.pressure });
         cache.minX = Math.min(cache.minX, point.x);
         cache.minY = Math.min(cache.minY, point.y);
         cache.maxX = Math.max(cache.maxX, point.x);
@@ -409,12 +466,15 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
       const tangent = nib.thin;
       // Same left-hand normal `offsetAt` uses, so the caps sweep the same way round as a stroke's.
       const normal = { x: -tangent.y, y: tangent.x };
-      const halfPull = nib.broad - nib.narrow;
+      // A dot is as big as the hand pressed it.
+      const dotScale = this.pressureScale(sig[0].p);
+      const halfPull = (nib.broad - nib.narrow) * dotScale;
       const centreX = (cache.minX + cache.maxX) / 2;
       const centreY = (cache.minY + cache.maxY) / 2;
-      const first = { x: centreX - tangent.x * halfPull, y: centreY - tangent.y * halfPull };
-      const last = { x: centreX + tangent.x * halfPull, y: centreY + tangent.y * halfPull };
-      const offset = this.nibOffset(normal.x, normal.y);
+      const first = { x: centreX - tangent.x * halfPull, y: centreY - tangent.y * halfPull, p: sig[0].p };
+      const last = { x: centreX + tangent.x * halfPull, y: centreY + tangent.y * halfPull, p: sig[0].p };
+      const nibDot = this.nibOffset(normal.x, normal.y);
+      const offset = { x: nibDot.x * dotScale, y: nibDot.y * dotScale };
 
       return {
         left: [
@@ -445,6 +505,10 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
       const fromY = (sig[i - 1].y + control.y) / 2;
       const toX = (control.x + sig[i + 1].x) / 2;
       const toY = (control.y + sig[i + 1].y) / 2;
+      // Pressure follows the same curve as the position (undefined stays undefined: no pressure).
+      const hasPressure = Number.isFinite(control.p) && Number.isFinite(sig[i - 1].p) && Number.isFinite(sig[i + 1].p);
+      const fromP = hasPressure ? ((sig[i - 1].p as number) + (control.p as number)) / 2 : undefined;
+      const toP = hasPressure ? ((control.p as number) + (sig[i + 1].p as number)) / 2 : undefined;
       // Measure the CONTROL POLYGON, not the chord. A quadratic's arc length can be arbitrarily longer
       // than |to - from|, and the gap is widest exactly where the curve turns hardest — so keying on the
       // chord made the densifier least accurate precisely where it mattered most, which is the inverse of
@@ -468,6 +532,7 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
         cache.dense.push({
           x: inv * inv * fromX + 2 * inv * t * control.x + t * t * toX,
           y: inv * inv * fromY + 2 * inv * t * control.y + t * t * toY,
+          ...(hasPressure ? { p: inv * inv * (fromP as number) + 2 * inv * t * (control.p as number) + t * t * (toP as number) } : {}),
         });
       }
 
@@ -559,8 +624,10 @@ export class CalligraphyBrush extends LowLatencyPencilBrush {
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       const offset = this.nibOffset(from.x * cos + through.x * sin, from.y * cos + through.y * sin);
+      // The end cap is the nib at the size it had there, so it meets the two sides exactly.
+      const scale = this.pressureScale(at.p);
 
-      emit(at.x + offset.x, at.y + offset.y);
+      emit(at.x + offset.x * scale, at.y + offset.y * scale);
     }
   }
 

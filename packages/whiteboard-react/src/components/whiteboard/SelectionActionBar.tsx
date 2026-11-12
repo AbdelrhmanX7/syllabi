@@ -79,7 +79,7 @@ interface SelectionActionBarProps {
   /** The «Style» panel (background, fill pattern, outline, opacity): what the selection has now… */
   readStyle?: () => { style: ShapeStylePatch; hasShape: boolean; canFill: boolean } | null;
   /** The selection is ONE graph: its settings, and what to do with a change. Shows «Edit graph». */
-  graph?: { spec: GraphSpec; onChange: (spec: GraphSpec) => void } | null;
+  graph?: { spec: GraphSpec; onChange: (spec: GraphSpec) => void; onPin?: () => void } | null;
   /** The selection's current colour and pen size: shown as the picked swatch / size. */
   readInk?: () => { color: string | null; width: number | null };
   /** …and applying a choice to it. Both absent = no «Style» button. */
@@ -328,6 +328,12 @@ export function SelectionActionBar({
             >
               <ChartLine aria-hidden className='h-5 w-5' />
               <span>{t('selection.graph')}</span>
+            </button>
+          ) : null}
+          {graph?.onPin ? (
+            <button className={LABELED_BUTTON_CLASS} data-action='pin-graph' title={t('selection.pinGraphHint')} type='button' onClick={graph.onPin}>
+              <Pin aria-hidden className='h-5 w-5' />
+              <span>{t('selection.pin')}</span>
             </button>
           ) : null}
           <span aria-hidden className={LABELED_DIVIDER_CLASS} />

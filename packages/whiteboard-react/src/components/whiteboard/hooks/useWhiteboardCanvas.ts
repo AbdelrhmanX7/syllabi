@@ -50,6 +50,8 @@ import {
 } from '../brushes/coalesced-samples';
 import { LowLatencyPencilBrush } from '../brushes/LowLatencyPencilBrush';
 import { RulerSnapInterceptor } from '../brushes/rulerSnap';
+import { PressureMarkerBrush } from '../brushes/PressureMarkerBrush';
+import { isDarkBoard } from '../utils/darkBoard';
 import { ScriptBrush } from '../brushes/ScriptBrush';
 import { dashArrayFor, installSnappedShapeSupport, ShapeSnapController } from '../brushes/shapeSnap';
 import { SOFT_MARKER_OPACITY, SOFT_MARKER_WIDTH_SCALE, SoftMarkerBrush } from '../brushes/SoftMarkerBrush';
@@ -1471,7 +1473,18 @@ export function useWhiteboardCanvas({
   const getOrCreateHighlighterBrush = useCallback((c: Canvas) => {
     if (!highlighterBrushRef.current || highlighterBrushRef.current.canvas !== c) {
       const brush = new LowLatencyPencilBrush(c);
+      const createPath = brush.createPath.bind(brush);
 
+      // The highlight MULTIPLIES with the ink under it (like a real highlighter on paper): dark writing
+      // stays fully dark instead of being washed by the colour. Not on the dark board, where the ink is
+      // light and multiplying would dim it.
+      brush.createPath = ((pathData: Parameters<typeof createPath>[0]) => {
+        const path = createPath(pathData);
+
+        if (!isDarkBoard()) path.set({ globalCompositeOperation: 'multiply' });
+
+        return path;
+      }) as typeof brush.createPath;
       brush.strokeInterceptor = strokeInterceptorRef.current;
       highlighterBrushRef.current = brush;
     }
@@ -1520,6 +1533,20 @@ export function useWhiteboardCanvas({
     }
 
     return pressurePenBrushRef.current;
+  }, []);
+
+  /** The marker with «Pressure» on (brushes/PressureMarkerBrush.ts). */
+  const pressureMarkerBrushRef = useRef<PressureMarkerBrush | null>(null);
+  const getOrCreatePressureMarkerBrush = useCallback((c: Canvas) => {
+    if (!pressureMarkerBrushRef.current || pressureMarkerBrushRef.current.canvas !== c) {
+      const brush = new PressureMarkerBrush(c);
+
+      brush.strokeInterceptor = strokeInterceptorRef.current;
+      brush.inkContrast = inkContrastRef.current;
+      pressureMarkerBrushRef.current = brush;
+    }
+
+    return pressureMarkerBrushRef.current;
   }, []);
 
   const getOrCreateScriptBrush = useCallback((c: Canvas) => {
@@ -1585,6 +1612,7 @@ export function useWhiteboardCanvas({
     }
 
     if (pressurePenBrushRef.current) pressurePenBrushRef.current.decimate = decimate;
+    if (pressureMarkerBrushRef.current) pressureMarkerBrushRef.current.decimate = decimate;
     if (scriptBrushRef.current) {
       scriptBrushRef.current.decimate = decimate;
     }
@@ -2515,6 +2543,7 @@ export function useWhiteboardCanvas({
 
           const brush = getOrCreateCalligraphyBrush(c);
 
+          brush.setPressure(strokeSettingsRef.current.pressure !== false);
           brush.setStrokeColor(strokeSettingsRef.current.color);
           brush.width = strokeSettingsRef.current.width;
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
@@ -2553,6 +2582,19 @@ export function useWhiteboardCanvas({
         }
 
         case 'marker': {
+          // «Pressure» on and not dashed: the pressure marker (a filled outline cannot carry a dash).
+          if (strokeSettingsRef.current.pressure !== false && !strokeSettingsRef.current.dashed) {
+            const pressureMarker = getOrCreatePressureMarkerBrush(c);
+
+            pressureMarker.setStrokeColor(withAlpha(strokeSettingsRef.current.color, SOFT_MARKER_OPACITY));
+            pressureMarker.width = strokeSettingsRef.current.width * SOFT_MARKER_WIDTH_SCALE;
+            pressureMarker.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
+            c.freeDrawingBrush = pressureMarker;
+            c.isDrawingMode = true;
+            c.defaultCursor = 'crosshair';
+            break;
+          }
+
           const brush = getOrCreateSoftMarkerBrush(c);
 
           brush.setStrokeColor(withAlpha(strokeSettingsRef.current.color, SOFT_MARKER_OPACITY));
@@ -2568,7 +2610,7 @@ export function useWhiteboardCanvas({
         case 'highlighter': {
           const brush = getOrCreateHighlighterBrush(c);
 
-          brush.color = withAlpha(strokeSettingsRef.current.color, HIGHLIGHTER_OPACITY);
+          brush.color = withAlpha(strokeSettingsRef.current.color, strokeSettingsRef.current.highlighterOpacity ?? HIGHLIGHTER_OPACITY);
           brush.width = highlighterWidthPx(strokeSettingsRef.current);
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
           c.freeDrawingBrush = brush;
@@ -2654,6 +2696,7 @@ export function useWhiteboardCanvas({
       getOrCreatePenBrush,
       getOrCreateScriptBrush,
       getOrCreatePressurePenBrush,
+      getOrCreatePressureMarkerBrush,
       getOrCreateSoftMarkerBrush,
       isObjectEraserToolActive,
       resolveEffectiveTool,
@@ -3067,6 +3110,7 @@ export function useWhiteboardCanvas({
     softMarkerBrushRef.current = null;
     scriptBrushRef.current = null;
     pressurePenBrushRef.current = null;
+    pressureMarkerBrushRef.current = null;
     eraserBrushRef.current = null;
     objectInteractionModeRef.current = null;
     activeTouchPointersRef.current.clear();
@@ -3246,6 +3290,7 @@ export function useWhiteboardCanvas({
       softMarkerBrushRef.current = null;
       scriptBrushRef.current = null;
       pressurePenBrushRef.current = null;
+      pressureMarkerBrushRef.current = null;
       eraserBrushRef.current = null;
       objectInteractionModeRef.current = null;
       resizeObserver.disconnect();

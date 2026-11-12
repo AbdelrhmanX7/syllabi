@@ -1,4 +1,4 @@
-import { FabricObject as BaseFabricObject, FabricText, Group, Line, Polyline } from 'fabric';
+import { FabricImage, FabricObject as BaseFabricObject, FabricText, Group, Line, Polyline, Rect } from 'fabric';
 
 import type { Canvas, FabricObject } from 'fabric';
 
@@ -6,7 +6,7 @@ import { BOARD_TEXT_FONT } from '../ai/rasterize';
 
 import { normalizeGraphSpec, planGraph } from './graphAxes';
 
-import type { GraphSpec } from './graphAxes';
+import type { GraphPlan, GraphSpec } from './graphAxes';
 
 /**
  * Graph axes on the board — the Fabric half of utils/graphAxes.ts. A graph is ONE object (a Group of
@@ -16,6 +16,8 @@ import type { GraphSpec } from './graphAxes';
  */
 
 export const GRAPH_PROP = 'wbGraph';
+/** On a PINNED graph (a picture of it, see {@link graphToPinnedImage}): the size and turn to give it back on unpin. */
+export const GRAPH_FRAME_PROP = 'wbGraphFrame';
 
 /** Ink for the axes and numbers (never solid black), and the faint grid behind them. */
 const AXIS_INK = '#1f2937';
@@ -25,8 +27,12 @@ const GRID_INK = '#d8dbe4';
 export function registerGraphPersistence(): void {
   const base = BaseFabricObject as unknown as { customProperties?: string[] };
 
-  if (!base.customProperties?.includes(GRAPH_PROP)) {
-    base.customProperties = [...(base.customProperties ?? []), GRAPH_PROP];
+  for (const prop of [GRAPH_PROP, GRAPH_FRAME_PROP]) {
+    if (!base.customProperties?.includes(prop)) base.customProperties = [...(base.customProperties ?? []), prop];
+  }
+  // A pinned graph is a picture: the picture class keeps its own list.
+  for (const prop of [GRAPH_PROP, GRAPH_FRAME_PROP]) {
+    if (!FabricImage.customProperties?.includes(prop)) FabricImage.customProperties = [...(FabricImage.customProperties ?? []), prop];
   }
 }
 
@@ -41,6 +47,37 @@ export function graphSpecOf(object: unknown): GraphSpec | null {
   return raw && typeof raw === 'object' ? normalizeGraphSpec(raw as Partial<GraphSpec>) : null;
 }
 
+/** Everything the plan draws, with room for the numbers' own width, plus a margin. */
+export function graphBounds(plan: GraphPlan, margin = 10): { left: number; top: number; width: number; height: number } {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  const take = (x: number, y: number) => {
+    left = Math.min(left, x);
+    right = Math.max(right, x);
+    top = Math.min(top, y);
+    bottom = Math.max(bottom, y);
+  };
+
+  for (const line of plan.lines) {
+    take(line.x1, line.y1);
+    take(line.x2, line.y2);
+  }
+
+  for (const label of plan.labels) {
+    const width = Array.from(label.text).length * plan.fontSize * 0.62;
+    const height = plan.fontSize * 1.2;
+    const x = label.alignX === 'left' ? label.x : label.alignX === 'right' ? label.x - width : label.x - width / 2;
+    const y = label.alignY === 'top' ? label.y : label.alignY === 'bottom' ? label.y - height : label.y - height / 2;
+
+    take(x, y);
+    take(x + width, y + height);
+  }
+
+  return { left: left - margin, top: top - margin, width: right - left + margin * 2, height: bottom - top + margin * 2 };
+}
+
 /** A new graph object for `spec`; `scale` shrinks or grows it (1 = 360 px of plot). Its top-left is at (0, 0). */
 export function buildGraphObject(spec: GraphSpec, scale = 1): Group {
   registerGraphPersistence();
@@ -49,6 +86,26 @@ export function buildGraphObject(spec: GraphSpec, scale = 1): Group {
   const plan = planGraph(clean);
   const still = { selectable: false, evented: false, strokeUniform: false } as const;
   const parts: FabricObject[] = [];
+  // A white card behind the whole graph (numbers and arrows included), so it reads on lined or squared
+  // paper, over a PDF and on the dark board.
+  const box = graphBounds(plan);
+
+  parts.push(
+    new Rect({
+      ...still,
+      originX: 'left',
+      originY: 'top',
+      left: box.left,
+      top: box.top,
+      width: box.width,
+      height: box.height,
+      rx: 8,
+      ry: 8,
+      fill: '#ffffff',
+      stroke: GRID_INK,
+      strokeWidth: 1,
+    }),
+  );
 
   for (const kind of ['grid', 'tick', 'axis'] as const) {
     for (const line of plan.lines) {
@@ -133,4 +190,59 @@ export function replaceGraphObject(canvas: Canvas, current: FabricObject, spec: 
   canvas.requestRenderAll();
 
   return next;
+}
+
+/**
+ * A graph to PIN: a sharp picture of it, in the same place, carrying the graph's spec and frame. The
+ * board's pinned pictures live under the ink and survive every eraser — so points drawn on a pinned
+ * graph can be rubbed out without ever touching the graph. Null when it cannot be drawn.
+ */
+export async function graphToPinnedImage(graph: FabricObject): Promise<FabricImage | null> {
+  const spec = graphSpecOf(graph);
+
+  if (!spec) return null;
+
+  const multiplier = 3;
+  const centre = graph.getCenterPoint();
+  const angle = graph.angle ?? 0;
+
+  // Drawn upright (the turn goes onto the picture), so unpinning restores it exactly.
+  graph.set({ angle: 0 });
+  graph.setCoords();
+
+  let url: string;
+
+  try {
+    url = graph.toCanvasElement({ multiplier }).toDataURL('image/png');
+  } catch {
+    return null;
+  } finally {
+    graph.set({ angle });
+    graph.setCoords();
+  }
+
+  const image = await FabricImage.fromURL(url);
+
+  image.set({ originX: 'center', originY: 'center', left: centre.x, top: centre.y, scaleX: 1 / multiplier, scaleY: 1 / multiplier, angle });
+  image.setCoords();
+  (image as unknown as Record<string, unknown>)[GRAPH_PROP] = spec;
+  (image as unknown as Record<string, unknown>)[GRAPH_FRAME_PROP] = { scaleX: graph.scaleX ?? 1, scaleY: graph.scaleY ?? 1 };
+
+  return image;
+}
+
+/** The editable graph a pinned picture stands for, in the same place; null when the picture is not a pinned graph. */
+export function pinnedImageToGraph(image: FabricObject): Group | null {
+  const spec = graphSpecOf(image);
+
+  if (!spec || !(image instanceof FabricImage)) return null;
+
+  const frame = (image as unknown as Record<string, { scaleX?: number; scaleY?: number } | undefined>)[GRAPH_FRAME_PROP];
+  const graph = buildGraphObject(spec, frame?.scaleX ?? 1);
+
+  graph.set({ scaleX: frame?.scaleX ?? 1, scaleY: frame?.scaleY ?? frame?.scaleX ?? 1, angle: image.angle ?? 0 });
+  graph.setPositionByOrigin(image.getCenterPoint(), 'center', 'center');
+  graph.setCoords();
+
+  return graph;
 }

@@ -53,7 +53,7 @@ import { PasteChip, SelectionActionBar } from './SelectionActionBar';
 import { installModernSelectionChrome, SELECTION_MARQUEE } from './utils/selectionChrome';
 import { setHandwritingFace } from './ai/handwritingObjects';
 import { DEFAULT_GRAPH } from './utils/graphAxes';
-import { buildGraphObject, graphSpecOf, replaceGraphObject } from './utils/graphObject';
+import { buildGraphObject, graphSpecOf, graphToPinnedImage, pinnedImageToGraph, replaceGraphObject } from './utils/graphObject';
 import { rasterizeSelection, selectionSceneBounds } from './utils/selectionActions';
 import { boardRuleGrid, boardSheetRuleGrid, sheetRuleGrid } from './utils/straightenInk';
 import { selectedInkStrokes, straightenSelection } from './utils/straightenInkCanvas';
@@ -4378,14 +4378,19 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         return { ...current, color: stored || '#ffd60a' };
       });
     } else if (previous === 'highlighter' && (isPenFamilyTool(activeTool) || parkedPenColorRef.current)) {
+      // Read (and clear) the parked pen colour OUTSIDE the updater: React may run an updater more than
+      // once, and the second run used to find the ref already cleared — it then kept the highlighter's
+      // colour as the pen's (the «my pen turned yellow» bug).
+      const pen = parkedPenColorRef.current;
+
+      parkedPenColorRef.current = null;
       setStrokeSettings((current) => {
         try {
           window.localStorage.setItem('whiteboard-highlighter-color', current.color);
         } catch {
           /* private mode: the colour just is not remembered */
         }
-        const pen = parkedPenColorRef.current;
-        parkedPenColorRef.current = null;
+
         return pen ? { ...current, color: pen } : current;
       });
     }
@@ -4553,6 +4558,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         secondaryColor: nextSettings.secondaryColor,
         width: nextSettings.width,
         highlighterWidth: nextSettings.highlighterWidth ?? currentSettings.highlighterWidth,
+        highlighterOpacity: nextSettings.highlighterOpacity ?? currentSettings.highlighterOpacity,
         opacity: activeTool === 'highlighter' ? currentSettings.opacity : nextSettings.opacity,
         lineShape: nextSettings.lineShape,
         dashed: nextSettings.dashed,
@@ -7651,10 +7657,46 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     notifyLockedImagesChanged(canvas);
   }, [pinImageAction]);
 
+  /** Pins a graph: it becomes a pinned picture of itself (under the ink, safe from every eraser). */
+  const handlePinGraph = useCallback(async (graph: FabricObject) => {
+    const canvas = fabricCanvasRef.current;
+
+    if (!canvas) return;
+
+    const image = await graphToPinnedImage(graph);
+    const index = canvas.getObjects().indexOf(graph);
+
+    // Gone, or changed, while the picture was being made.
+    if (!image || index < 0) return;
+
+    canvas.discardActiveObject();
+    canvas.remove(graph);
+    canvas.insertAt(index, image);
+    applyImageLockState(image, true);
+    canvas.requestRenderAll();
+    notifyLockedImagesChanged(canvas);
+  }, []);
+
   const handleUnpinImage = useCallback((image: FabricObject) => {
     const canvas = fabricCanvasRef.current;
 
     if (!canvas) return;
+
+    // A pinned graph comes back as the graph itself: editable again, in the same place.
+    const graph = pinnedImageToGraph(image);
+
+    if (graph) {
+      const index = canvas.getObjects().indexOf(image);
+
+      canvas.remove(image);
+      if (index >= 0) canvas.insertAt(index, graph);
+      else canvas.add(graph);
+      canvas.setActiveObject(graph);
+      canvas.requestRenderAll();
+      notifyLockedImagesChanged(canvas);
+
+      return;
+    }
 
     applyImageLockState(image, false);
     canvas.requestRenderAll();
@@ -7691,7 +7733,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       activeTool === 'highlighter'
         ? {
             ...strokeSettings,
-            opacity: FIXED_HIGHLIGHTER_OPACITY,
+            opacity: strokeSettings.highlighterOpacity ?? FIXED_HIGHLIGHTER_OPACITY,
           }
         : strokeSettings,
     [activeTool, strokeSettings],
@@ -8432,6 +8474,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
                         if (canvas) replaceGraphObject(canvas, selectedGraph.object, spec);
                       },
+                      onPin: () => void handlePinGraph(selectedGraph.object),
                     }
                   : null
               }

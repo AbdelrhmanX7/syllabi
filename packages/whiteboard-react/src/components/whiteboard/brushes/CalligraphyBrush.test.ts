@@ -225,3 +225,42 @@ describe('CalligraphyBrush dot', () => {
     });
   });
 });
+
+describe('CalligraphyBrush pressure', () => {
+  /** A long horizontal stroke, every point at `pressure`; the ink's height in the middle. */
+  const thicknessAt = (brush: CalligraphyBrush, pressure: number | undefined) => {
+    const points = Array.from({ length: 61 }, (_, i) => ({ x: 100 + i * 2, y: 300, ...(pressure === undefined ? {} : { pressure }) }));
+    const outline = vertices(brush.outlinePathDataFor(points));
+
+    return span(
+      outline.filter((p) => Math.abs(p.x - 160) < 10),
+      { x: 0, y: 1 },
+    );
+  };
+
+  it('off (the default): the same nib whatever the pressure', () => {
+    const brush = new CalligraphyBrush(makeCanvas());
+
+    brush.width = 6;
+
+    const plain = thicknessAt(brush, undefined);
+
+    assert.ok(plain > 0);
+    assert.ok(Math.abs(thicknessAt(brush, 0.1) - plain) < 0.01);
+    assert.ok(Math.abs(thicknessAt(brush, 1) - plain) < 0.01);
+  });
+
+  it('on: the whole nib grows with the hand — half at the lightest touch, one and a half pressed hard; no reading = unchanged', () => {
+    const brush = new CalligraphyBrush(makeCanvas());
+
+    brush.width = 6;
+
+    const plain = thicknessAt(brush, undefined);
+
+    brush.setPressure(true);
+
+    assert.ok(Math.abs(thicknessAt(brush, undefined) - plain) < 0.01, 'a pen with no pressure draws the plain nib');
+    assert.ok(Math.abs(thicknessAt(brush, 1) / plain - 1.5) < 0.06);
+    assert.ok(Math.abs(thicknessAt(brush, 0.1) / plain - 0.6) < 0.06);
+  });
+});

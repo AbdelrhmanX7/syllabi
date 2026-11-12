@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Button, Divider, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@repo/ui';
+import { Button, Divider, Popover, PopoverContent, PopoverTrigger, Slider, Tooltip } from '@repo/ui';
 import {
   ArrowDown,
   ArrowLeft,
@@ -859,6 +859,20 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       tool='highlighter'
                       valuePx={highlighterWidthPx(strokeSettings)}
                       onChange={(highlighterWidth) => onStrokeSettingsChange({ ...strokeSettings, highlighterWidth })}
+                    />
+                    {/* How strong the colour is: lighter keeps the text under it easier to read. */}
+                    <Slider
+                      aria-label={t('stroke.highlighterStrength')}
+                      color='primary'
+                      data-highlighter-strength
+                      getValue={(value) => `${Math.round((Array.isArray(value) ? value[0]! : value) * 100)}%`}
+                      label={t('stroke.highlighterStrength')}
+                      maxValue={0.6}
+                      minValue={0.1}
+                      size='sm'
+                      step={0.02}
+                      value={strokeSettings.highlighterOpacity ?? 0.22}
+                      onChange={(value) => onStrokeSettingsChange({ ...strokeSettings, highlighterOpacity: Array.isArray(value) ? value[0]! : value })}
                     />
                   </div>
                 </div>
