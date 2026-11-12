@@ -295,6 +295,7 @@ export async function flushOutbox(force = false): Promise<number> {
   if (sent > 0 && client) {
     void client.invalidateQueries({ queryKey: ['study', 'questions'] });
     void client.invalidateQueries({ queryKey: ['study', 'mastery'] });
+    void client.invalidateQueries({ queryKey: ['study', 'knowledge'] });
     void client.invalidateQueries({ queryKey: ['study', 'today'] });
     void client.invalidateQueries({ queryKey: ['study', 'items'] });
     void client.invalidateQueries({ queryKey: ['study', 'classes'] });

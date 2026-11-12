@@ -32,6 +32,7 @@ import { StudyApiError } from '../errors';
 // Today fields; imported from its mock module, not its index (which pulls in React).
 
 import { mapClassIdInPath, mapClassIds, toFixtureClassId } from './class-map';
+import { mockClassKnowledge } from './knowledge';
 import { mockUploadLibraryPdf, pcmMockRoute } from './pcm';
 import { loadMockSeed } from './seed';
 import { delay, streamFrames, streamText } from './sse';
@@ -841,6 +842,12 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
     }
     case 'classes': {
       if (!a && method === 'GET') return db.classes(query.get('term'));
+      // The class knowledge map (demo data; class ids are fixture ids there).
+      if (a && b === 'knowledge' && method === 'GET') {
+        const fixtureId = toFixtureClassId(a);
+
+        return mockClassKnowledge(fixtureId, db.mastery(fixtureId).topics);
+      }
       // Manual classes: in memory only (a reload drops them) — the sample never pretends they persisted.
       if (!a && method === 'POST') {
         const input = (body ?? {}) as { name?: string; code?: string; color?: string };

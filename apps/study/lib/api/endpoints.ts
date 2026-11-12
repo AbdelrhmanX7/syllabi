@@ -19,6 +19,7 @@ import type {
   LibraryDocDetail,
   LibraryHit,
   LibraryKind,
+  ClassKnowledge,
   MasteryTopic,
   McpConnection,
   McpKey,
@@ -244,6 +245,7 @@ export const deleteQuestion = (questionId: string) => studyDelete(`/questions/${
 export const getReviewNext = (filter: { classId?: string; limit?: number } = {}) =>
   studyGet<Question[]>(`/review/next${qs(filter)}`);
 export const getMastery = (classId?: string) => studyGet<{ topics: MasteryTopic[] }>(`/mastery${qs({ classId })}`);
+export const getClassKnowledge = (classId: string) => studyGet<ClassKnowledge>(`/classes/${enc(classId)}/knowledge`);
 
 export interface ExtractSource {
   itemId?: string;

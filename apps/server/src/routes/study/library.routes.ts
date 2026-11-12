@@ -7,6 +7,7 @@ import {
   getLibraryDoc,
   listClassLibrary,
   listExamResults,
+  getClassKnowledge,
   listLabSpecimens,
   patchExamResult,
   putExamBlueprint,
@@ -35,5 +36,7 @@ router.get("/classes/:id/exam-results", listExamResults);
 router.post("/classes/:id/exam-results", createExamResult);
 router.patch("/classes/:id/exam-results/:resultId", patchExamResult);
 router.get("/classes/:id/lab-specimens", listLabSpecimens);
+// Class knowledge map (services/study/concepts.ts).
+router.get("/classes/:id/knowledge", getClassKnowledge);
 
 export default router;

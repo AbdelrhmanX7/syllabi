@@ -248,6 +248,7 @@ const MCP_TOOLS = [
   'get_transcript',
   'get_assignments',
   'get_weak_topics',
+  'get_class_knowledge',
   'get_questions',
   'add_questions',
   'create_flashcards',

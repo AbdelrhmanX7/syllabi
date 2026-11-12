@@ -18,6 +18,7 @@ import { signedGetUrl } from "@/services/study/storage";
 import { looksLikePdf } from "@/services/study/pdf-assets";
 import { uploadLibraryPdf } from "@/services/study/library-upload";
 import { BlueprintError, resolveBlueprint, validateBlueprint } from "@/services/study/exam-blueprint";
+import { classKnowledge } from "@/services/study/concepts";
 import type { ExamBlueprint } from "@/models/study/library";
 import { fail, isOid, uid, wrap } from "./study.controller";
 
@@ -34,6 +35,18 @@ export const ownClass = async (req: Request, res: Response, id: unknown = req.pa
 };
 
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
+
+// ─── knowledge map ──────────────────────────────────────────────────────────────────────
+
+/**
+ * `GET /study/classes/:id/knowledge` → `{concepts:[{id,label,parentId,sources,strength,attempts,lastAt}], edges:[{from,to,kind}]}`
+ * (services/study/concepts.ts). `strength` is 0..1, null = not tried yet.
+ */
+export const getClassKnowledge = wrap(async (req, res) => {
+  const cls = await ownClass(req, res);
+  if (!cls) return;
+  res.json(await classKnowledge(uid(req), cls._id));
+});
 
 // ─── library ────────────────────────────────────────────────────────────────────────────
 

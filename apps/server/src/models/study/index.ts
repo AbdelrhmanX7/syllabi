@@ -13,6 +13,7 @@ export * from "./mcp";
 export * from "./assignment-group";
 export * from "./library";
 export * from "./concept-map";
+export * from "./concept";
 export * from "./class-policy";
 export * from "./announcement-digest";
 export * from "./a-plan";

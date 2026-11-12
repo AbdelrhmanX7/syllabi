@@ -20,6 +20,7 @@ import { getConceptMap } from "@/controllers/study-concept-maps.controller";
 import { itemsDto, listClasses, LIST_PROJECTION, todayRules } from "./views";
 import { correctChoiceIndex, studentChoiceIndex } from "./ai";
 import { reviewNext, REVIEW_MAX, todayReview, topicMastery, WEAK_TOPIC_MIN_ATTEMPTS } from "./questions";
+import { classKnowledge } from "./concepts";
 import { htmlToText } from "./extract-sources";
 import { invokeController, Invoked } from "./mcp-invoke";
 import { classifyAiError, logAiFailure } from "./ai-errors";
@@ -396,6 +397,31 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       if (classId && !(await ownClass(userId, classId))) return toolError("Class not found", "NOT_FOUND");
       const rows = await topicMastery(userId, classId ? { classId: new Types.ObjectId(classId) } : {});
       return ok(rows.filter((t) => t.attempts >= WEAK_TOPIC_MIN_ATTEMPTS).slice(0, 20));
+    }
+  );
+
+  server.registerTool(
+    "get_class_knowledge",
+    {
+      description:
+        "The knowledge map of one class: every concept (question topics and their subtopics, concept-map terms, exam topics) with how strong the owner is on it — a percentage, or \"not tried yet\" — weakest first, plus which concept it is part of and which concepts the owner linked in their concept maps.",
+      inputSchema: { classId: oid },
+      annotations: READ,
+    },
+    async ({ classId }) => {
+      if (!(await ownClass(userId, classId))) return toolError("Class not found", "NOT_FOUND");
+      const k = await classKnowledge(userId, classId);
+      const label = new Map(k.concepts.map((c) => [c.id, c.label]));
+      const concepts = [...k.concepts]
+        .sort((a, b) => (a.strength ?? 2) - (b.strength ?? 2) || a.label.localeCompare(b.label))
+        .map((c) => ({
+          label: c.label,
+          strength: c.strength === null ? "not tried yet" : `${Math.round(c.strength * 100)}%`,
+          ...(c.attempts ? { tries: c.attempts } : {}),
+          ...(c.parentId && label.has(c.parentId) ? { partOf: label.get(c.parentId) } : {}),
+        }));
+      const links = k.edges.filter((e) => e.kind === "linked").map((e) => [label.get(e.from), label.get(e.to)]);
+      return ok({ concepts, ...(links.length ? { links } : {}) });
     }
   );
 

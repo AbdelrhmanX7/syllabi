@@ -133,6 +133,11 @@ const MasteryPanel = dynamic(
   { ssr: false },
 );
 
+const KnowledgeMap = dynamic(
+  () => import("@/features/bank").then((mod) => mod.KnowledgeMap),
+  { ssr: false },
+);
+
 const TOOL_LINK_CLASS =
   "rounded-st border-st-line bg-st-surface text-st-fg hover:bg-st-raised inline-flex min-h-11 items-center gap-2 border px-4 text-sm font-medium";
 
@@ -300,6 +305,12 @@ export default function ClassPage() {
   if (!classId) {
     return <EmptyState title="No class selected" />;
   }
+
+  // Opens the class's question bank; a topic (from the knowledge map) comes up already picked.
+  const practise = (topic?: string) =>
+    void router.push(
+      `/bank/?classId=${encodeURIComponent(classId)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`,
+    );
 
   return (
     <>
@@ -573,12 +584,12 @@ export default function ClassPage() {
         <aside className="flex flex-col gap-4">
           {cls && hasConceptMaps(cls) && <ConceptMapsPanel classId={classId} />}
 
+          <KnowledgeMap classId={classId} onPractise={practise} />
+
           <MasteryPanel
             classId={classId}
             classes={classes ?? []}
-            onDrill={() =>
-              void router.push(`/bank/?classId=${encodeURIComponent(classId)}`)
-            }
+            onDrill={() => practise()}
           />
 
         </aside>

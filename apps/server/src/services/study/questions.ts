@@ -8,6 +8,7 @@ import {
   QuestionSourceKind,
   StudyQuestionType,
 } from "@/models/study/question";
+import { recordConceptEvidence } from "./concepts";
 import { isNearDuplicateStored, shingleHashes, stemHash } from "./dedupe";
 import { newSrs, Rating, schedule } from "./fsrs";
 import { normalizeFillBlank, normalizeMatching, StructuredInputError } from "./structured-questions";
@@ -236,6 +237,8 @@ export async function recordAttempt(
     now
   );
   const updated = await StudyQuestion.findOneAndUpdate({ _id: q._id, userId: q.userId }, { $set: { stats, srs } }, { new: true }).lean<IStudyQuestion>();
+  // Class knowledge map: the same result against the question's topic + subtopic (fire and forget; it never throws).
+  void recordConceptEvidence({ userId: q.userId, classId: q.classId, labels: [q.topic, q.subtopic], kind: "question", result: RESULT_SCORE[result], refId: String(q._id), at: now });
   return { stats: updated!.stats, srs: srsDto(updated!.srs) };
 }
 

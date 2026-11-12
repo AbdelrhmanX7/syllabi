@@ -7,7 +7,8 @@ import { StudyAiUsage } from "@/models/study/ai-usage";
 import { openStudySse } from "@/services/study/sse";
 import { newSpend, Spend, spendFor } from "@/services/study/ai-models";
 import { AttemptInputError, AttemptPlan, planAttempt, runPlan } from "@/services/study/attempt-grading";
-import { recordAttempt } from "@/services/study/questions";
+import { recordAttempt, RESULT_SCORE } from "@/services/study/questions";
+import { recordConceptEvidence } from "@/services/study/concepts";
 import { runWithGuide, withClassGuide } from "@/services/study/ai";
 import { loadClassGuide } from "@/services/study/class-guide";
 import {
@@ -262,6 +263,8 @@ export const submitExam = wrap(async (req: Request, res: Response) => {
         result = row.result;
       }
       if (it.inBank) await recordAttempt(it.q, result, { usedHelp: false });
+      // A question no longer in the bank skips recordAttempt (which feeds the knowledge map itself), so its result is recorded here.
+      else void recordConceptEvidence({ userId, classId: exam.classId, labels: [it.snap.topic, it.snap.subtopic], kind: "exam", result: RESULT_SCORE[result], refId: String(exam._id) });
       return row;
     };
     const workers = Array.from({ length: Math.min(GRADE_CONCURRENCY, items.length) }, async () => {

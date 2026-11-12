@@ -35,6 +35,7 @@ export { ExtractButton, AddQuestionsModal } from "./components/AddQuestions";
 export { QuestionCard } from "./components/QuestionCard";
 export { SolveView } from "./components/SolveView";
 export { MasteryPanel } from "./components/MasteryPanel";
+export { KnowledgeMap } from "./components/KnowledgeMap";
 export { ReviewSession } from "./components/ReviewSession";
 export { MockExam } from "./components/MockExam";
 export { InkCanvas } from "./components/InkCanvas";

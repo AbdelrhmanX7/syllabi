@@ -65,6 +65,7 @@ export const studyKeys = {
   mcpKeys: ['study', 'mcp-keys'] as const,
   mcpConnections: ['study', 'mcp-connections'] as const,
   mastery: (classId?: string) => ['study', 'mastery', classId ?? ''] as const,
+  knowledge: (classId: string) => ['study', 'knowledge', classId] as const,
 };
 
 /**
@@ -214,6 +215,18 @@ export const useMastery = (classId?: string) =>
     queryFn: () => endpoints.getMastery(classId),
     enabled: useStudyQueriesEnabled(),
   });
+
+/** The class knowledge map: its concepts, how strong each one is, and the links between them. */
+export function useClassKnowledge(classId: string | null | undefined) {
+  const enabled = useStudyQueriesEnabled();
+
+  return useQuery({
+    queryKey: studyKeys.knowledge(classId ?? ''),
+    queryFn: () => endpoints.getClassKnowledge(classId!),
+    enabled: enabled && !!classId,
+    retry: false,
+  });
+}
 
 /** Marks an item seen (queued while offline) and refreshes everything that counts unseen items. */
 export function useMarkSeen() {

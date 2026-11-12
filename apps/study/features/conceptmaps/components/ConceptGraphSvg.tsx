@@ -25,6 +25,8 @@ export interface ConceptGraphSvgProps {
   paint?: GraphPaint;
   /** Node ids and `edgeKey(from, to)` keys drawn as selected. */
   selected?: Set<string>;
+  /** Paint the page colour under every box, so a line that runs behind a tinted box does not show through it. */
+  solid?: boolean;
 }
 
 const EDGE_STROKE: Record<EdgeTone | 'default', string> = {
@@ -70,7 +72,7 @@ const BRANCH_HUES = 6;
 const inkVar = (branch: number, muted = false) =>
   `var(--cm-${branch < 0 ? 'root' : `b${branch % BRANCH_HUES}`}${muted ? '-m' : ''})`;
 
-export function ConceptGraphSvg({ diagram, highlight, paint, selected }: ConceptGraphSvgProps) {
+export function ConceptGraphSvg({ diagram, highlight, paint, selected, solid }: ConceptGraphSvgProps) {
   const prefix = `cm-${useId().replace(/:/g, '')}`;
   const opt = diagram.options;
   const tones = Object.keys(EDGE_FILL) as (EdgeTone | 'default')[];
@@ -216,6 +218,7 @@ export function ConceptGraphSvg({ diagram, highlight, paint, selected }: Concept
                 y={node.y - (on ? 9 : 4)}
               />
             )}
+            {solid && <rect className='fill-st-bg' height={node.h} rx={10} width={node.w} x={node.x} y={node.y} />}
             <rect
               className={box}
               height={node.h}

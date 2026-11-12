@@ -38,6 +38,7 @@ import { logger } from "@/services/logger.service";
 import { classifyAiError, logAiFailure } from "@/services/study/ai-errors";
 import { FROM_TERMS_CONTEXT_MAX_CHARS, FROM_TERMS_HINT_MAX, isPngOrJpeg, LANG_RX, mapTermsFromInk, parseClusters } from "@/services/study/concept-map-from-terms";
 import { getLectureMaterial, LectureQuery, resolveLectureScope } from "@/services/study/lecture-material";
+import { recordConceptEvidence } from "@/services/study/concepts";
 import { decodeB64Image } from "./study-questions.controller";
 import { ownClass } from "./study-library.controller";
 import { editedByDto, editedByOf, scopedMap } from "@/services/share/edit";
@@ -368,6 +369,10 @@ export const gradeConceptMap = wrap(async (req, res) => {
       await putStudyObject(imageKey, png, "image/png");
       const a = await StudyConceptMapAttempt.create({ userId, mapId: map._id, promptTerms, imageKey, reading, criteria, verdict, model, sources });
       attemptId = String(a._id);
+      // Class knowledge map: a term missing from the drawing counts as wrong, a term that is in it as right.
+      const missing = new Set(verdict.missingTerms);
+      void recordConceptEvidence({ userId, classId: cls._id, labels: verdict.missingTerms, kind: "map", result: 0, refId: attemptId });
+      void recordConceptEvidence({ userId, classId: cls._id, labels: promptTerms.filter((t) => !missing.has(t)), kind: "map", result: 1, refId: attemptId });
     }
     await sse.done({ attemptId, model, sources });
   });

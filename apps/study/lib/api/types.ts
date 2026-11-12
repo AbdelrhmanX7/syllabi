@@ -337,6 +337,32 @@ export interface MasteryTopic {
   dueCount: number;
 }
 
+/** One concept of a class's knowledge map (`GET /classes/:id/knowledge`). */
+export interface KnowledgeConcept {
+  id: string;
+  label: string;
+  /** A subtopic's topic; null for a main concept. */
+  parentId: string | null;
+  /** Where the concept is found: a question topic / subtopic, a concept-map term, an exam topic. */
+  sources: ('topic' | 'subtopic' | 'map-term' | 'exam-topic')[];
+  /** 0..1; null = not tried yet. */
+  strength: number | null;
+  attempts: number;
+  lastAt: string | null;
+}
+
+export interface KnowledgeEdge {
+  from: string;
+  to: string;
+  /** `part-of`: a subtopic → its topic. `linked`: two concepts joined in a graded concept map. */
+  kind: 'part-of' | 'linked';
+}
+
+export interface ClassKnowledge {
+  concepts: KnowledgeConcept[];
+  edges: KnowledgeEdge[];
+}
+
 /** One graded answer of a submitted exam (the `graded` SSE frame, kept on the exam). */
 export interface ExamResult {
   questionId: string;
