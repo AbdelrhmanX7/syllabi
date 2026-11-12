@@ -218,6 +218,7 @@ export const AI_STRINGS = {
   'ai.layer.notEnoughInk': 'Not enough writing on the page to copy your handwriting — used the regular font.',
   'ai.layer.added': 'Added to the board — you can move it, erase it or undo.',
   'ai.layer.correctedOnNewPage': 'The corrected copy is on a new page after the original.',
+  'ai.layer.practiceOnNewPage': 'Your practice question is on this new page.',
   'ai.layer.pageChangedSinceCheck': 'The page changed since the check — check it again.',
   'ai.layer.mapAdded': 'Map added — each concept is its own group you can move.',
   'ai.layer.remakeAdded': 'The new copy is on a page after the original — the original is untouched.',

@@ -26,17 +26,28 @@ export interface BoardActionsJson {
   lang: 'en';
   clusters: Array<{ id: string; box: { x: number; y: number; w: number; h: number } }>;
   /** The contract version the caller draws (2 = verdict marks + notes placed by the app). */
-  v?: 2;
+  v?: 2 | 3;
+  /** v3 (the buddy's experts). */
+  skill?: string;
+  classId?: string;
+  pageId?: string;
 }
 
 /** The `json` multipart field: the editor's clusters (`bbox`) become the contract's `box`; `lang` is always English. */
-export function boardActionsJson(request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters' | 'v' | 'questionImage'>): BoardActionsJson {
+export function boardActionsJson(
+  request: Pick<PenPlanRequest, 'question' | 'lang' | 'clusters' | 'v' | 'questionImage' | 'skill'>,
+  scope: { classId?: string | null; pageId?: string | null } = {},
+): BoardActionsJson {
   return {
     // A question written on the pad travels as a picture; the text only says so.
     question: (request.question ?? '').trim() || (request.questionImage ? HANDWRITTEN_QUESTION : ''),
     lang: 'en',
     clusters: request.clusters.map((cluster) => ({ id: cluster.id, box: { ...cluster.bbox } })),
     ...(request.v === 2 ? { v: 2 as const } : {}),
+    // The buddy's experts: the tapped expert, and the page's class and id for memory and the answer log.
+    ...(request.v === 3
+      ? { v: 3 as const, ...(request.skill ? { skill: request.skill } : {}), ...(scope.classId ? { classId: scope.classId } : {}), ...(scope.pageId ? { pageId: scope.pageId } : {}) }
+      : {}),
   };
 }
 

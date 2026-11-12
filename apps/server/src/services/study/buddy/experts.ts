@@ -56,7 +56,7 @@ export const BUDDY_EXPERTS: readonly BuddyExpert[] = [
     when: "The student asks for the question to be solved, worked out, or shown step by step.",
     gives: "steps",
     job: [
-      "Solve the question and return `steps` (the whole worked solution, 3–12 steps, last one = the final answer), as the shared rules describe.",
+      "Solve the question and return `steps` (the whole worked solution, 3–12 steps, last one = the final answer), as the shared rules describe — except the maths: the app writes these steps on the student's page, typeset. " + MATHS + " Words stay outside the dollar signs. Each step is ONE line: a few words, then the maths it gives.",
       "If the page has several questions, solve the one they wrote about or point at, else the first unsolved one, and name it in `say` (one sentence). At most one circle on the page. Do not return `quiz` or `similar`.",
     ],
   },
@@ -100,6 +100,7 @@ export function buildBrief(expert: BuddyExpert, ctx: { memory: string[]; weakTop
   return [
     `THIS TURN YOU ARE THE ${expert.name.toUpperCase()}. Your job (it overrides anything above that conflicts with it):`,
     ...expert.job.map((line) => `- ${line}`),
+    "- Maths anywhere in `say` goes between dollar signs as LaTeX too ($f'(x) = 0$, $\\frac{\\pi}{3}$): the app typesets it, and may write `say` on the student's page.",
     ...(ctx.memory.length
       ? ["", "WHAT YOU REMEMBER ABOUT THIS STUDENT (from earlier turns). Never read it back as a list. But when what you see now is one of these again (the same slip, the same gap), say so kindly in `say` in a few words (\"this is that inside-derivative slip again\") so they notice the pattern:", ...ctx.memory.map((line) => `- ${line}`)]
       : []),

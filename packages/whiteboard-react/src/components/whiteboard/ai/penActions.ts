@@ -303,11 +303,44 @@ export function parsePenPlan(input: unknown, clusterIds: readonly string[]): Pen
   const heard = str(source.heard, 200);
 
   const steps = (Array.isArray(source.steps) ? (source.steps as unknown[]) : [])
-    .map((step) => str(step, 240) ?? '')
+    .map((step) => str(step, 400) ?? '')
     .filter((step) => step.length > 0)
     .slice(0, 14);
+  // v3: the server already cleaned these; only the shape is checked here.
+  const text = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
+  const rawQuiz = source.quiz as Record<string, unknown> | undefined;
+  const choices = Array.isArray(rawQuiz?.choices) ? (rawQuiz.choices as unknown[]).map((choice) => text(choice, 200)).filter(Boolean) : [];
+  const answer = Number(rawQuiz?.answer);
+  const quiz =
+    rawQuiz && text(rawQuiz.question, 600) && choices.length >= 2 && Number.isInteger(answer) && answer >= 0 && answer < choices.length
+      ? { question: text(rawQuiz.question, 600), choices, answer, why: text(rawQuiz.why, 400), ...(text(rawQuiz.topic, 80) ? { topic: text(rawQuiz.topic, 80) } : {}) }
+      : null;
+  const rawSimilar = source.similar as Record<string, unknown> | undefined;
+  const similar = rawSimilar && text(rawSimilar.markdown, 2000) ? { title: text(rawSimilar.title, 80) || 'Practice question', markdown: text(rawSimilar.markdown, 2000) } : null;
+  const trace = (Array.isArray(source.trace) ? (source.trace as Array<Record<string, unknown>>) : [])
+    .filter((step) => step && typeof step === 'object')
+    .slice(0, 12)
+    .map((step) => ({
+      kind: text(step.kind, 20),
+      name: text(step.name, 80),
+      models: Array.isArray(step.models) ? (step.models as unknown[]).map((model) => text(model, 80)).filter(Boolean) : [],
+      ms: Number(step.ms) || 0,
+      costUsd: Number(step.costUsd) || 0,
+      detail: text(step.detail, 1200),
+    }));
 
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(steps.length ? { steps } : {}) };
+  return {
+    actions,
+    ...(say ? { say } : {}),
+    ...(verdict ? { verdict } : {}),
+    ...(heard ? { heard } : {}),
+    ...(steps.length ? { steps } : {}),
+    ...(quiz ? { quiz } : {}),
+    ...(similar ? { similar } : {}),
+    ...(text(source.skill, 24) ? { skill: text(source.skill, 24) } : {}),
+    ...(text(source.turnId, 24) ? { turnId: text(source.turnId, 24) } : {}),
+    ...(trace.length ? { trace } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

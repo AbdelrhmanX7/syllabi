@@ -8,11 +8,16 @@
  * nothing happens when no board with a pen-plan service is mounted.
  */
 
+import type { PenQuiz, PenSimilar, PenTraceStep } from './types';
+
 /** Host → board. `origin` = where the pointer flies in from, in viewport (client) px. */
 export type BoardBuddyRequest =
   /** `questionImage`: the question written by hand on the buddy's pad (then `question` may be empty). */
   /** `avoid`: a box (viewport px) the marks must stay out of — the buddy's own panel. */
-  | { type: 'ask'; question: string; origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number } }
+  /** `skill`: the expert the student tapped (check, hint, explain, solve, similar, quiz); absent = the server picks one. */
+  | { type: 'ask'; question: string; origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number }; skill?: string }
+  /** A practice question on a NEW page after this one, typeset (markdown, maths as `$…$`). */
+  | { type: 'page'; title: string; markdown: string }
   | { type: 'keep' }
   | { type: 'clear' };
 
@@ -21,7 +26,22 @@ export type BoardBuddyState =
   | { phase: 'reading' | 'planning' | 'drawing' }
   /** The turn finished: `marks` temporary marks are on screen (0 = it only answered). */
   /** `notes`: short notes the page had no room for. */
-  | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string; notes?: string[]; steps?: string[] }
+  /** `wrote`: the answer (the steps, or the explanation) was written on the page; else it is only in the panel. */
+  | {
+      phase: 'done';
+      say?: string;
+      marks: number;
+      verdict?: 'correct' | 'wrong' | 'partly';
+      heard?: string;
+      notes?: string[];
+      steps?: string[];
+      wrote?: boolean;
+      quiz?: PenQuiz;
+      similar?: PenSimilar;
+      skill?: string;
+      turnId?: string;
+      trace?: PenTraceStep[];
+    }
   | { phase: 'error'; message: string; code?: string }
   /** The temporary marks are gone (cleared, a new question, page changed). They never go on a timer. */
   | { phase: 'cleared' }
@@ -57,6 +77,7 @@ export function isBoardBuddyRequest(value: unknown): value is BoardBuddyRequest 
   const request = value as { type?: unknown; question?: unknown };
 
   if (request.type === 'keep' || request.type === 'clear') return true;
+  if (request.type === 'page') return typeof (value as { markdown?: unknown }).markdown === 'string';
 
   return request.type === 'ask' && typeof request.question === 'string';
 }

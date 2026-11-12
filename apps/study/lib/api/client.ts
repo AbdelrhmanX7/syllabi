@@ -51,6 +51,7 @@ export const LIVE_ROUTES = [
   '/ai/transcribe',
   '/ai/conversations',
   '/ai/board-actions',
+  '/ai/buddy',
   // Board «map my terms»: /study/ai/concept-map/from-terms.
   '/ai/concept-map',
   // Auto-colour cloud classifier (lib/ink/cloudClassify): live even before the BE ships it — its 404 is

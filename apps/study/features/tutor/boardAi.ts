@@ -215,7 +215,7 @@ export function createStudyBoardAi({ pageId, classId, context }: StudyBoardAiOpt
     // executes. Mock (hybrid until the backend lands the route, or forced): the canned plan; live:
     // multipart to /study/ai/board-actions, a 404 surfacing as «not available yet».
     penPlan: async (request: PenPlanRequest, signal: AbortSignal): Promise<PenPlanResult> => {
-      const json = boardActionsJson(request);
+      const json = boardActionsJson(request, { classId, pageId });
 
       if (isMockRoute('/ai/board-actions', 'POST')) {
         return (await studyPost<unknown>('/board-ai/board-actions', { ...scope(), ...json })) as PenPlanResult;

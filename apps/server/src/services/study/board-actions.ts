@@ -22,7 +22,7 @@ export const LABEL_MAX = 60;
 export const SAY_MAX = 600;
 /** «Solve it»: how many steps, and how long each may be. */
 export const STEPS_MAX = 14;
-export const STEP_MAX = 240;
+export const STEP_MAX = 400;
 export const STROKE_POINTS_MAX = 64;
 export const QUESTION_MAX = 2000;
 export const BOARD_CLUSTERS_MAX = 200;

@@ -5,7 +5,7 @@
 //
 // The board does the looking and drawing (`requestBoardBuddy` in @repo/whiteboard-react); this file
 // is only the floating button, the voice, and the answer bubble.
-import type { BoardBuddyState } from '@repo/whiteboard-react';
+import type { BoardBuddyState, PenQuiz, PenSimilar, PenTraceStep } from '@repo/whiteboard-react';
 import type { InkCanvasHandle } from '@/features/bank';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,12 +18,14 @@ import {
   ThinkingOrbMark,
 } from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
-import { Check, CopyPlus, Eraser, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, Undo2, WandSparkles, X } from 'lucide-react';
+import { Check, ChevronDown, CopyPlus, Eraser, FilePlus2, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, ThumbsDown, ThumbsUp, Undo2, WandSparkles, X } from 'lucide-react';
 
 import { BUDDY_LINE_MS, BUDDY_QUICK_ASKS, buddyStatus, buddyStatusLine, type BuddyPhase } from './status';
 
 import { ActionButton, Badge, BOARD_CHIP_OVERRIDE, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
-import { InkCanvas } from '@/features/bank';
+import { InkCanvas, Markdown } from '@/features/bank';
+import { isMockRoute } from '@/lib/api/client';
+import { studyPost } from '@/lib/api/http';
 import { useDictation } from '@/features/tutor/useDictation';
 import { useVoiceAiEnabled } from '@/hooks/useAiEnabled';
 
@@ -42,8 +44,20 @@ const TOOLS = [
   { command: 'ai-lasso-once', label: 'Circle', title: 'Circle a part and ask about it', icon: Lasso },
   { command: 'ai-chat', label: 'Chat', title: 'Chat about this page', icon: MessagesSquare },
   { command: 'ai-generate', label: 'Create', title: 'Make something for this page', icon: WandSparkles },
-  { command: 'ai-remake-page', label: 'Similar', title: 'Make a similar page', icon: CopyPlus },
+  { command: 'ai-remake-page', label: 'Remake', title: 'Make a similar copy of this whole page', icon: CopyPlus },
 ] as const;
+
+/** A model id as people say it: «claude-sonnet-5-5», not «anthropic/claude-sonnet-5-5». */
+const modelName = (model: string) => model.split('/').pop() ?? model;
+
+/** One line for the closed «How I answered» row: the expert, the model that answered, the time it took. */
+function traceLine(trace: PenTraceStep[]): string {
+  const expert = trace.find((step) => step.kind === 'expert');
+  const total = trace.reduce((sum, step) => sum + step.ms, 0);
+  const model = expert?.models.length ? modelName(expert.models[expert.models.length - 1]!) : null;
+
+  return [expert?.name ?? trace[0]?.name, model, total > 0 ? `${(total / 1000).toFixed(1)}s` : null].filter(Boolean).join(' · ');
+}
 
 /** The panel's size, px — also the area the marks keep out of (it grows up from the button). */
 const PANEL_W = 480;
@@ -64,6 +78,16 @@ export function StudyBuddy() {
   const [marks, setMarks] = useState(0);
   const [notes, setNotes] = useState<string[]>([]);
   const [steps, setSteps] = useState<string[]>([]);
+  // The experts' extras: a quick check, a practice question, and how the answer was made.
+  const [quiz, setQuiz] = useState<PenQuiz | null>(null);
+  const [quizPick, setQuizPick] = useState<number | null>(null);
+  const [similar, setSimilar] = useState<PenSimilar | null>(null);
+  const [trace, setTrace] = useState<PenTraceStep[]>([]);
+  const [showTrace, setShowTrace] = useState(false);
+  const [turnId, setTurnId] = useState<string | null>(null);
+  const [rating, setRating] = useState<'up' | 'down' | null>(null);
+  const [wrote, setWrote] = useState(false);
+  const [skill, setSkill] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const [padEmpty, setPadEmpty] = useState(true);
   // The composer is one slot: the pen pad, or the keyboard box.
@@ -74,7 +98,7 @@ export function StudyBuddy() {
   const typingRef = useRef(false);
   const [turn, setTurn] = useState(0);
   const [tick, setTick] = useState(0);
-  const lastAskRef = useRef<{ text: string; shown?: string; image?: Blob } | null>(null);
+  const lastAskRef = useRef<{ text: string; shown?: string; image?: Blob; skill?: string } | null>(null);
   const padRef = useRef<InkCanvasHandle>(null);
   // Talking needs the voice add-on; without it the button is tap-only.
   const voiceOn = useVoiceAiEnabled();
@@ -100,7 +124,7 @@ export function StudyBuddy() {
     return { x: right - w, y: box.bottom + 8, w, h };
   };
 
-  const ask = useCallback((text: string, shown?: string, questionImage?: Blob) => {
+  const ask = useCallback((text: string, shown?: string, questionImage?: Blob, expert?: string) => {
     const clean = text.trim();
 
     if (!clean && !questionImage) return;
@@ -116,10 +140,19 @@ export function StudyBuddy() {
     setVerdict(null);
     setNotes([]);
     setSteps([]);
+    setQuiz(null);
+    setQuizPick(null);
+    setSimilar(null);
+    setTrace([]);
+    setShowTrace(false);
+    setTurnId(null);
+    setRating(null);
+    setWrote(false);
+    setSkill(expert ?? null);
     setTurn((value) => value + 1);
-    lastAskRef.current = { text: clean, ...(shown ? { shown } : {}), ...(questionImage ? { image: questionImage } : {}) };
+    lastAskRef.current = { text: clean, ...(shown ? { shown } : {}), ...(questionImage ? { image: questionImage } : {}), ...(expert ? { skill: expert } : {}) };
     setPhase('reading');
-    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}), ...(panelArea() ? { avoid: panelArea()! } : {}) });
+    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}), ...(panelArea() ? { avoid: panelArea()! } : {}), ...(expert ? { skill: expert } : {}) });
   }, []);
 
   /** The question written on the pad → a picture the tutor reads beside the page. */
@@ -200,7 +233,16 @@ export function StudyBuddy() {
       if (state.phase === 'done') {
         setPhase('done');
         if (state.heard) setQuestion(state.heard);
-        setAnswer(state.say?.trim() || (state.steps?.length ? 'Here it is, step by step.' : state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
+        setAnswer(
+          state.say?.trim() ||
+            (state.steps?.length ? 'Here it is, step by step.' : state.quiz ? 'Quick one to check the idea:' : state.similar ? 'Here is one to practise.' : state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."),
+        );
+        setQuiz(state.quiz ?? null);
+        setSimilar(state.similar ?? null);
+        setTrace(state.trace ?? []);
+        setTurnId(state.turnId ?? null);
+        setWrote(Boolean(state.wrote));
+        if (state.skill) setSkill(state.skill);
         setMarks(state.marks);
         setVerdict(state.verdict ?? null);
         setNotes(state.notes ?? []);
@@ -300,6 +342,22 @@ export function StudyBuddy() {
   };
 
   const busy = phase === 'reading' || phase === 'planning' || phase === 'drawing';
+
+  /** The first tap counts: it shows which answer is right, and tells the server (it joins the buddy's memory). */
+  const answerQuiz = (choice: number) => {
+    if (quizPick !== null) return;
+
+    setQuizPick(choice);
+    if (turnId && !isMockRoute('/ai/buddy/turns', 'POST')) void studyPost(`/ai/buddy/turns/${turnId}/quiz`, { choice }).catch(() => undefined);
+  };
+
+  /** Thumbs up / down on this answer (tap the same one again to take it back). */
+  const rate = (value: 'up' | 'down') => {
+    const next = rating === value ? null : value;
+
+    setRating(next);
+    if (turnId && !isMockRoute('/ai/buddy/turns', 'POST')) void studyPost(`/ai/buddy/turns/${turnId}/rating`, { rating: next }).catch(() => undefined);
+  };
   const working = buddyStatus({ phase, dictation: dictation.state, tick });
   const status = buddyStatusLine({ phase, dictation: dictation.state, tick });
   const listening = dictation.state === 'recording';
@@ -308,7 +366,7 @@ export function StudyBuddy() {
   const retry = () => {
     const last = lastAskRef.current;
 
-    if (last) ask(last.text, last.shown, last.image);
+    if (last) ask(last.text, last.shown, last.image, last.skill);
   };
 
   return (
@@ -344,14 +402,67 @@ export function StudyBuddy() {
           )}
           {answer && (
             <div key={turn} className='buddy-fade scroll-shadow-y min-h-0 flex-1 overflow-y-auto px-3 pb-3'>
-              <p className='text-st-fg whitespace-pre-wrap text-sm leading-snug'>{answer}</p>
-              {/* «Solve»: the worked solution, one numbered step per line. */}
-              {steps.length > 0 && (
-                <ol className='text-st-fg mt-1.5 list-decimal space-y-1 pl-5 text-sm leading-snug' data-buddy-steps>
-                  {steps.map((step, index) => (
-                    <li key={`${index}-${step}`}>{step}</li>
-                  ))}
-                </ol>
+              {/* Written on the page already: the panel only says so (it must not cover the writing with a copy). */}
+              {wrote && steps.length === 0 ? (
+                <p className='text-st-muted text-sm leading-snug' data-buddy-wrote>
+                  I wrote the answer on your page.
+                </p>
+              ) : (
+                <Markdown className='!text-sm !leading-snug' text={answer} />
+              )}
+              {/* «Solve»: the worked solution — on the page when there was room, else listed here. */}
+              {steps.length > 0 &&
+                (wrote ? (
+                  <p className='text-st-muted mt-1 text-sm leading-snug' data-buddy-wrote>
+                    The {steps.length} steps are written on your page.
+                  </p>
+                ) : (
+                  <ol className='text-st-fg mt-1.5 list-decimal space-y-1 pl-5 text-sm leading-snug' data-buddy-steps>
+                    {steps.map((step, index) => (
+                      <li key={`${index}-${step}`}>
+                        <Markdown className='!text-sm !leading-snug' text={step} />
+                      </li>
+                    ))}
+                  </ol>
+                ))}
+              {/* «Quick check»: one question, four answers; a tap shows which is right and why. */}
+              {quiz && (
+                <div className='mt-2 flex flex-col gap-1.5' data-buddy-quiz>
+                  <Markdown className='!text-sm !leading-snug font-semibold' text={quiz.question} />
+                  {quiz.choices.map((choice, index) => {
+                    const picked = quizPick !== null;
+                    const right = index === quiz.answer;
+
+                    return (
+                      <button
+                        key={`${index}-${choice}`}
+                        className={cn(
+                          'rounded-st flex min-h-11 items-center gap-2 border px-3 py-1.5 text-left text-sm',
+                          !picked && 'border-st-control-edge text-st-fg',
+                          picked && right && 'border-success-300 bg-success-50 text-success-800',
+                          picked && !right && index === quizPick && 'border-danger-300 bg-danger-50 text-danger-800',
+                          picked && !right && index !== quizPick && 'border-default-200 text-st-muted',
+                        )}
+                        disabled={picked}
+                        type='button'
+                        onClick={() => answerQuiz(index)}
+                      >
+                        <span className='shrink-0 font-semibold'>{'ABCDE'[index]}</span>
+                        <Markdown className='!text-sm !leading-snug min-w-0 flex-1 !text-inherit' text={choice} />
+                      </button>
+                    );
+                  })}
+                  {quizPick !== null && (
+                    <Markdown className='!text-sm !leading-snug' text={`**${quizPick === quiz.answer ? 'Yes!' : 'Almost.'}** ${quiz.why}`} />
+                  )}
+                </div>
+              )}
+              {/* «Similar question»: the new question, and a button that puts it on a new page. */}
+              {similar && (
+                <div className='border-default-200 mt-2 border-t pt-2' data-buddy-similar>
+                  <p className='text-st-muted text-xs font-semibold'>{similar.title}</p>
+                  <Markdown className='!text-sm !leading-snug' text={similar.markdown} />
+                </div>
               )}
               {notes.length > 0 && (
                 <ul className='text-st-fg mt-1.5 list-disc space-y-0.5 pl-4 text-sm leading-snug'>
@@ -369,6 +480,17 @@ export function StudyBuddy() {
                   <Check className='h-4 w-4' /> Keep on page
                 </ActionButton>
               )}
+              {similar && (
+                <ActionButton
+                  variant='primary'
+                  onClick={() => {
+                    requestBoardBuddy({ type: 'page', title: similar.title, markdown: similar.markdown });
+                    setOpen(false);
+                  }}
+                >
+                  <FilePlus2 className='h-4 w-4' /> Put it on a new page
+                </ActionButton>
+              )}
               <ActionButton variant='ghost' onClick={() => setTyping(true)}>
                 Ask more
               </ActionButton>
@@ -380,11 +502,50 @@ export function StudyBuddy() {
               )}
             </div>
           )}
+          {/* What next, without typing: the other experts, one tap each. */}
+          {answer && !typing && (
+            <div className='flex flex-wrap items-center gap-2 px-3 pb-3' data-buddy-next>
+              {BUDDY_QUICK_ASKS.filter((quick) => ['solve', 'similar', 'quiz'].includes(quick.skill) && quick.skill !== skill).map((quick) => (
+                <ActionButton key={quick.skill} className='px-3' variant='secondary' onClick={() => ask(quick.question, quick.label, undefined, quick.skill)}>
+                  {quick.label}
+                </ActionButton>
+              ))}
+            </div>
+          )}
+          {/* How this answer was made: which expert, what it read, which model — and a thumbs up or down. */}
+          {answer && !typing && trace.length > 0 && (
+            <div className='border-default-200 text-st-muted border-t px-3 py-1.5 text-xs' data-buddy-trace>
+              <div className='flex items-center gap-1'>
+                <button className='flex min-h-9 min-w-0 flex-1 items-center gap-1 text-left' type='button' onClick={() => setShowTrace((value) => !value)}>
+                  <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', showTrace && 'rotate-180')} />
+                  <span className='truncate'>How I answered: {traceLine(trace)}</span>
+                </button>
+                <ActionButton aria-label='Good answer' className={cn('w-9 px-0', rating === 'up' && 'text-success-600')} title='Good answer' variant='ghost' onClick={() => rate('up')}>
+                  <ThumbsUp className='h-4 w-4' />
+                </ActionButton>
+                <ActionButton aria-label='Bad answer' className={cn('w-9 px-0', rating === 'down' && 'text-danger-600')} title='Bad answer' variant='ghost' onClick={() => rate('down')}>
+                  <ThumbsDown className='h-4 w-4' />
+                </ActionButton>
+              </div>
+              {showTrace && (
+                <ol className='mt-1 space-y-1 pb-1'>
+                  {trace.map((step, index) => (
+                    <li key={`${index}-${step.kind}`} className='leading-snug'>
+                      <span className='text-st-fg font-semibold'>{step.name}</span>
+                      {step.models.length > 0 && <span> · {step.models.map(modelName).join(', ')}</span>}
+                      {step.ms > 0 && <span> · {(step.ms / 1000).toFixed(1)}s</span>}
+                      <span className='block'>{step.detail}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
           {typing && (
             <div className='flex flex-col gap-3 px-3 pb-3'>
-              <div className='grid grid-cols-4 gap-2'>
+              <div className='grid grid-cols-6 gap-1.5'>
                 {BUDDY_QUICK_ASKS.map((quick, index) => (
-                  <ActionButton key={quick.label} className='px-2' disabled={busy} variant={index === 0 ? 'primary' : 'secondary'} onClick={() => ask(quick.question, quick.label)}>
+                  <ActionButton key={quick.label} className='px-1 text-sm' disabled={busy} title={quick.label} variant={index === 0 ? 'primary' : 'secondary'} onClick={() => ask(quick.question, quick.label, undefined, quick.skill)}>
                     {quick.short}
                   </ActionButton>
                 ))}

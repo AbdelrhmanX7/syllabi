@@ -57,6 +57,8 @@ export type PenRevealStep =
   | { kind: 'chip'; box: { left: number; top: number; width: number; height: number }; lines: string[]; fontSize: number; rim: string; objects: FabricObject[] }
   /** A verdict badge: pops in. */
   | { kind: 'badge'; at: ScenePt; size: number; color: string; glyph: ScenePt[][]; objects: FabricObject[] }
+  /** A typeset line (a worked step with real maths): its picture fades in where the object will sit. */
+  | { kind: 'picture'; box: { left: number; top: number; width: number; height: number }; image: CanvasImageSource; objects: FabricObject[] }
   | { kind: 'pointer'; at: ScenePt; note?: string };
 
 /** The card's fixed colours: navy on cream (≈15:1), readable on white paper and on the dark board alike. */

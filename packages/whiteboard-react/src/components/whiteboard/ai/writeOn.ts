@@ -435,6 +435,7 @@ export function playPenTurn(
     if (step.kind === 'write') return Math.max(600, Math.min(2600, 500 + step.strokes.length * 110));
     if (step.kind === 'chip') return 320;
     if (step.kind === 'badge') return 280;
+    if (step.kind === 'picture') return 420;
 
     return 450;
   });
@@ -618,6 +619,12 @@ export function playPenTurn(
         }
 
         if (local < 1) tip = step.at;
+      } else if (step.kind === 'picture') {
+        // A typeset line: fades in, the pencil resting at its start.
+        ctx.globalAlpha = Math.min(1, local * 1.4);
+        ctx.drawImage(step.image, step.box.left, step.box.top, step.box.width, step.box.height);
+
+        if (local < 1) tip = { x: step.box.left, y: step.box.top + step.box.height / 2 };
       } else {
         const { scale, dx, dy } = step.transform;
         const paths = writePaths.get(index)!;

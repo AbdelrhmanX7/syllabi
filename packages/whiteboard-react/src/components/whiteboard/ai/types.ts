@@ -379,8 +379,34 @@ export interface PenPlanRequest extends BoardAiScope {
   /**
    * 2 = this caller draws `mark` actions and `write … near`, and reads `verdict`: the tutor then
    * checks the student's work first. Absent = the first contract (the step checker relies on it).
+   * 3 = the study buddy's experts: `skill` picks one (absent = the picker chooses), and the reply may
+   * carry `quiz`, `similar`, `skill`, `turnId` and `trace`.
    */
-  v?: 2;
+  v?: 2 | 3;
+  skill?: string;
+}
+
+/** The buddy's quick check: one multiple-choice question (markdown, maths as `$…$`). */
+export interface PenQuiz {
+  question: string;
+  choices: string[];
+  answer: number;
+  why: string;
+  topic?: string;
+}
+/** The buddy's practice question for a new page (markdown, maths as `$…$`). */
+export interface PenSimilar {
+  title: string;
+  markdown: string;
+}
+/** One thing the buddy did during a turn (which expert, what it read, which model, how long). */
+export interface PenTraceStep {
+  kind: string;
+  name: string;
+  models: string[];
+  ms: number;
+  costUsd: number;
+  detail: string;
 }
 
 export type PenMarkVerdict = 'correct' | 'wrong' | 'warning';
@@ -395,6 +421,12 @@ export interface PenPlanResult {
   heard?: string;
   /** v2, «solve it»: the worked solution, one step per item. */
   steps?: string[];
+  /** v3 (the buddy's experts). */
+  quiz?: PenQuiz;
+  similar?: PenSimilar;
+  skill?: string;
+  turnId?: string;
+  trace?: PenTraceStep[];
   /** A short spoken answer, shown in the panel next to the board. */
   say?: string;
 }

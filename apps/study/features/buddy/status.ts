@@ -55,9 +55,11 @@ export function buddyStatusLine(input: { phase: BuddyPhase; dictation: Dictation
  * One-tap questions — a pen user should never need the keyboard. The tutor sees the page, so a
  * question written on it by hand is a question too.
  */
-export const BUDDY_QUICK_ASKS: ReadonlyArray<{ label: string; short: string; question: string }> = [
-  { label: 'Check my work', short: 'Check', question: 'Check my work on this page. Is it right? If not, show me exactly where it goes wrong and how to fix it.' },
-  { label: 'Give me a hint', short: 'Hint', question: 'Give me a hint for the next step only. Do not give the full answer or solve it for me.' },
-  { label: 'Explain this', short: 'Explain', question: 'Explain what matters on this page in simple words, and point at the key parts.' },
-  { label: 'Solve it step by step', short: 'Solve', question: 'Solve this question for me step by step. Show every step in order and end with the final answer.' },
+export const BUDDY_QUICK_ASKS: ReadonlyArray<{ label: string; short: string; question: string; skill: string }> = [
+  { label: 'Check my work', short: 'Check', question: 'Check my work on this page. Is it right? If not, show me exactly where it goes wrong and how to fix it.', skill: 'check' },
+  { label: 'Give me a hint', short: 'Hint', question: 'Give me a hint for the next step only. Do not give the full answer or solve it for me.', skill: 'hint' },
+  { label: 'Explain this', short: 'Explain', question: 'Explain what matters on this page in simple words, and point at the key parts.', skill: 'explain' },
+  { label: 'Solve it step by step', short: 'Solve', question: 'Solve this question for me step by step. Show every step in order and end with the final answer.', skill: 'solve' },
+  { label: 'A similar question', short: 'Similar', question: 'Make me a similar question to practise.', skill: 'similar' },
+  { label: 'Quick check', short: 'Quiz', question: 'Ask me one quick multiple-choice question to check I understand this.', skill: 'quiz' },
 ];

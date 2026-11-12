@@ -331,6 +331,66 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
     };
   }
 
+  // The buddy's experts (v3), sample answers: enough to try every part of the panel without a server.
+  const skill = typeof (body as { skill?: unknown }).skill === 'string' ? ((body as { skill?: string }).skill ?? '') : '';
+  const sampleTrace = (name: string, detail: string) => [
+    { kind: 'pick', name, models: [], ms: 0, costUsd: 0, detail: 'You tapped this one.' },
+    { kind: 'memory', name: 'What I remember about you', models: [], ms: 4, costUsd: 0, detail: 'Sample: often drops a minus sign when moving terms across.' },
+    { kind: 'expert', name, models: ['sample/tutor'], ms: 900, costUsd: 0, detail },
+  ];
+
+  if (skill === 'solve') {
+    return {
+      actions: [{ type: 'circle', target: ref(first) }],
+      say: 'Sample solution — the real tutor solves the question on your page.',
+      steps: ['Write down what is given: $2x + 3 = 11$', 'Subtract 3 from both sides: $2x = 8$', 'Divide both sides by 2: $x = \\frac{8}{2} = 4$', 'Final answer: $x = 4$'],
+      skill,
+      turnId: 'sample',
+      trace: sampleTrace('Solver', '1 mark on the page, 4 steps.'),
+    } as never;
+  }
+
+  if (skill === 'quiz') {
+    return {
+      actions: [],
+      say: 'Quick one to check the idea:',
+      quiz: {
+        question: 'What is $\\frac{d}{dx}\\,x^2$?',
+        choices: ['$2x$', '$x$', '$x^2$', '$2$'],
+        answer: 0,
+        why: 'Power rule: bring the 2 down and lower the power by one. $x$ forgets the 2 in front.',
+        topic: 'Power rule',
+      },
+      skill,
+      turnId: 'sample',
+      trace: sampleTrace('Quick check', 'A quick check.'),
+    } as never;
+  }
+
+  if (skill === 'similar') {
+    return {
+      actions: [{ type: 'circle', target: ref(first) }],
+      say: 'Here is one to practise the same skill.',
+      similar: { title: 'Product rule practice', markdown: 'Find $\\frac{dy}{dx}$ for $y = x^3 \\cos(2x)$.\n\n(a) State the rule you use.\n\n(b) Simplify your answer.' },
+      skill,
+      turnId: 'sample',
+      trace: sampleTrace('Question maker', '1 mark on the page, a practice question.'),
+    } as never;
+  }
+
+  if (skill === 'explain' || skill === 'hint') {
+    return {
+      actions: [{ type: 'underline', target: ref(first) }],
+      say:
+        skill === 'hint'
+          ? 'Sample hint: what happens to $-7$ when you move it to the other side?'
+          : 'Sample explanation: a maximum or minimum can sit where the slope is zero, so we solve $f\\,\'(x) = 0$ and compare with the end points.',
+      skill,
+      turnId: 'sample',
+      trace: sampleTrace(skill === 'hint' ? 'Hint giver' : 'Explainer', '1 mark on the page.'),
+    } as never;
+  }
+
   const noteText = question ? `Sample note on: ${question}` : 'Sample note — the real tutor writes what matters here.';
 
   return {
@@ -352,9 +412,6 @@ export function cannedBoardActions(body: BoardActionsBody): { actions: unknown[]
       { type: 'mark', target: ref(first), verdict: 'correct', label: 'sample tick' },
     ],
     verdict: 'correct',
-    ...(/\bsolve\b/i.test(question)
-      ? { steps: ['Sample step: write down what is given: 2x + 3 = 11', 'Subtract 3 from both sides: 2x = 8', 'Divide both sides by 2: x = 4', 'Final answer: x = 4'] }
-      : {}),
     say: question
       ? `Sample answer to “${question.length > 80 ? `${question.slice(0, 80)}…` : question}” — the real tutor reads your page and marks what matters.`
       : 'Sample explanation — the real tutor reads your page, points at what matters and writes a short note in your hand.',

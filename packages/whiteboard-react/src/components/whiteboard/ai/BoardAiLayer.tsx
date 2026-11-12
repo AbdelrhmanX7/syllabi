@@ -23,6 +23,7 @@ import {
 import { layoutToPlacements, snapLayoutToLines } from './pageLayout';
 import { BOARD_AI_COMMAND_EVENT, isBoardAiCommand } from './commands';
 import { BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
+import { markdownToBlocks } from './markdownBlocks';
 import { readConceptStyle, writeConceptStyle } from './conceptMap';
 import {
   boundsOf,
@@ -56,7 +57,8 @@ import { buildStepMarkObjects, isStepMark } from './stepCheckObjects';
 import { parsePenPlan, planPenActions } from './penActions';
 import { buildOccupancy, contentBlocks, findFreeBox } from './pageOccupancy';
 import type { PxBox } from './pageOccupancy';
-import { buildPenActionObjects } from './penActionObjects';
+import { buildPenActionObjects, CARD_INK } from './penActionObjects';
+import { buildWorkedSteps } from './workedSteps';
 import { showPointerSprite } from './penPointer';
 import { playObjectReveal, playPenTurn, playWriteOn } from './writeOn';
 import type { WriteOnPlayback } from './writeOn';
@@ -68,7 +70,7 @@ import type { PlaceOverlay } from './useRemakeDraft';
 import type { PageBackgroundInfo, SnapshotLayers } from './remakeSnapshot';
 import type { BoardAiCommand } from './commands';
 import type { StepCheckResult } from './stepCheck';
-import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, PenPageVerdict, SceneRect, ScenePoint } from './types';
+import type { BoardAiBlock, BoardAiService, ConceptMap, ConceptMapStyle, NormalizedBox, PageAnalysis, PenPageVerdict, PenPlanResult, SceneRect, ScenePoint } from './types';
 import type { WhiteboardTool } from '../types';
 
 import { measureChromeInsets } from '../utils/chromeInsets';
@@ -450,6 +452,8 @@ export function BoardAiLayer({
   const penSelectionRef = useRef<FabricObject[]>([]);
   const buddyMarksRef = useRef<BuddyMarks | null>(null);
   const buddyAbortRef = useRef<AbortController | null>(null);
+  /** «New page with these blocks» (defined with the panel's actions, further down) for the buddy's practice question. */
+  const newPageRef = useRef<((blocks: BoardAiBlock[], notice?: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     ensureAntsStyle();
@@ -961,8 +965,8 @@ export function BoardAiLayer({
       question: string,
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
-      buddy?: { origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number } },
-    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[]; steps?: string[] }> => {
+      buddy?: { origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number }; skill?: string },
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[]; steps?: string[]; wrote?: boolean; extra?: Pick<PenPlanResult, 'quiz' | 'similar' | 'skill' | 'turnId' | 'trace'> }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -1112,7 +1116,7 @@ export function BoardAiLayer({
       }
 
       const place = grid
-        ? (wanted: SceneRect, alt?: SceneRect, home?: SceneRect): SceneRect | null => {
+        ? (wanted: SceneRect, alt?: SceneRect, home?: SceneRect, far = false): SceneRect | null => {
             const toPx = (rect: SceneRect): PxBox => ({ x: (rect.left - sheet.left) * px, y: (rect.top - sheet.top) * px, w: rect.width * px, h: rect.height * px });
             const about = toPx(home ?? wanted);
             const cy = about.y + about.h / 2;
@@ -1146,7 +1150,8 @@ export function BoardAiLayer({
             // Each wanted spot (beside the region, then under it) → its nearest free box; the closer one wins.
             const tries = [wanted, ...(alt ? [alt] : [])].map((rect) => {
               const want = toPx(rect);
-              const found = findFreeBox(grid!, want, placed, reach, bounds);
+              // A whole written answer may sit further from its question than a short note may.
+              const found = findFreeBox(grid!, want, placed, far ? reach * 3 : reach, bounds);
 
               return found ? { found, distance: Math.hypot(found.x - want.x, found.y - want.y) } : null;
             });
@@ -1171,7 +1176,8 @@ export function BoardAiLayer({
           ...(question ? { question } : {}),
           ...(buddy?.questionImage ? { questionImage: buddy.questionImage } : {}),
           lang: 'en' as const,
-          v: 2 as const,
+          // The buddy talks to the experts (v3); the panel's «Explain on my page» stays on v2.
+          ...(buddy ? { v: 3 as const, ...(buddy.skill ? { skill: buddy.skill } : {}) } : { v: 2 as const }),
         },
         signal,
       );
@@ -1205,6 +1211,36 @@ export function BoardAiLayer({
         zoom,
         batch: `ai-pen-${Date.now().toString(36)}`,
       });
+
+      // «Solve it»: the worked steps are written on the page, typeset, under the question they solve.
+      // An explanation or a hint (no steps, nothing of theirs judged) is written there too, as a paragraph.
+      let stepsWritten = false;
+      const written = result.steps?.length ? result.steps : buddy && result.say && !result.verdict && !result.quiz && !result.similar ? [result.say] : [];
+
+      if (written.length) {
+        const circled = result.actions.find((action) => action.type === 'circle' || action.type === 'underline' || action.type === 'mark');
+        const targetId = circled && 'target' in circled && circled.target && 'clusterId' in circled.target ? circled.target.clusterId : null;
+        const about = (targetId ? regionRects.get(targetId) : null) ?? regionRects.values().next().value ?? null;
+        const stepsAt = about
+          ? { left: Math.max(sheet.left + sheet.width * 0.04, about.left), top: about.top + about.height + letterHeight * 0.9 }
+          : { left: sheet.left + sheet.width * 0.06, top: sheet.top + sheet.height * 0.08 };
+        const worked = await buildWorkedSteps({
+          steps: written,
+          numbered: Boolean(result.steps?.length),
+          anchor: stepsAt,
+          page: sheet,
+          fontSize: Math.max(letterHeight * 0.85, sheet.height * 0.013),
+          color: buddy ? CARD_INK : (hand?.color ?? readableInk(penColor)),
+          batch: `ai-pen-${Date.now().toString(36)}`,
+          ...(place ? { place: (wanted: SceneRect) => place(wanted, undefined, undefined, true) } : {}),
+        }).catch(() => null);
+
+        if (worked) {
+          built.objects.push(...worked.objects);
+          built.steps.push(...worked.reveal);
+          stepsWritten = true;
+        }
+      }
 
       if (signal.aborted) return { added: 0 };
       if (bridge.getPageId() !== pageAtStart) throw new Error(t('ai.layer.pageChanged'));
@@ -1258,6 +1294,14 @@ export function BoardAiLayer({
           ...(result.heard ? { heard: result.heard } : {}),
           ...(plan.overflow.length ? { notes: plan.overflow } : {}),
           ...(result.steps?.length ? { steps: result.steps } : {}),
+          ...(stepsWritten ? { wrote: true } : {}),
+          extra: {
+            ...(result.quiz ? { quiz: result.quiz } : {}),
+            ...(result.similar ? { similar: result.similar } : {}),
+            ...(result.skill ? { skill: result.skill } : {}),
+            ...(result.turnId ? { turnId: result.turnId } : {}),
+            ...(result.trace ? { trace: result.trace } : {}),
+          },
           added: built.objects.length,
         };
       }
@@ -1314,7 +1358,7 @@ export function BoardAiLayer({
   }, [bridge, canvas, clearBuddyMarks]);
 
   const askBuddy = useCallback(
-    async (question: string, origin?: { x: number; y: number }, questionImage?: Blob, avoid?: { x: number; y: number; w: number; h: number }) => {
+    async (question: string, origin?: { x: number; y: number }, questionImage?: Blob, avoid?: { x: number; y: number; w: number; h: number }, skill?: string) => {
       buddyAbortRef.current?.abort();
       clearBuddyMarks(false);
 
@@ -1332,10 +1376,11 @@ export function BoardAiLayer({
       }, BUDDY_TURN_TIMEOUT_MS);
 
       try {
-        const { say, added, verdict, heard, notes, steps } = await penExplain(question.trim(), controller.signal, () => undefined, {
+        const { say, added, verdict, heard, notes, steps, wrote, extra } = await penExplain(question.trim(), controller.signal, () => undefined, {
           ...(origin ? { origin } : {}),
           ...(questionImage ? { questionImage } : {}),
           ...(avoid ? { avoid } : {}),
+          ...(skill ? { skill } : {}),
         });
 
         if (controller.signal.aborted) {
@@ -1345,7 +1390,7 @@ export function BoardAiLayer({
           return;
         }
 
-        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), ...(steps ? { steps } : {}), marks: added });
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), ...(steps ? { steps } : {}), ...(wrote ? { wrote } : {}), ...extra, marks: added });
         // The marks stay until the student keeps them, hides them or asks again: nothing runs out on a timer.
       } catch (error) {
         if (controller.signal.aborted) {
@@ -1377,7 +1422,13 @@ export function BoardAiLayer({
       const request = (event as CustomEvent<unknown>).detail;
 
       if (!isBoardBuddyRequest(request)) return;
-      if (request.type === 'ask') void askBuddy(request.question, request.origin, request.questionImage instanceof Blob ? request.questionImage : undefined, request.avoid);
+      if (request.type === 'ask') void askBuddy(request.question, request.origin, request.questionImage instanceof Blob ? request.questionImage : undefined, request.avoid, request.skill);
+      else if (request.type === 'page') {
+        // A practice question: a heading and the typeset question at the top of a new page.
+        buddyAbortRef.current?.abort();
+        clearBuddyMarks(true);
+        void newPageRef.current?.([{ type: 'heading', text: request.title, level: 2 }, ...markdownToBlocks(request.markdown)], t('ai.layer.practiceOnNewPage'));
+      }
       else if (request.type === 'keep') keepBuddyMarks();
       else {
         buddyAbortRef.current?.abort();
@@ -1413,7 +1464,7 @@ export function BoardAiLayer({
       window.removeEventListener(BOARD_BUDDY_REQUEST_EVENT, onRequest);
       canvas.off('after:render', onRender as never);
     };
-  }, [askBuddy, bridge, canvas, clearBuddyMarks, keepBuddyMarks, service.penPlan]);
+  }, [askBuddy, bridge, canvas, clearBuddyMarks, keepBuddyMarks, service.penPlan, t]);
 
   useEffect(
     () => () => {
@@ -2305,7 +2356,7 @@ export function BoardAiLayer({
         setNotice(spot ? { text, style: spot } : text);
         placedBelowRef.current = false;
       },
-      insertBlocksOnNewPage: async (blocks: BoardAiBlock[]) => {
+      insertBlocksOnNewPage: async (blocks: BoardAiBlock[], notice?: string) => {
         if (!(await bridge.insertPageAfterCurrent())) return;
 
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -2315,7 +2366,7 @@ export function BoardAiLayer({
         analyzedRef.current = null;
         setOutline(null);
         const spot = commit(objects, null, { topAligned: true });
-        const text = t('ai.layer.correctedOnNewPage');
+        const text = notice ?? t('ai.layer.correctedOnNewPage');
 
         setNotice(spot ? { text, style: spot } : text);
       },
@@ -2440,6 +2491,10 @@ export function BoardAiLayer({
       ...(service.penPlan ? { penExplain, checkSteps, clearStepMarks } : {}),
     };
   }, [anchor, bridge, canvas, checkSteps, circleMore, clearStepMarks, closeSession, commit, handPrefs, ink, penExplain, penStyle, penWidth, remake.start, renderPage, saveStyle, service.penPlan, storedStyle]);
+
+  useEffect(() => {
+    newPageRef.current = actions.insertBlocksOnNewPage;
+  }, [actions]);
 
   // --- render ----------------------------------------------------------------------------------------
 

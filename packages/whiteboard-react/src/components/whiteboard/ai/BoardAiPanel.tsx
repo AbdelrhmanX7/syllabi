@@ -117,7 +117,7 @@ export type PanelSession =
 export interface BoardAiPanelActions {
   /** `handwriting` set = «Write it by hand» (written as traced ink, optionally in the teacher's own hand). */
   insertBlocks: (blocks: BoardAiBlock[], options: { withAnswers: boolean; handwriting?: { matchHand: boolean } | null }) => Promise<void>;
-  insertBlocksOnNewPage: (blocks: BoardAiBlock[]) => Promise<void>;
+  insertBlocksOnNewPage: (blocks: BoardAiBlock[], notice?: string) => Promise<void>;
   markErrors: (analysis: PageAnalysis) => Promise<number>;
   insertConceptMap: (map: ConceptMap, style: ConceptMapStyle, where: 'beside' | 'new-page') => Promise<void>;
   snapshotPage: () => Promise<Blob | null>;
