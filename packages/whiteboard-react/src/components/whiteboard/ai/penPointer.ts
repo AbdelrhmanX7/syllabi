@@ -23,7 +23,7 @@ function ensurePointerStyle(): void {
 .wb-ai-pointer { position: absolute; pointer-events: none; z-index: 42; transition: opacity ${FADE_MS}ms ease; }
 .wb-ai-pointer-dot { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 9999px; background: #18204a; border: 2.5px solid #fbfaf6; box-shadow: 0 1px 0 1px #18204a; animation: wb-ai-pointer-pop 420ms cubic-bezier(.2,.9,.3,1.3) both; }
 .wb-ai-pointer-ring { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 9999px; border: 2px solid #18204a; animation: wb-ai-pointer-pulse 1100ms ease-out 200ms infinite; }
-.wb-ai-pointer-note { position: absolute; bottom: 12px; max-width: 220px; padding: 4px 10px; border: 2px solid #18204a; border-radius: 9999px; background: #fbfaf6; color: #18204a; font-size: 12px; font-weight: 600; line-height: 1.35; white-space: normal; box-shadow: 2px 2px 0 0 #18204a; animation: wb-ai-pointer-note 260ms ease-out 180ms both; }
+.wb-ai-pointer-note { position: absolute; bottom: 12px; width: max-content; max-width: 240px; padding: 5px 10px; border: 2px solid #18204a; border-radius: 12px; background: #fbfaf6; color: #18204a; font-size: 12px; font-weight: 600; line-height: 1.35; white-space: normal; box-shadow: 2px 2px 0 0 #18204a; animation: wb-ai-pointer-note 260ms ease-out 180ms both; }
 @media (prefers-reduced-motion: reduce) { .wb-ai-pointer-dot, .wb-ai-pointer-ring, .wb-ai-pointer-note { animation: none; } .wb-ai-pointer-ring { display: none; } .wb-ai-pointer-dot { transform: translate(-50%, -50%); } }
 `;
   document.head.appendChild(style);

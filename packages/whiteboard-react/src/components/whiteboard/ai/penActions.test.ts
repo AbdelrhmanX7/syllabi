@@ -322,13 +322,13 @@ test('v2: a wrong mark is a red ✗ beside the region with the fix written next 
   assert.ok(label && label.kind === 'write' && label.color === MARK_INK.wrong && label.box.left > 400);
 });
 
-test('v2: with the page full, a note becomes a pointer bubble instead of covering content', () => {
+test('v2: with the page full, a note goes to the answer (overflow) instead of covering content', () => {
   const page = { left: 0, top: 0, width: 1000, height: 1400 };
   const plan = planPenActions(
     { actions: [{ type: 'write', text: 'no room for this', near: { clusterId: 'c1' } }] },
     { page, clusters: new Map([['c1', { left: 100, top: 200, width: 200, height: 30 }]]), occupied: [], letterHeight: 24, strokeWidth: 2, place: () => null },
   );
 
-  assert.deepEqual(plan.primitives.map((primitive) => primitive.kind), ['pointer']);
-  assert.equal(plan.primitives[0]!.kind === 'pointer' && plan.primitives[0]!.note, 'no room for this');
+  assert.deepEqual(plan.primitives, []);
+  assert.deepEqual(plan.overflow, ['no room for this']);
 });

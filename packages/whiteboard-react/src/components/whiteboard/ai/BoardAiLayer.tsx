@@ -961,8 +961,8 @@ export function BoardAiLayer({
       question: string,
       signal: AbortSignal,
       onStatus: (line: string | null) => void,
-      buddy?: { origin?: { x: number; y: number }; questionImage?: Blob },
-    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string }> => {
+      buddy?: { origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number } },
+    ): Promise<{ say?: string; added: number; verdict?: PenPageVerdict; heard?: string; notes?: string[] }> => {
       if (!canvas || !service.penPlan) throw Object.assign(new Error(t('ai.pen.unavailable')), { code: 'NOT_AVAILABLE' });
 
       const pageAtStart = bridge.getPageId();
@@ -1089,12 +1089,32 @@ export function BoardAiLayer({
         w: (Math.max(0, canvas.getWidth() - 48) / viewZoom) * px,
         h: (Math.max(0, canvas.getHeight() - 128) / viewZoom) * px,
       };
+
+      // The buddy's own panel covers part of the page: nothing is written under it.
+      if (buddy?.avoid) {
+        const box = canvas.getElement().getBoundingClientRect();
+        const toPx = (clientX: number, clientY: number) => ({
+          x: ((clientX - box.left - view[4]!) / viewZoom - sheet.left) * px,
+          y: ((clientY - box.top - view[5]!) / viewZoom - sheet.top) * px,
+        });
+        const a = toPx(buddy.avoid.x, buddy.avoid.y);
+        const b = toPx(buddy.avoid.x + buddy.avoid.w, buddy.avoid.y + buddy.avoid.h);
+
+        placed.push({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y });
+      }
+
       const place = grid
-        ? (wanted: SceneRect): SceneRect | null => {
-            const want = { x: (wanted.left - sheet.left) * px, y: (wanted.top - sheet.top) * px, w: wanted.width * px, h: wanted.height * px };
-            // A spot that is on screen gets its note on screen (or a bubble) — never ink out of sight.
-            const inView = want.x >= seen.x && want.x <= seen.x + seen.w && want.y >= seen.y && want.y <= seen.y + seen.h;
-            const box = inView ? findFreeBox(grid!, want, placed, reach, seen) : findFreeBox(grid!, want, placed, reach);
+        ? (wanted: SceneRect, alt?: SceneRect): SceneRect | null => {
+            // Each wanted spot (beside the region, then under it) → its nearest free box; the closer one wins.
+            const tries = [wanted, ...(alt ? [alt] : [])].map((rect) => {
+              const want = { x: (rect.left - sheet.left) * px, y: (rect.top - sheet.top) * px, w: rect.width * px, h: rect.height * px };
+              // A spot that is on screen gets its note on screen (or none) — never ink out of sight.
+              const inView = want.x >= seen.x && want.x <= seen.x + seen.w && want.y >= seen.y && want.y <= seen.y + seen.h;
+              const found = inView ? findFreeBox(grid!, want, placed, reach, seen) : findFreeBox(grid!, want, placed, reach);
+
+              return found ? { found, distance: Math.hypot(found.x - want.x, found.y - want.y) } : null;
+            });
+            const box = tries.filter((entry): entry is NonNullable<typeof entry> => entry !== null).sort((a, b) => a.distance - b.distance)[0]?.found;
 
             if (!box) return null;
 
@@ -1198,6 +1218,7 @@ export function BoardAiLayer({
           ...(result.say ? { say: result.say } : {}),
           ...(result.verdict ? { verdict: result.verdict } : {}),
           ...(result.heard ? { heard: result.heard } : {}),
+          ...(plan.overflow.length ? { notes: plan.overflow } : {}),
           added: built.objects.length,
         };
       }
@@ -1210,7 +1231,10 @@ export function BoardAiLayer({
 
       playback?.dispose();
 
-      return { ...(result.say ? { say: result.say } : {}), ...(result.verdict ? { verdict: result.verdict } : {}), added: built.objects.length };
+      // The panel flow has no notes list: what the page had no room for joins the spoken answer.
+      const said = [result.say, ...plan.overflow].filter(Boolean).join(' ');
+
+      return { ...(said ? { say: said } : {}), ...(result.verdict ? { verdict: result.verdict } : {}), added: built.objects.length };
     },
     [bridge, canvas, penColor, penWidth, sceneRectToLayer, service, t],
   );
@@ -1251,7 +1275,7 @@ export function BoardAiLayer({
   }, [bridge, canvas, clearBuddyMarks]);
 
   const askBuddy = useCallback(
-    async (question: string, origin?: { x: number; y: number }, questionImage?: Blob) => {
+    async (question: string, origin?: { x: number; y: number }, questionImage?: Blob, avoid?: { x: number; y: number; w: number; h: number }) => {
       buddyAbortRef.current?.abort();
       clearBuddyMarks(false);
 
@@ -1260,14 +1284,15 @@ export function BoardAiLayer({
       buddyAbortRef.current = controller;
 
       try {
-        const { say, added, verdict, heard } = await penExplain(question.trim(), controller.signal, () => undefined, {
+        const { say, added, verdict, heard, notes } = await penExplain(question.trim(), controller.signal, () => undefined, {
           ...(origin ? { origin } : {}),
           ...(questionImage ? { questionImage } : {}),
+          ...(avoid ? { avoid } : {}),
         });
 
         if (controller.signal.aborted) return;
 
-        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), marks: added });
+        emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), marks: added });
 
         if (added > 0) buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true), BUDDY_MARKS_MS);
       } catch (error) {
@@ -1294,7 +1319,7 @@ export function BoardAiLayer({
       const request = (event as CustomEvent<unknown>).detail;
 
       if (!isBoardBuddyRequest(request)) return;
-      if (request.type === 'ask') void askBuddy(request.question, request.origin, request.questionImage instanceof Blob ? request.questionImage : undefined);
+      if (request.type === 'ask') void askBuddy(request.question, request.origin, request.questionImage instanceof Blob ? request.questionImage : undefined, request.avoid);
       else if (request.type === 'keep') keepBuddyMarks();
       else {
         buddyAbortRef.current?.abort();

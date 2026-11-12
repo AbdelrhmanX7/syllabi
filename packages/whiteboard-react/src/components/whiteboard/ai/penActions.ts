@@ -29,7 +29,10 @@ export const PEN_MAX_NOTE = 80;
 export const PEN_MAX_SAY = 600;
 export const PEN_MAX_STROKE_POINTS = 64;
 /** A note's letter height as a fraction of the page height: the default, and what the model may ask for. */
-export const PEN_DEFAULT_LETTER = 0.022;
+export const PEN_DEFAULT_LETTER = 0.016;
+/** Notes and labels never outgrow the page's own text: caps as a share of the page height. */
+const NOTE_CAP = 0.02;
+const MARK_CAP = 0.034;
 export const PEN_MIN_LETTER = 0.012;
 export const PEN_MAX_LETTER = 0.05;
 
@@ -289,6 +292,8 @@ export interface PenPlan {
   primitives: PenPrimitive[];
   /** Everything the plan draws, scene units; null for an empty plan. */
   bounds: SceneRect | null;
+  /** Notes and labels the page had no room for — shown with the answer, never over content. */
+  overflow: string[];
 }
 
 export interface PenPlanContext {
@@ -303,7 +308,7 @@ export interface PenPlanContext {
    * ink): the free box nearest to `wanted`, or null when there is no room. When given it replaces the
    * `occupied` nudge, and a note with no room becomes a pointer bubble instead of covering content.
    */
-  place?: (wanted: SceneRect) => SceneRect | null;
+  place?: (wanted: SceneRect, alt?: SceneRect) => SceneRect | null;
   /** The owner's letter height, scene units. */
   letterHeight: number;
   /** The pen nib, scene units. */
@@ -476,6 +481,7 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
   const occupied = [...ctx.occupied];
   const primitives: PenPrimitive[] = [];
   const extents: SceneRect[] = [];
+  const overflow: string[] = [];
   const stroke = (role: Extract<PenPrimitive, { kind: 'stroke' }>['role'], points: ScenePt[], tool: PenStrokeTool = 'pen', width = nib, color?: string) => {
     if (points.length < 2) return;
 
@@ -487,16 +493,18 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
     extents.push({ left: at.x - lh, top: at.y - lh, width: lh * 2, height: lh * 2 });
   };
   /** A free box for `wanted`: the page's real empty space when known, else the ink-box nudge. */
-  const fit = (wanted: SceneRect): SceneRect | null => (ctx.place ? ctx.place(wanted) : placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 }));
+  const fit = (wanted: SceneRect, alt?: SceneRect): SceneRect | null =>
+    ctx.place ? ctx.place(wanted, alt) : placeNote(wanted, occupied, { page: ctx.page, gap: lh * 0.4 });
   /**
    * Writes `text` in empty space near `at`. With the page's real empty space known and no room for
-   * it (even a size smaller), the words go into a pointer bubble at `at` — never over content.
+   * it (even a size smaller), the words go to `overflow` (shown with the answer) — never over content.
    */
-  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number, color?: string) => {
+  const write = (role: 'note' | 'label', text: string, at: ScenePt, letterHeight: number, maxWidth: number, color?: string, below?: ScenePt) => {
     for (const height of ctx.place ? [letterHeight, letterHeight * 0.8] : [letterHeight]) {
       const lines = wrapHandText(text, height, maxWidth);
       const width = Math.min(maxWidth, Math.max(...lines.map((line) => estimateTextWidth(line, height))));
-      const box = fit({ left: at.x, top: at.y, width, height: height * 1.5 * lines.length });
+      const size = { width, height: height * 1.5 * lines.length };
+      const box = fit({ left: at.x, top: at.y, ...size }, below ? { left: below.x, top: below.y, ...size } : undefined);
 
       if (box) {
         primitives.push({ kind: 'write', role, text, lines, box, letterHeight: height, ...(color ? { color } : {}) });
@@ -506,10 +514,12 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
       }
     }
 
-    pointer(at, text);
+    overflow.push(text);
   };
   /** Just right of a region, level with its top — where a note about it reads naturally. */
   const beside = (rect: SceneRect): ScenePt => ({ x: rect.left + rect.width + lh * 0.8, y: rect.top });
+  /** Just under a region, at its left edge — the second choice when there is no room beside it. */
+  const under = (rect: SceneRect): ScenePt => ({ x: rect.left, y: rect.top + rect.height + lh * 0.5 });
 
   for (const action of result.actions) {
     switch (action.type) {
@@ -593,8 +603,8 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
 
         const ink = MARK_INK[action.verdict];
         // Readable whatever the handwriting's size: never smaller than a share of the page.
-        const size = Math.max(lh * 1.1, ctx.page.height * 0.02, Math.min(lh * 2, rect.height * 0.9));
-        const labelHeight = Math.max(lh * 0.85, ctx.page.height * 0.014);
+        const size = Math.min(ctx.page.height * MARK_CAP, Math.max(lh * 1.1, ctx.page.height * 0.02, Math.min(lh * 2, rect.height * 0.9)));
+        const labelHeight = Math.min(ctx.page.height * NOTE_CAP, Math.max(lh * 0.85, ctx.page.height * 0.014));
         const maxLabel = Math.max(lh * 5, ctx.page.width * 0.28);
         const lines = action.label ? wrapHandText(action.label, labelHeight, maxLabel) : [];
         const labelWidth = lines.length ? Math.min(maxLabel, Math.max(...lines.map((line) => estimateTextWidth(line, labelHeight)))) : 0;
@@ -602,11 +612,13 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
         const gap = lh * 0.4;
         const anchor = { x: rect.left + rect.width + lh * 0.6, y: rect.top + rect.height / 2 - size / 2 };
         // The glyph and its label as one box; with no room for both, the glyph alone and the label in a bubble.
-        const whole = fit({ left: anchor.x, top: anchor.y, width: size + (lines.length ? gap + labelWidth : 0), height: Math.max(size, labelBlock) });
+        const wholeSize = { width: size + (lines.length ? gap + labelWidth : 0), height: Math.max(size, labelBlock) };
+        const whole = fit({ left: anchor.x, top: anchor.y, ...wholeSize }, { left: under(rect).x, top: under(rect).y, ...wholeSize });
         const box = whole ?? (lines.length ? fit({ left: anchor.x, top: anchor.y, width: size, height: size }) : null);
 
         if (!box) {
-          pointer(centreOf(rect), `${action.verdict === 'correct' ? '✓' : action.verdict === 'wrong' ? '✗' : '!'}${action.label ? ` ${action.label}` : ''}`);
+          pointer(centreOf(rect), action.verdict === 'correct' ? '✓' : action.verdict === 'wrong' ? '✗' : '!');
+          if (action.label) overflow.push(action.label);
           break;
         }
 
@@ -640,20 +652,20 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
             primitives.push({ kind: 'write', role: 'label', text: action.label, lines, box: labelBox, letterHeight: labelHeight, color: ink });
             extents.push(labelBox);
           } else {
-            pointer({ x: x + size / 2, y: y + size / 2 }, action.label);
+            overflow.push(action.label);
           }
         }
 
         break;
       }
       case 'write': {
-        const letterHeight = Math.max(2, pageLength(action.size ?? PEN_DEFAULT_LETTER, ctx.page));
+        const letterHeight = Math.max(2, pageLength(Math.min(NOTE_CAP, action.size ?? PEN_DEFAULT_LETTER), ctx.page));
         const nearRect = action.near ? resolveTarget(action.near, ctx) : null;
         const at = nearRect ? beside(nearRect) : action.at ? toScenePoint(action.at, ctx.page) : null;
 
         if (!at) break;
 
-        write('note', action.text, at, letterHeight, Math.max(letterHeight * 6, ctx.page.width * 0.42));
+        write('note', action.text, at, letterHeight, Math.max(letterHeight * 6, ctx.page.width * 0.42), undefined, nearRect ? under(nearRect) : undefined);
         break;
       }
       case 'pen_stroke': {
@@ -668,5 +680,5 @@ export function planPenActions(result: PenPlanResult, ctx: PenPlanContext): PenP
     }
   }
 
-  return { primitives, bounds: unionOf(extents) };
+  return { primitives, bounds: unionOf(extents), overflow };
 }

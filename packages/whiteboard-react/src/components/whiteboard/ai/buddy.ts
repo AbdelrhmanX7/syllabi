@@ -11,7 +11,8 @@
 /** Host → board. `origin` = where the pointer flies in from, in viewport (client) px. */
 export type BoardBuddyRequest =
   /** `questionImage`: the question written by hand on the buddy's pad (then `question` may be empty). */
-  | { type: 'ask'; question: string; origin?: { x: number; y: number }; questionImage?: Blob }
+  /** `avoid`: a box (viewport px) the marks must stay out of — the buddy's own panel. */
+  | { type: 'ask'; question: string; origin?: { x: number; y: number }; questionImage?: Blob; avoid?: { x: number; y: number; w: number; h: number } }
   | { type: 'keep' }
   | { type: 'clear' };
 
@@ -19,7 +20,8 @@ export type BoardBuddyRequest =
 export type BoardBuddyState =
   | { phase: 'reading' | 'planning' | 'drawing' }
   /** The turn finished: `marks` temporary marks are on screen (0 = it only answered). */
-  | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string }
+  /** `notes`: short notes the page had no room for. */
+  | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string; notes?: string[] }
   | { phase: 'error'; message: string; code?: string }
   /** The temporary marks are gone (faded, cleared, page changed). */
   | { phase: 'cleared' }

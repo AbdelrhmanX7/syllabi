@@ -48,6 +48,7 @@ export function StudyBuddy() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [marks, setMarks] = useState(0);
+  const [notes, setNotes] = useState<string[]>([]);
   const [verdict, setVerdict] = useState<'correct' | 'wrong' | 'partly' | null>(null);
   const [padEmpty, setPadEmpty] = useState(true);
   const padRef = useRef<InkCanvasHandle>(null);
@@ -59,6 +60,18 @@ export function StudyBuddy() {
     const box = buttonRef.current?.getBoundingClientRect();
 
     return box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : undefined;
+  };
+
+  /** Where the answer box will sit (it grows up from the button): marks stay out from under it. */
+  const panelArea = () => {
+    const box = buttonRef.current?.getBoundingClientRect();
+
+    if (!box) return undefined;
+
+    const w = Math.min(416, window.innerWidth - 32);
+    const h = Math.min(window.innerHeight * 0.6, 420);
+
+    return { x: box.right - w, y: box.top - h, w, h: h + box.height };
   };
 
   const ask = useCallback((text: string, shown?: string, questionImage?: Blob) => {
@@ -75,8 +88,9 @@ export function StudyBuddy() {
     setError(null);
     setMarks(0);
     setVerdict(null);
+    setNotes([]);
     setPhase('reading');
-    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}) });
+    requestBoardBuddy({ type: 'ask', question: clean, ...(origin() ? { origin: origin()! } : {}), ...(questionImage ? { questionImage } : {}), ...(panelArea() ? { avoid: panelArea()! } : {}) });
   }, []);
 
   /** The question written on the pad → a picture the tutor reads beside the page. */
@@ -114,6 +128,7 @@ export function StudyBuddy() {
         setAnswer(state.say?.trim() || (state.marks > 0 ? 'Look at the marks on your page.' : "I couldn't find anything to mark here."));
         setMarks(state.marks);
         setVerdict(state.verdict ?? null);
+        setNotes(state.notes ?? []);
       } else if (state.phase === 'error') {
         setPhase('idle');
         setError(state.message);
@@ -231,6 +246,13 @@ export function StudyBuddy() {
                   )}
                   {answer}
                 </p>
+              )}
+              {notes.length > 0 && (
+                <ul className='text-st-fg mt-1.5 list-disc space-y-0.5 pl-4 text-sm leading-snug'>
+                  {notes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
               )}
             </div>
           )}

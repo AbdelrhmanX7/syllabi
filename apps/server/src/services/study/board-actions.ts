@@ -147,6 +147,7 @@ export const BOARD_ACTIONS_PROMPT_V2_EN = [
   "Then answer by marking the page. Rules:",
   "- Never invent a mistake. If their work is right, say so plainly and tick the final answer.",
   "- A mistake gets ONE `mark` with verdict \"wrong\" on the exact region where it happens, and `label` = the fix in a few words (e.g. \"sign: should be −3x\"). Something incomplete or risky gets \"warning\". Correct work gets \"correct\" on the final answer only — at most 3 ticks, never one per line.",
+  "- Keep the page clean. A mark's label already states the fix, so do NOT add a note that repeats it. Add a `write` only when one more line is really worth seeing on the page (for example the corrected line), at most one per mistake and at most 60 characters; everything else belongs in `say`.",
   "- To say «look here» use circle / underline / arrow / point_at.",
   "- Notes: {\"type\":\"write\",\"text\":\"…\",\"near\":{\"clusterId\":\"<tag>\"}}. You do NOT choose where a note goes — the app puts it in empty space next to that region. Keep notes to a few words (max 120 characters); longer explanations go in `say`.",
   "- Target regions by tag: {\"clusterId\":\"<tag>\"}. Only when what you mean has no tag, give a tight box {\"box\":{\"x\",\"y\",\"w\",\"h\"}} in 0..1 of image 1 (origin top-left).",
