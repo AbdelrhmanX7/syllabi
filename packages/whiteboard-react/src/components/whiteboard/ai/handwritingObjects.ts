@@ -244,6 +244,10 @@ export interface WriteOnStroke {
   bounds: { left: number; top: number; width: number; height: number };
   /** Its ink when not the build's `fill` (a toned callout, tones.ts). */
   color?: string;
+  /** The y its written line rests on (scene units, before the caller moves it). */
+  baseline?: number;
+  /** A traced formula (drawn with a thinner outline than a written word). */
+  formula?: boolean;
 }
 
 export interface HandwritingBuild {
@@ -389,6 +393,8 @@ export async function buildHandwritingObjects(blocks: BoardAiBlock[], options: H
           d,
           line: lineCounter,
           bounds: { left: minX, top: minY, width: maxX - minX, height: maxY - minY },
+          baseline: baseline * unit,
+          ...(isFormula ? { formula: true } : {}),
           ...(toneFill ? { color: toneFill } : {}),
         });
       }

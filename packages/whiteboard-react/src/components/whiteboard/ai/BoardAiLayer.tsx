@@ -57,7 +57,7 @@ import { buildStepMarkObjects, isStepMark } from './stepCheckObjects';
 import { parsePenPlan, planPenActions } from './penActions';
 import { buildOccupancy, contentBlocks, findFreeBox, rulingOf } from './pageOccupancy';
 import type { PxBox } from './pageOccupancy';
-import { buildPenActionObjects, CARD_INK } from './penActionObjects';
+import { buildPenActionObjects } from './penActionObjects';
 import { buildWorkedSteps } from './workedSteps';
 import { showPointerSprite } from './penPointer';
 import { playObjectReveal, playPenTurn, playWriteOn } from './writeOn';
@@ -1235,8 +1235,13 @@ export function BoardAiLayer({
           numbered: Boolean(result.steps?.length),
           anchor: stepsAt,
           page: sheet,
-          fontSize: Math.max(letterHeight * 0.85, sheet.height * 0.013),
-          color: buddy ? CARD_INK : (hand?.color ?? readableInk(penColor)),
+          // Written in pen, in the hand and the pen the student writes with.
+          // The student's own letter size, kept within a readable band (a page of big scrawl must not make a huge answer).
+          letterHeight: Math.min(sheet.height * 0.0125, Math.max(letterHeight, sheet.height * 0.009)),
+          color: hand?.color ?? readableInk(penColor),
+          strokeWidth,
+          hand,
+          zoom,
           batch: `ai-pen-${Date.now().toString(36)}`,
           ...(place ? { place: (wanted: SceneRect, anywhere: boolean) => place(wanted, undefined, undefined, true, anywhere) } : {}),
           // Lined paper: write on the lines.
