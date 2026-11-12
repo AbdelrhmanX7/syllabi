@@ -66,3 +66,25 @@ test("«solve it»: v2 keeps the steps (trimmed, bounded); v1 and a reply withou
   assert.equal(sanitizeBoardActions({ actions: [] }, clusters, 2)?.steps, undefined);
   assert.match(buildBoardActionsPrompt((parseBoardInput(JSON.stringify({ v: 2, question: "solve", clusters: [] })) as any).input), /`steps`/);
 });
+
+test("v3 (the buddy's experts): skill / class / page in; quiz, similar and remember out — and only in v3", () => {
+  const input = (parseBoardInput(JSON.stringify({ v: 3, question: "test me", clusters: [], skill: "quiz", classId: "a".repeat(24), pageId: "nope" })) as any).input;
+  assert.deepEqual([input.v, input.skill, input.classId, input.pageId], [3, "quiz", "a".repeat(24), undefined]);
+  assert.equal((parseBoardInput(JSON.stringify({ v: 2, question: "q", clusters: [], skill: "quiz" })) as any).input.skill, undefined);
+  const raw = {
+    actions: [],
+    say: "Quick one:",
+    quiz: { question: "What is $\\frac{d}{dx}x^2$?", choices: ["$2x$", "$x$", "$x^2$", "$2$"], answer: 0, why: "Power rule: bring the 2 down.", topic: "Power rule" },
+    similar: { title: "Product rule", markdown: "Find $\\frac{dy}{dx}$ for\n\n$y = x^3\\cos(2x)$." },
+    remember: ["Drops the minus sign when moving terms across.", "second", "third"],
+  };
+  const v3 = sanitizeBoardActions(raw, clusters, 3);
+  assert.equal(v3?.quiz?.choices.length, 4);
+  assert.equal(v3?.similar?.markdown, "Find $\\frac{dy}{dx}$ for\n\n$y = x^3\\cos(2x)$.");
+  assert.equal(v3?.remember?.length, 2);
+  const v2 = sanitizeBoardActions(raw, clusters, 2);
+  assert.deepEqual([v2?.quiz, v2?.similar, v2?.remember], [undefined, undefined, undefined]);
+  // A quick check with the answer out of range, or two equal choices, is dropped.
+  assert.equal(sanitizeBoardActions({ actions: [], quiz: { ...raw.quiz, answer: 4 } }, clusters, 3)?.quiz, undefined);
+  assert.equal(sanitizeBoardActions({ actions: [], quiz: { ...raw.quiz, choices: ["a", "a", "b", "c"] } }, clusters, 3)?.quiz, undefined);
+});

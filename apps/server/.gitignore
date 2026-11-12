@@ -1,3 +1,4 @@
 dist
 public
 .env
+evals-out

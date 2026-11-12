@@ -49,8 +49,30 @@ export interface BoardInput {
    * The client's contract version. 2 = it understands `mark` actions, `write` with `near`, and the
    * reply's `verdict` (and the model gets the tagged copy of the page + the checking prompt).
    * 1 (or absent) = the first contract, unchanged.
+   * 3 = v2 plus the buddy's experts (services/study/buddy): `skill`, `classId`, `pageId` in, and
+   * `quiz`, `similar`, `skill`, `turnId`, `trace` out.
    */
-  v: 1 | 2;
+  v: 1 | 2 | 3;
+  /** v3: the expert the student picked with a button; absent = the picker chooses. */
+  skill?: string;
+  /** v3: the page's class and the page itself (memory, class knowledge, the turn log). */
+  classId?: string;
+  pageId?: string;
+}
+/** v3 «quick check»: one multiple-choice question about the idea behind the page. */
+export interface BoardQuiz {
+  /** Markdown; maths as $LaTeX$. */
+  question: string;
+  choices: string[];
+  /** Index of the right choice. */
+  answer: number;
+  why: string;
+  topic?: string;
+}
+/** v3 «similar question»: a new question of the same kind, for a fresh page. Markdown; maths as $LaTeX$. */
+export interface BoardSimilar {
+  title: string;
+  markdown: string;
 }
 export interface Pt {
   x: number;
@@ -81,6 +103,10 @@ export interface BoardReply {
   heard?: string;
   /** v2, «solve it»: the worked solution, one step per item, the last one the final answer. */
   steps?: string[];
+  quiz?: BoardQuiz;
+  similar?: BoardSimilar;
+  /** v3: short facts about the student worth keeping (the buddy's memory); never sent to the client. */
+  remember?: string[];
 }
 
 const ID_RX = /^[\w.:-]{1,64}$/;
@@ -113,7 +139,12 @@ export function parseBoardInput(raw: unknown): { input: BoardInput } | { error: 
     if (!b || !fits(b.x, b.w) || !fits(b.y, b.h)) return { error: `cluster ${id}: box {x,y,w,h} must lie inside 0..1` };
     clusters.push({ id, box: { x: b.x, y: b.y, w: Math.min(b.w, 1 - b.x), h: Math.min(b.h, 1 - b.y) } });
   }
-  return { input: { question, clusters, v: Number(o.v) >= 2 ? 2 : 1 } };
+  const v = Number(o.v) >= 3 ? 3 : Number(o.v) >= 2 ? 2 : 1;
+  const oidOf = (x: unknown) => (typeof x === "string" && /^[0-9a-f]{24}$/.test(x) ? x : undefined);
+  const skill = v === 3 && typeof o.skill === "string" && /^[a-z_]{2,24}$/.test(o.skill) ? o.skill : undefined;
+  const classId = v === 3 ? oidOf(o.classId) : undefined;
+  const pageId = v === 3 ? oidOf(o.pageId) : undefined;
+  return { input: { question, clusters, v, ...(skill ? { skill } : {}), ...(classId ? { classId } : {}), ...(pageId ? { pageId } : {}) } };
 }
 
 export const BOARD_ACTIONS_PROMPT_EN = [
@@ -205,15 +236,16 @@ export async function tagBoardImage(image: Buffer, clusters: BoardCluster[]): Pr
   }
 }
 
-export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | null, images?: { tagged: boolean; ask: boolean }): string {
+export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | null, images?: { tagged: boolean; ask: boolean }, brief?: string | null): string {
   const lines = input.clusters.map((c, i) => {
     const b = c.box;
     return `${i + 1}: x=${b.x.toFixed(3)} y=${b.y.toFixed(3)} w=${b.w.toFixed(3)} h=${b.h.toFixed(3)}`;
   });
   return [
-    guidedSystem(input.v === 2 ? BOARD_ACTIONS_PROMPT_V2_EN : BOARD_ACTIONS_PROMPT_EN),
+    guidedSystem(input.v >= 2 ? BOARD_ACTIONS_PROMPT_V2_EN : BOARD_ACTIONS_PROMPT_EN),
+    ...(brief ? ["", brief] : []),
     "",
-    input.v === 2
+    input.v >= 2
       ? lines.length
         ? `REGIONS (tag: normalised box) — ${lines.length}:`
         : "REGIONS: none listed — target with boxes and points; for notes use \"at\":{\"x\",\"y\"} instead of \"near\"."
@@ -228,7 +260,7 @@ export function buildBoardActionsPrompt(input: BoardInput, retryNote?: string | 
           'Read that handwritten question and answer it. Also return "heard": the question as plain text (your best reading, at most 200 characters).',
           "",
         ]
-      : images && !images.tagged && input.v === 2
+      : images && !images.tagged && input.v >= 2
         ? ["IMAGES: only the page was sent (no tagged copy).", ""]
         : []),
     images?.ask ? "The student's question: (handwritten — the last image)" : `The student's question: ${input.question}`,
@@ -277,7 +309,8 @@ function thin<T>(pts: T[], max: number): T[] {
  * tag to FE id, an unknown one drops the action; text bounded; strokes thinned to 64 points;
  * at most 12 actions, in the model's order.
  */
-export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], v: 1 | 2 = 1): BoardReply | null {
+export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], version: 1 | 2 | 3 = 1): BoardReply | null {
+  const v = version >= 2 ? 2 : 1;
   const o = typeof raw === "string" ? parseJsonLoose(raw) : raw;
   if (!o || typeof o !== "object" || Array.isArray(o) || !Array.isArray((o as any).actions)) return null;
   const byTag = new Map<string, string>();
@@ -373,7 +406,55 @@ export function sanitizeBoardActions(raw: unknown, clusters: BoardCluster[], v: 
   const heard = v === 2 ? str((o as any).heard, 200) : "";
   const rawSteps = v === 2 && Array.isArray((o as any).steps) ? ((o as any).steps as unknown[]) : [];
   const steps = rawSteps.map((step) => str(step, STEP_MAX)).filter(Boolean).slice(0, STEPS_MAX);
-  return { actions, ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(steps.length ? { steps } : {}) };
+  const quiz = version === 3 ? cleanQuiz((o as any).quiz) : null;
+  const similar = version === 3 ? cleanSimilar((o as any).similar) : null;
+  const remember =
+    version === 3 && Array.isArray((o as any).remember)
+      ? ((o as any).remember as unknown[])
+          .map((line) => str(line, 160))
+          .filter(Boolean)
+          .slice(0, 2)
+      : [];
+  return {
+    actions,
+    ...(say ? { say } : {}),
+    ...(verdict ? { verdict } : {}),
+    ...(heard ? { heard } : {}),
+    ...(steps.length ? { steps } : {}),
+    ...(quiz ? { quiz } : {}),
+    ...(similar ? { similar } : {}),
+    ...(remember.length ? { remember } : {}),
+  };
+}
+
+/** Markdown from the model: trimmed and bounded, line breaks kept (`str` would flatten them). */
+const md = (v: unknown, max: number) =>
+  typeof v === "string"
+    ? v
+        .replace(/\r/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+        .slice(0, max)
+        .trim()
+    : "";
+
+/** A usable quick check: a question, 2–5 different choices, one of them right. */
+export function cleanQuiz(raw: any): BoardQuiz | null {
+  if (!raw || typeof raw !== "object") return null;
+  const question = md(raw.question, 600);
+  const choices = Array.isArray(raw.choices) ? (raw.choices as unknown[]).map((c) => md(c, 200)).filter(Boolean) : [];
+  const answer = Number(raw.answer);
+  if (!question || choices.length < 2 || choices.length > 5 || new Set(choices).size !== choices.length) return null;
+  if (!Number.isInteger(answer) || answer < 0 || answer >= choices.length) return null;
+  const topic = str(raw.topic, 80);
+  return { question, choices, answer, why: md(raw.why, 400), ...(topic ? { topic } : {}) };
+}
+
+export function cleanSimilar(raw: any): BoardSimilar | null {
+  if (!raw || typeof raw !== "object") return null;
+  const markdown = md(raw.markdown, 2000);
+  if (!markdown) return null;
+  return { title: str(raw.title, 80) || "Practice question", markdown };
 }
 
 /**
@@ -388,13 +469,15 @@ export async function boardActionsFromPage(o: {
   signal?: AbortSignal;
   /** v2: the student's question, handwritten on the buddy's pad (JPEG). */
   ask?: Buffer | null;
+  /** v3: this turn's expert job, memory and knowledge (services/study/buddy), placed after the shared rules. */
+  brief?: string | null;
 }): Promise<{ reply: BoardReply; attempts: number } | null> {
   let retryNote: string | null = null;
   // v2: the clean page + the tagged copy (same mime needed: the tagged copy is a JPEG, so both are sent as JPEG).
   let images: Buffer | Buffer[] = o.image;
   let mime = o.mime;
   let shape: { tagged: boolean; ask: boolean } | undefined;
-  if (o.input.v === 2) {
+  if (o.input.v >= 2) {
     const tagged = await tagBoardImage(o.image, o.input.clusters);
     const ask = o.ask?.length ? o.ask : null;
     if (tagged || ask) {
@@ -405,7 +488,7 @@ export async function boardActionsFromPage(o: {
     shape = { tagged: Boolean(tagged), ask: Boolean(ask) };
   }
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const raw = await visionCall(images, mime, buildBoardActionsPrompt(o.input, retryNote, shape), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
+    const raw = await visionCall(images, mime, buildBoardActionsPrompt(o.input, retryNote, shape, o.brief), o.spend, { signal: o.signal, json: true, deadlineMs: 90_000 });
     if (o.signal?.aborted) return null;
     const reply = sanitizeBoardActions(raw, o.input.clusters, o.input.v);
     if (reply) return { reply, attempts: attempt };

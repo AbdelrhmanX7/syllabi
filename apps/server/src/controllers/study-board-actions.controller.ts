@@ -1,9 +1,10 @@
 import { RequestHandler } from "express";
 import multer from "multer";
 import sharp from "sharp";
-import { newSpend, spendFor } from "@/services/study/ai-models";
+import { spendFor } from "@/services/study/ai-models";
 import { classifyAiError, logAiFailure } from "@/services/study/ai-errors";
 import { boardActionsFromPage, parseBoardInput } from "@/services/study/board-actions";
+import { runBuddyTurn } from "@/services/study/buddy/turn";
 import { isPngOrJpeg } from "@/services/study/concept-map-from-terms";
 import { writeUsage } from "./study-concept-maps.controller";
 import { fail, uid, wrap } from "./study.controller";
@@ -79,6 +80,29 @@ export const boardActions = wrap(async (req, res) => {
   res.on("close", () => {
     if (!res.writableEnded) ctrl.abort();
   });
+  // v3: the buddy's experts (pick → memory → knowledge → expert → remember), with the turn logged.
+  if (parsed.input.v === 3) {
+    let turn: Awaited<ReturnType<typeof runBuddyTurn>>;
+    try {
+      turn = await runBuddyTurn({ userId, image, mime, input: parsed.input, ask, spend, signal: ctrl.signal });
+    } catch (e) {
+      const c = classifyAiError(e);
+      if (!ctrl.signal.aborted) await logAiFailure("study buddy turn failed", e, {}, c.code);
+      await writeUsage(userId, "board_actions", spend, startedAt, ctrl.signal.aborted ? "stopped" : "error", String((e as Error)?.message ?? e), c.code);
+      if (res.headersSent || ctrl.signal.aborted) return;
+      return fail(res, c.code === "AI_QUOTA" ? 429 : 502, c.code, c.message);
+    }
+    if (ctrl.signal.aborted) {
+      await writeUsage(userId, "board_actions", spend, startedAt, "stopped");
+      return;
+    }
+    if (!turn) {
+      await writeUsage(userId, "board_actions", spend, startedAt, "error", "reply was not valid JSON twice", "AI_EMPTY");
+      return fail(res, 502, "AI_EMPTY", "Couldn't mark up the page this time — try again");
+    }
+    await writeUsage(userId, "board_actions", spend, startedAt, "done");
+    return res.json(turn.reply);
+  }
   let r: Awaited<ReturnType<typeof boardActionsFromPage>>;
   try {
     r = await boardActionsFromPage({ image, mime, input: parsed.input, spend, signal: ctrl.signal, ask });

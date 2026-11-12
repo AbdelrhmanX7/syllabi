@@ -6,6 +6,7 @@ export * from "./file-version";
 export * from "./page";
 export * from "./question";
 export * from "./ai-usage";
+export * from "./buddy";
 export * from "./transcript";
 export * from "./lecture";
 export * from "./code-project";
