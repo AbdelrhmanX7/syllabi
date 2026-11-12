@@ -23,13 +23,10 @@ export type BoardBuddyState =
   /** `notes`: short notes the page had no room for. */
   | { phase: 'done'; say?: string; marks: number; verdict?: 'correct' | 'wrong' | 'partly'; heard?: string; notes?: string[] }
   | { phase: 'error'; message: string; code?: string }
-  /** The temporary marks are gone (faded, cleared, page changed). */
+  /** The temporary marks are gone (cleared, a new question, page changed). They never go on a timer. */
   | { phase: 'cleared' }
   /** «Keep»: the marks are real ink now. */
   | { phase: 'kept'; added: number };
-
-/** How long the buddy's temporary marks (and its pointers) stay before they fade away. */
-export const BOARD_BUDDY_MARKS_MS = 40_000;
 
 export const BOARD_BUDDY_REQUEST_EVENT = 'wb-board-buddy-request';
 export const BOARD_BUDDY_STATE_EVENT = 'wb-board-buddy-state';

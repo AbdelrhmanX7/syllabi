@@ -22,7 +22,7 @@ import {
 } from './boardObjects';
 import { layoutToPlacements, snapLayoutToLines } from './pageLayout';
 import { BOARD_AI_COMMAND_EVENT, isBoardAiCommand } from './commands';
-import { BOARD_BUDDY_MARKS_MS, BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
+import { BOARD_BUDDY_REQUEST_EVENT, emitBoardBuddyState, isBoardBuddyRequest } from './buddy';
 import { readConceptStyle, writeConceptStyle } from './conceptMap';
 import {
   boundsOf,
@@ -449,8 +449,6 @@ export function BoardAiLayer({
   /** «Explain on my page»: what was selected when the panel opened (empty = the whole page). */
   const penSelectionRef = useRef<FabricObject[]>([]);
   const buddyMarksRef = useRef<BuddyMarks | null>(null);
-  const buddyFadeRef = useRef<number | null>(null);
-  const buddyDimRef = useRef<number | null>(null);
   const buddyAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -1225,7 +1223,7 @@ export function BoardAiLayer({
 
               if (layer) {
                 pointers.push(
-                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: BOARD_BUDDY_MARKS_MS, pencil: true } : undefined),
+                  showPointerSprite(host, { left: layer.left, top: layer.top }, note, buddy ? { ttlMs: Infinity, pencil: true } : undefined),
                 );
               }
             },
@@ -1279,14 +1277,10 @@ export function BoardAiLayer({
     [bridge, canvas, penColor, penWidth, sceneRectToLayer, service, t],
   );
 
-  /** Ends the buddy's temporary marks (fade timer, «Clear», a new question, a page change). */
+  /** Ends the buddy's temporary marks («Hide marks», a new question, a page change). */
   const clearBuddyMarks = useCallback((announce: boolean, fadeMs = 150) => {
     const marks = buddyMarksRef.current;
 
-    if (buddyFadeRef.current !== null) window.clearTimeout(buddyFadeRef.current);
-    if (buddyDimRef.current !== null) window.clearTimeout(buddyDimRef.current);
-    buddyFadeRef.current = null;
-    buddyDimRef.current = null;
     buddyMarksRef.current = null;
 
     if (!marks) return;
@@ -1351,12 +1345,7 @@ export function BoardAiLayer({
         }
 
         emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), marks: added });
-
-        if (added > 0) {
-          // Pale for the last seconds, then a slow fade.
-          buddyDimRef.current = window.setTimeout(() => buddyMarksRef.current?.playback?.dim?.(), BOARD_BUDDY_MARKS_MS - 6000);
-          buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true, 400), BOARD_BUDDY_MARKS_MS);
-        }
+        // The marks stay until the student keeps them, hides them or asks again: nothing runs out on a timer.
       } catch (error) {
         if (controller.signal.aborted) {
           if (timedOut) emitBoardBuddyState({ phase: 'error', message: t('ai.buddy.slow'), code: 'TIMEOUT' });

@@ -98,10 +98,13 @@ export function showPointerSprite(host: HTMLElement, at: { left: number; top: nu
     removed = true;
     root.remove();
   };
-  const fade = setTimeout(() => {
-    root.style.opacity = '0';
-    setTimeout(remove, FADE_MS + 20);
-  }, ttlMs);
+  // No end time (Infinity) = it stays until the caller removes it.
+  const fade = Number.isFinite(ttlMs)
+    ? setTimeout(() => {
+        root.style.opacity = '0';
+        setTimeout(remove, FADE_MS + 20);
+      }, ttlMs)
+    : undefined;
 
   return () => {
     clearTimeout(fade);

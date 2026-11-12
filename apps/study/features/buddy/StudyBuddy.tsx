@@ -9,11 +9,18 @@ import type { BoardBuddyState } from '@repo/whiteboard-react';
 import type { InkCanvasHandle } from '@/features/bank';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BOARD_BUDDY_MARKS_MS, BOARD_BUDDY_STATE_EVENT, BOARD_BUDDY_TALK_EVENT, registerBoardBuddy, requestBoardAiCommand, requestBoardBuddy } from '@repo/whiteboard-react';
+import {
+  BOARD_BUDDY_STATE_EVENT,
+  BOARD_BUDDY_TALK_EVENT,
+  registerBoardBuddy,
+  requestBoardAiCommand,
+  requestBoardBuddy,
+  ThinkingOrbMark,
+} from '@repo/whiteboard-react';
 import { cn } from '@repo/ui';
 import { Check, CopyPlus, Eraser, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, Undo2, WandSparkles, X } from 'lucide-react';
 
-import { BUDDY_QUICK_ASKS, buddyStatusLine, type BuddyPhase } from './status';
+import { BUDDY_LINE_MS, BUDDY_QUICK_ASKS, buddyStatus, buddyStatusLine, type BuddyPhase } from './status';
 
 import { ActionButton, Badge, BOARD_CHIP_OVERRIDE, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { InkCanvas } from '@/features/bank';
@@ -65,6 +72,7 @@ export function StudyBuddy() {
   const [penButton, setPenButton] = useState(false);
   const typingRef = useRef(false);
   const [turn, setTurn] = useState(0);
+  const [tick, setTick] = useState(0);
   const lastAskRef = useRef<{ text: string; shown?: string; image?: Blob } | null>(null);
   const padRef = useRef<InkCanvasHandle>(null);
   // Talking needs the voice add-on; without it the button is tap-only.
@@ -166,6 +174,16 @@ export function StudyBuddy() {
 
     return () => window.removeEventListener('wb-native-pen', onPen);
   }, []);
+
+  // While it thinks, the status line turns over every couple of seconds (see status.ts).
+  useEffect(() => {
+    setTick(0);
+    if (phase !== 'planning') return;
+
+    const id = window.setInterval(() => setTick((value) => value + 1), BUDDY_LINE_MS);
+
+    return () => window.clearInterval(id);
+  }, [phase]);
 
   // On screen: the pen button's long hold now talks to this buddy (elsewhere it stays a menu press).
   useEffect(() => registerBoardBuddy(), []);
@@ -279,7 +297,8 @@ export function StudyBuddy() {
   };
 
   const busy = phase === 'reading' || phase === 'planning' || phase === 'drawing';
-  const status = buddyStatusLine({ phase, dictation: dictation.state });
+  const working = buddyStatus({ phase, dictation: dictation.state, tick });
+  const status = buddyStatusLine({ phase, dictation: dictation.state, tick });
   const listening = dictation.state === 'recording';
   const canSend = keyboard ? draft.trim().length > 0 : !padEmpty;
   const send = () => (keyboard ? ask(draft) : askWritten());
@@ -297,13 +316,24 @@ export function StudyBuddy() {
         <Surface className='buddy-panel pointer-events-auto absolute right-14 top-full z-40 mt-2 flex max-h-[min(70vh,34rem)] w-[min(30rem,calc(100vw-5.5rem))] flex-col text-left'>
           <div className='flex items-center gap-2 py-1 pl-3 pr-1'>
             {answer && verdict && <Badge className='shrink-0' tone={VERDICT[verdict].tone}>{VERDICT[verdict].label}</Badge>}
-            <span className={cn('min-w-0 flex-1 truncate text-sm font-semibold', status || !answer ? 'text-st-fg' : 'text-st-muted')} title={question || undefined}>
+            {/* Working: the orb moves in the step's own way, and the line under it changes with each step. */}
+            {working && <ThinkingOrbMark className='shrink-0' size={20} state={working.orb} />}
+            <span
+              key={working ? working.line : 'rest'}
+              className={cn('min-w-0 flex-1 truncate text-sm font-semibold', working && 'buddy-line', status || !answer ? 'text-st-fg' : 'text-st-muted')}
+              title={question || undefined}
+            >
               {status ?? (answer || busy ? question : 'Study buddy')}
             </span>
             <ActionButton aria-label='Close' className='w-11 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
               <X className='h-4 w-4' />
             </ActionButton>
           </div>
+          {busy && question && (
+            <p className='text-st-muted truncate px-3 pb-3 text-xs' title={question}>
+              {question}
+            </p>
+          )}
           {error && (
             <div className='px-3 pb-3'>
               <ErrorNote message={error} onRetry={lastAskRef.current ? retry : undefined} />
@@ -331,12 +361,12 @@ export function StudyBuddy() {
               <ActionButton variant='ghost' onClick={() => setTyping(true)}>
                 Ask more
               </ActionButton>
-            </div>
-          )}
-          {/* How long the marks have left: a thin bar that runs out (they fade on their own). */}
-          {marks > 0 && (
-            <div aria-hidden className='bg-default-200 mx-3 mb-3 h-0.5 overflow-hidden rounded-full'>
-              <div key={turn} className='buddy-bar bg-st-accent h-full origin-left' style={{ animationDuration: `${BOARD_BUDDY_MARKS_MS}ms` }} />
+              {/* The marks stay as long as the student wants; this takes them off the page. */}
+              {marks > 0 && (
+                <ActionButton className='ml-auto' variant='ghost' onClick={() => requestBoardBuddy({ type: 'clear' })}>
+                  Hide marks
+                </ActionButton>
+              )}
             </div>
           )}
           {typing && (

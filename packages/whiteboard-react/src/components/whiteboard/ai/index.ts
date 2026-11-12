@@ -62,7 +62,6 @@ export type { BoardAiEditorBridge, BoardAiLayerProps, BoardAiRenderRequest } fro
 export { BOARD_AI_COMMAND_EVENT, isBoardAiCommand, requestBoardAiCommand } from './commands';
 export type { BoardAiCommand, BoardAiCommandDetail } from './commands';
 export {
-  BOARD_BUDDY_MARKS_MS,
   BOARD_BUDDY_REQUEST_EVENT,
   BOARD_BUDDY_STATE_EVENT,
   BOARD_BUDDY_TALK_EVENT,
@@ -74,6 +73,9 @@ export {
   requestBoardBuddy,
 } from './buddy';
 export type { BoardBuddyRequest, BoardBuddyState } from './buddy';
+// The thinking orb (dots that search, compose, shape, solve): hosts show it while their own AI works.
+export { RemakeOrb as ThinkingOrbMark } from './RemakeOrb';
+export type { RemakeOrbState as ThinkingOrbState } from './generatingState';
 export { blocksToMarkdown, extractJsonObject, markdownToBlocks } from './markdownBlocks';
 export { parsePageAnalysis } from './pageAnalysis';
 export { DEFAULT_CONCEPT_STYLE, parseConceptMap, parseConceptMapAnalysis } from './conceptMap';
