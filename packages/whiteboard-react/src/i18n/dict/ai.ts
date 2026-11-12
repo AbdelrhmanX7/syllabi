@@ -267,6 +267,7 @@ export const AI_STRINGS = {
   'ai.pen.added': 'Marked your page — one undo removes every mark.',
   'ai.pen.unavailable': 'Explaining on the page is not available yet — coming soon.',
   'ai.pen.failed': 'Couldn\'t explain on the page — try again.',
+  'ai.buddy.slow': 'That took too long. Check your internet and try again.',
   'ai.pen.cancel': 'Cancel',
   'ai.check.capturing': 'Reading this page…',
   'ai.check.checking': 'Checking each step…',

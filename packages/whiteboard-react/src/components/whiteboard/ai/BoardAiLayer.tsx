@@ -152,6 +152,8 @@ const DASH_STYLE_ID = 'wb-ai-ants-style';
 /** The server takes 200 regions: the student's ink groups first, the rest for printed blocks. */
 const PEN_MAX_INK_REGIONS = 160;
 const PEN_MAX_PRINT_REGIONS = 40;
+/** A buddy turn that has not answered by now is stopped (the tutor usually answers in a few seconds). */
+const BUDDY_TURN_TIMEOUT_MS = 75_000;
 /** The tutor's own ink: violet — not a pen colour students write in, and it reads on white paper and the dark board. */
 const BUDDY_INK = '#8b5cf6';
 
@@ -1322,6 +1324,15 @@ export function BoardAiLayer({
 
       buddyAbortRef.current = controller;
 
+      // The host must never be left waiting: a turn that was cut off and not replaced by a newer one
+      // says so, and one that takes too long is stopped with a plain message.
+      const stoppedAlone = () => buddyAbortRef.current === controller || buddyAbortRef.current === null;
+      let timedOut = false;
+      const timer = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, BUDDY_TURN_TIMEOUT_MS);
+
       try {
         const { say, added, verdict, heard, notes } = await penExplain(question.trim(), controller.signal, () => undefined, {
           ...(origin ? { origin } : {}),
@@ -1329,7 +1340,12 @@ export function BoardAiLayer({
           ...(avoid ? { avoid } : {}),
         });
 
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          if (timedOut) emitBoardBuddyState({ phase: 'error', message: t('ai.buddy.slow'), code: 'TIMEOUT' });
+          else if (stoppedAlone()) emitBoardBuddyState({ phase: 'cleared' });
+
+          return;
+        }
 
         emitBoardBuddyState({ phase: 'done', ...(say ? { say } : {}), ...(verdict ? { verdict } : {}), ...(heard ? { heard } : {}), ...(notes ? { notes } : {}), marks: added });
 
@@ -1339,7 +1355,12 @@ export function BoardAiLayer({
           buddyFadeRef.current = window.setTimeout(() => clearBuddyMarks(true, 400), BOARD_BUDDY_MARKS_MS);
         }
       } catch (error) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          if (timedOut) emitBoardBuddyState({ phase: 'error', message: t('ai.buddy.slow'), code: 'TIMEOUT' });
+          else if (stoppedAlone()) emitBoardBuddyState({ phase: 'cleared' });
+
+          return;
+        }
 
         const code = (error as { code?: unknown })?.code;
 
@@ -1349,6 +1370,7 @@ export function BoardAiLayer({
           ...(typeof code === 'string' ? { code } : {}),
         });
       } finally {
+        window.clearTimeout(timer);
         if (buddyAbortRef.current === controller) buddyAbortRef.current = null;
       }
     },

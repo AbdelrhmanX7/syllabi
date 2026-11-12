@@ -168,6 +168,8 @@ export function StudyBuddy() {
         setError(state.message);
       } else if (state.phase === 'cleared') {
         setMarks(0);
+        // A turn that was cut off before it answered: never leave «Thinking…» on screen.
+        setPhase((was) => (was === 'reading' || was === 'planning' || was === 'drawing' ? 'idle' : was));
       } else if (state.phase === 'kept') {
         setMarks(0);
         setPhase('kept');
@@ -252,7 +254,7 @@ export function StudyBuddy() {
     setTyping(false);
     requestBoardBuddy({ type: 'clear' });
     setMarks(0);
-    if (phase === 'done' || phase === 'kept') setPhase('idle');
+    setPhase('idle');
   };
 
   const busy = phase === 'reading' || phase === 'planning' || phase === 'drawing';
