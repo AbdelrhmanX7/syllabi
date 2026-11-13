@@ -18,6 +18,7 @@ import { installPdfAssetMigrationHelper } from '@/lib/notebooks/pdf-assets-migra
 import { OfflineRoot } from '@/lib/offline/OfflineRoot';
 import { applyPersistDefaults } from '@/lib/offline/persist';
 import { IS_ANDROID_BUILD } from '@/lib/platform/runtime';
+import { installWindowPaint } from '@/lib/platform/windowPaint';
 import { installClickSounds } from '@/lib/sound/click';
 import { pingAppOpen } from '@/lib/stats/ping';
 import '@/styles/globals.css';
@@ -97,6 +98,8 @@ export default function App({ Component, pageProps }: AppProps) {
   // Android static export: a hard load of a path that has no HTML file falls back to index.html.
   // Routes here are query-param based (`/item/?id=`) so this only matters for a stale deep link.
   useEffect(() => installClickSounds(), []);
+  // Android: the gap a system bar leaves under the page takes the page's colour, not the launch blue.
+  useEffect(() => installWindowPaint(), []);
   // A few seconds after start, so it never competes with the first screen.
   useEffect(() => {
     const timer = setTimeout(pingAppOpen, 5_000);

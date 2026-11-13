@@ -2,6 +2,8 @@ package studio.syllabi.app
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -53,6 +55,18 @@ class MainActivity : TauriActivity() {
       val id = notificationTap ?: return ""
       notificationTap = null
       return id.toString()
+    }
+  }
+
+  // The window behind the page starts as the launch colour (accent blue). When a system bar stays on
+  // screen the page is padded clear of it (installInsetsGuard) and that blue showed as a strip under
+  // the bottom toolbar. The page reports the colour of its own bottom edge — `window.StudyWindow.paint`
+  // — and the window takes it, so the gap blends in.
+  private inner class WindowPaintBridge {
+    @JavascriptInterface
+    fun paint(hex: String) {
+      val colour = try { Color.parseColor(hex) } catch (_: IllegalArgumentException) { return }
+      runOnUiThread { window.setBackgroundDrawable(ColorDrawable(colour)) }
     }
   }
 
@@ -314,6 +328,7 @@ class MainActivity : TauriActivity() {
     inkRecognizer.attach(webView)
     fileExporter.attach(webView)
     webView.addJavascriptInterface(NotifyLaunchBridge(), "StudyNotifyLaunch")
+    webView.addJavascriptInterface(WindowPaintBridge(), "StudyWindow")
     webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
     if (isFirstLaunchOfThisBuild()) {
       webView.clearCache(true)
