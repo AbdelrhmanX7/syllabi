@@ -63,3 +63,36 @@ export const BUDDY_QUICK_ASKS: ReadonlyArray<{ label: string; short: string; que
   { label: 'A similar question', short: 'Similar', question: 'Make me a similar question to practise.', skill: 'similar' },
   { label: 'Quick check', short: 'Quiz', question: 'Ask me one quick multiple-choice question to check I understand this.', skill: 'quiz' },
 ];
+
+/** The mascot's faces, in the order they sit in the picture strip (`public/mascot/buddy.png`, 32 px each). */
+export const BUDDY_MOODS = ['idle', 'blink', 'thinking', 'happy', 'almost', 'sleepy', 'listening', 'reading', 'searching', 'answering'] as const;
+export type BuddyMood = (typeof BUDDY_MOODS)[number];
+
+/**
+ * Which face the mascot wears. It follows what the buddy is really doing: listening while the student
+ * talks, reading the page, thinking (or searching, on the «finding the spot» step), writing while it
+ * marks the page; then happy on right work, an encouraging «almost» otherwise. Never a sad or cross face.
+ */
+export function buddyMood(input: {
+  phase: BuddyPhase;
+  dictation: DictationState;
+  tick?: number;
+  verdict?: 'correct' | 'wrong' | 'partly' | null;
+  failed?: boolean;
+}): BuddyMood {
+  if (input.dictation === 'recording') return 'listening';
+  const working = buddyStatus(input);
+
+  if (working) {
+    if (input.dictation !== 'idle') return 'thinking';
+    if (input.phase === 'reading') return 'reading';
+    if (input.phase === 'drawing') return 'answering';
+
+    return working.orb === 'searching' ? 'searching' : 'thinking';
+  }
+  if (input.failed) return 'almost';
+  if (input.verdict === 'correct') return 'happy';
+  if (input.verdict === 'wrong' || input.verdict === 'partly') return 'almost';
+
+  return 'idle';
+}

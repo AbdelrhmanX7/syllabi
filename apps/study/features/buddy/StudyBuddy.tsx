@@ -21,7 +21,8 @@ import { cn } from '@repo/ui';
 import { Check, ChevronDown, CopyPlus, Eraser, FilePlus2, Keyboard, Lasso, MessagesSquare, Mic, Pencil, PenLine, Send, ThumbsDown, ThumbsUp, Undo2, WandSparkles, X } from 'lucide-react';
 
 import { useBuddyExperts } from './api';
-import { BUDDY_LINE_MS, BUDDY_QUICK_ASKS, buddyStatus, buddyStatusLine, type BuddyPhase } from './status';
+import { BuddyMascot } from './BuddyMascot';
+import { BUDDY_LINE_MS, BUDDY_QUICK_ASKS, buddyMood, buddyStatus, buddyStatusLine, type BuddyPhase } from './status';
 
 import { ActionButton, Badge, BOARD_CHIP_OVERRIDE, ErrorNote, INPUT_CLASS, Surface } from '@/components/ui/primitives';
 import { InkCanvas, Markdown } from '@/features/bank';
@@ -368,6 +369,7 @@ export function StudyBuddy() {
   };
   const working = buddyStatus({ phase, dictation: dictation.state, tick });
   const status = buddyStatusLine({ phase, dictation: dictation.state, tick });
+  const mood = buddyMood({ phase, dictation: dictation.state, tick, verdict: answer ? verdict : null, failed: Boolean(error) });
   const listening = dictation.state === 'recording';
   const canSend = keyboard ? draft.trim().length > 0 : !padEmpty;
   const send = () => (keyboard ? ask(draft) : askWritten());
@@ -383,7 +385,8 @@ export function StudyBuddy() {
     <>
       {open && (
         <Surface className='buddy-panel pointer-events-auto absolute right-14 top-full z-40 mt-2 flex max-h-[min(70vh,34rem)] w-[min(30rem,calc(100vw-5.5rem))] flex-col text-left'>
-          <div className='flex items-center gap-2 py-1 pl-3 pr-1'>
+          <div className='flex items-center gap-2 py-1 pl-2 pr-1'>
+            <BuddyMascot mood={mood} />
             {answer && verdict && <Badge className='shrink-0' tone={VERDICT[verdict].tone}>{VERDICT[verdict].label}</Badge>}
             {/* Working: the orb moves in the step's own way, and the line under it changes with each step. */}
             {working && <ThinkingOrbMark className='shrink-0' size={20} state={working.orb} />}
