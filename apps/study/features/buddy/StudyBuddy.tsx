@@ -395,7 +395,7 @@ export function StudyBuddy() {
               className={cn('min-w-0 flex-1 truncate text-sm font-semibold', working && 'buddy-line', status || !answer ? 'text-st-fg' : 'text-st-muted')}
               title={question || undefined}
             >
-              {status ?? (answer || busy ? question : 'Study buddy')}
+              {status ?? (answer || busy ? question : 'Nibby')}
             </span>
             <ActionButton aria-label='Close' className='w-11 shrink-0 px-0' title='Close' variant='ghost' onClick={close}>
               <X className='h-4 w-4' />
@@ -652,7 +652,7 @@ export function StudyBuddy() {
         {listening && <span aria-hidden className='buddy-ring border-st-star-lip rounded-st pointer-events-none absolute inset-0 border-2' />}
         <ActionButton
           aria-busy={busy}
-          aria-label={voiceOn ? 'Study buddy: hold to talk, tap for more' : 'Study buddy'}
+          aria-label={voiceOn ? 'Nibby, your study buddy: hold to talk, tap for more' : 'Nibby, your study buddy'}
           className={cn(BOARD_CHIP_OVERRIDE, 'select-none')}
           title={voiceOn ? 'Hold to talk, tap for more' : 'Ask about this page'}
           variant={listening ? 'accent' : 'primary'}

@@ -60,7 +60,7 @@ export const PEN_BUTTON_HOVER_ACTIONS: ReadonlyArray<{ action: PenButtonAction; 
 
 /** Actions for a long press while HOVERING (fires at the threshold, with a short vibration). */
 export const PEN_BUTTON_LONG_HOVER_ACTIONS: ReadonlyArray<{ action: PenButtonAction; label: string; hint: string }> = [
-  { action: 'buddy-talk', label: 'Talk to the buddy', hint: 'Hold the button in the air and ask your question; let go and the buddy answers on your page.' },
+  { action: 'buddy-talk', label: 'Talk to Nibby', hint: 'Hold the button in the air and ask your question; let go and Nibby answers on your page.' },
   { action: 'color-toggle', label: 'Swap to secondary colour', hint: 'Swaps between your two chosen colours.' },
   { action: 'pen-shortcuts', label: 'Open pen shortcuts', hint: 'Opens the quick menu at the pen.' },
   { action: 'undo', label: 'Undo', hint: 'Undoes one step.' },

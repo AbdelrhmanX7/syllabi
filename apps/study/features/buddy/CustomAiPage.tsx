@@ -73,7 +73,7 @@ function ExpertSheet({ expert, onClose }: { expert: BuddyExpert | 'new'; onClose
           <Field label='Name'>
             <input className={INPUT_CLASS} maxLength={40} placeholder='Proof coach' value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
-          <Field hint='The buddy reads this to decide when to call this expert.' label='When to use it'>
+          <Field hint='Nibby reads this to decide when to call this expert.' label='When to use it'>
             <input className={INPUT_CLASS} maxLength={300} placeholder='You ask for help writing or checking a proof.' value={when} onChange={(event) => setWhen(event.target.value)} />
           </Field>
           <Field hint='One rule per line. Say what it must do, and what it must never do.' label='Its rules'>
@@ -127,7 +127,7 @@ function Experts() {
   return (
     <>
       <div className='flex items-center justify-between gap-3 pb-2'>
-        <p className='text-st-muted text-sm'>Each expert has one job. The buddy picks one per question, or you tap its button.</p>
+        <p className='text-st-muted text-sm'>Each expert has one job. Nibby picks one per question, or you tap its button.</p>
         <ActionButton className='shrink-0' variant='primary' onClick={() => setEditing('new')}>
           <Plus className='h-4 w-4' /> New expert
         </ActionButton>
@@ -178,13 +178,13 @@ function Memory() {
           if (draft.trim().length >= 8) addNote.mutate(draft.trim(), { onSuccess: () => setDraft('') });
         }}
       >
-        <input aria-label='A note for the buddy' className={INPUT_CLASS} maxLength={200} placeholder='Tell the buddy something about you: “Show me the graph first.”' value={draft} onChange={(event) => setDraft(event.target.value)} />
+        <input aria-label='A note for Nibby' className={INPUT_CLASS} maxLength={200} placeholder='Tell Nibby something about you: “Show me the graph first.”' value={draft} onChange={(event) => setDraft(event.target.value)} />
         <ActionButton className='shrink-0' disabled={draft.trim().length < 8} loading={addNote.isPending} type='submit' variant='primary'>
           Add
         </ActionButton>
       </form>
       {(notes.data ?? []).length === 0 ? (
-        <EmptyState hint='The buddy saves a short note when it spots something lasting, like a slip you keep making.' icon={Brain} title='Nothing remembered yet' />
+        <EmptyState hint='Nibby saves a short note when it spots something lasting, like a slip you keep making.' icon={Brain} title='Nothing remembered yet' />
       ) : (
         <ul data-custom-ai='memory'>
           {(notes.data ?? []).map((note) => (
@@ -251,7 +251,7 @@ function TurnSheet({ id, onClose }: { id: string; onClose: () => void }) {
       {data && (
         <div className='flex flex-col gap-3 text-sm'>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {data.imageUrl && <img alt='The page as the buddy saw it' className='border-default-200 rounded-st max-h-80 w-full border object-contain' src={data.imageUrl} />}
+          {data.imageUrl && <img alt='The page as Nibby saw it' className='border-default-200 rounded-st max-h-80 w-full border object-contain' src={data.imageUrl} />}
           {data.status === 'error' ? (
             <p className='text-danger-700'>It failed: {data.error}</p>
           ) : (
@@ -320,7 +320,7 @@ function Answers() {
       </div>
       {turns.isLoading && <LoadingRows rows={5} />}
       {turns.isError && <ErrorNote message={messageOf(turns.error)} onRetry={() => void turns.refetch()} />}
-      {turns.data && turns.data.length === 0 && <EmptyState hint='Ask the buddy something on a notebook page and it shows up here.' icon={History} title='No answers yet' />}
+      {turns.data && turns.data.length === 0 && <EmptyState hint='Ask Nibby something on a notebook page and it shows up here.' icon={History} title='No answers yet' />}
       <ul data-custom-ai='answers'>
         {(turns.data ?? []).map((turn: BuddyTurn) => (
           <li key={turn.id}>
@@ -354,7 +354,7 @@ export default function CustomAiPage() {
       <Head>
         <title>Custom AI</title>
       </Head>
-      <PageHeader back='/settings/' subtitle='Your study buddy, opened up: its experts, what it remembers about you, and its answers.' title='Custom AI' />
+      <PageHeader back='/settings/' subtitle='Nibby, your study buddy, opened up: its experts, what it remembers about you, and its answers.' title='Custom AI' />
       <DividerTabs
         aria-label='Custom AI'
         tabs={[
