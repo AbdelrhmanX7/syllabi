@@ -30,6 +30,8 @@ import { syncConceptMapSubmissions } from "./concept-map-canvas";
 
 export const FILE_MAX_BYTES = 200 * 1024 * 1024;
 export const SYNC_STALE_MS = 30 * 60 * 1000;
+/** How often a running sync refreshes its lock (well inside SYNC_STALE_MS). */
+const SYNC_HEARTBEAT_MS = 5 * 60 * 1000;
 export const TOKEN_EXPIRING_MS = 7 * 24 * 3600 * 1000;
 
 export type SyncDeps = {
@@ -158,6 +160,11 @@ export async function executeSync(conn: IStudyCanvasConnection, deps: SyncDeps =
   let lastError: Err | null = null;
   let ok = false;
   let client: CanvasClient | null = null;
+  // A long run keeps its lock fresh, or the 30-minute "dead lock" rule would start a second run on top of it.
+  const heartbeat = setInterval(() => {
+    void StudyCanvasConnection.updateOne({ _id: conn._id, syncing: true }, { $set: { syncStartedAt: new Date() } }).catch(() => {});
+  }, SYNC_HEARTBEAT_MS);
+  heartbeat.unref?.();
 
   try {
     let token: string;
@@ -181,10 +188,23 @@ export async function executeSync(conn: IStudyCanvasConnection, deps: SyncDeps =
       { $set: { current: false } }
     );
 
+    // Every class row first, so the whole list shows in the app straight away. A big account
+    // (a teacher with many full courses) can take a long time to fill in course by course.
+    const rows: { course: Json; cls: IStudyClass; isNew: boolean }[] = [];
     for (const course of kept) {
       try {
-        const { cls, isNew } = await upsertClass(ctx, course, colors);
+        rows.push({ course, ...(await upsertClass(ctx, course, colors)) });
         stats.classes++;
+      } catch (e) {
+        const err = errOf(e);
+        if (err.code === "CANVAS_TOKEN_INVALID") throw e;
+        courseErrors.push({ courseId: Number(course.id), ...err });
+        await logger.warn("study canvas course sync failed", { userId: String(conn.userId), courseId: course.id, ...err });
+      }
+    }
+
+    for (const { course, cls, isNew } of rows) {
+      try {
         await syncCourse(ctx, cls, course, isNew);
         // Grade plan (assignment groups, weights, grading standard). A failure here must not fail P1.
         await syncGradebook(ctx.client, ctx.userId, cls, course).catch(async (e) => {
@@ -209,6 +229,7 @@ export async function executeSync(conn: IStudyCanvasConnection, deps: SyncDeps =
   } catch (e) {
     lastError = (e as any)?.code === "CANVAS_TOKEN_UNREADABLE" ? { code: "CANVAS_TOKEN_UNREADABLE", message: (e as Error).message } : errOf(e);
   } finally {
+    clearInterval(heartbeat);
     stats.requests = client?.requestCount ?? 0;
     stats.durationMs = Date.now() - started;
     stats.filesSkipped = skippedFiles.length;
