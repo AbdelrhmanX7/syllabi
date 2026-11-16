@@ -25,14 +25,27 @@ const hasDatedTerm = (c: Json) => ts(c?.term?.start_at) !== null && ts(c?.term?.
  * training even has course dates that cover today, so course dates alone are not enough.
  * Current = dated term whose [start_at, end_at] contains `now`. Between terms (nothing
  * contains `now`) the most recent dated term is kept, so the app is never empty over a break.
+ *
+ * Two cases where that rule alone left the app empty:
+ *  - the school does not date its terms at all (common for small schools, and for teachers whose
+ *    courses all sit in the "Default Term"): keep every active course that has not ended;
+ *  - every dated term is still in the future (courses opened early, e.g. a teacher preparing next
+ *    term): keep the term that starts soonest.
  */
 export function selectCurrentTermCourses<T extends Json>(courses: T[], now = new Date()): T[] {
-  const dated = courses.filter(hasDatedTerm);
   const t = now.getTime();
+  const dated = courses.filter(hasDatedTerm);
+  if (!dated.length) {
+    // `access_restricted_by_date` rows are stubs (an id and nothing else) — never a usable class.
+    return courses.filter((c) => !c?.access_restricted_by_date && !((ts(c?.end_at) ?? Infinity) < t));
+  }
   const inWindow = dated.filter((c) => ts(c.term.start_at)! <= t && t <= ts(c.term.end_at)!);
   if (inWindow.length) return inWindow;
   const started = dated.filter((c) => ts(c.term.start_at)! <= t);
-  if (!started.length) return [];
+  if (!started.length) {
+    const nextTermId = dated.reduce((a, b) => (ts(b.term.start_at)! < ts(a.term.start_at)! ? b : a)).term.id;
+    return dated.filter((c) => c.term.id === nextTermId);
+  }
   const latestTermId = started.reduce((a, b) => (ts(b.term.end_at)! > ts(a.term.end_at)! ? b : a)).term.id;
   return started.filter((c) => c.term.id === latestTermId);
 }

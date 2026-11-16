@@ -56,6 +56,8 @@ export type SyncStats = {
   videos: number;
   requests: number;
   durationMs: number;
+  /** Courses Canvas listed before the current-term filter (tells "Canvas gave nothing" from "we kept nothing"). */
+  coursesListed?: number;
   /** Images embedded in item html (services/study/canvas-images.ts). */
   imagesStored?: number;
   imagesSkipped?: number;
@@ -170,6 +172,7 @@ export async function executeSync(conn: IStudyCanvasConnection, deps: SyncDeps =
     const courses = await client.getAll<Json>("/api/v1/courses?include[]=term&include[]=total_scores&enrollment_state=active&per_page=100");
     const colors = await client.get<Json>("/api/v1/users/self/colors").catch(() => null);
     const kept = selectCurrentTermCourses(courses, now);
+    stats.coursesListed = courses.length;
 
     await StudyClass.updateMany(
       // Manual classes are not in Canvas's course list — without this filter every sync
