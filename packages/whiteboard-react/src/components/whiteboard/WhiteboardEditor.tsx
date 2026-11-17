@@ -164,6 +164,7 @@ import {
   forgetCachedPdfAsset,
   loadCachedPdfAsset,
   prefetchPdfAssetPageImage,
+  forgetRenderedPdfPageUrl,
   renderPdfAssetPageImageUrl,
   warmPdfRuntime,
 } from './utils/pdfAssetRenderer';
@@ -239,6 +240,14 @@ export type WhiteboardNativePdfCapability = UsePdfPageImageNativeCapability;
  * "Save As" dialog inside the Tauri desktop shell). When absent, the editor falls back to a plain
  * browser anchor download. Implementations live in the host app; the package never imports them.
  */
+/** An export met a page whose PDF / picture background would not load; nothing was written. */
+export class PageBackgroundMissingError extends Error {
+  constructor() {
+    super('The page under the writing did not load');
+    this.name = 'PageBackgroundMissingError';
+  }
+}
+
 export interface WhiteboardFileBridge {
   /** Persist binary data (an exported PDF). Returns when the save resolves or is cancelled. */
   saveBinary(opts: {
@@ -585,6 +594,12 @@ export interface WhiteboardEditorProps {
   defaultPaperSpacingMm?: Partial<Record<BackgroundType, number>>;
   resolveRemotePdfAsset?: ResolveRemotePdfAsset;
   fileBridge?: WhiteboardFileBridge;
+  /**
+   * «Export PDF» / «Export image» wrote NO file: the export was interrupted, a page's PDF would not
+   * load (`'background-missing'`), or the save itself failed. The host tells the user; without this
+   * a failed export was a button that silently did nothing.
+   */
+  onExportFailed?: (reason: 'background-missing' | 'failed') => void;
   nativePdf?: WhiteboardNativePdfCapability;
   /**
    * Native (PDFium) renderer for IMPORT time — the tier-2 fallback for a page pdf.js cannot
@@ -1600,6 +1615,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   defaultPaperSpacingMm,
   resolveRemotePdfAsset,
   fileBridge,
+  onExportFailed,
   nativePdf,
   nativePdfRescue,
   boardAi,
@@ -2461,16 +2477,31 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         return page.pdfImageUrl;
       }
 
-      try {
-        return await renderPdfAssetPageImageUrl({
+      const pdfPageIndex = page.pdfPageIndex;
+      const render = () =>
+        renderPdfAssetPageImageUrl({
           asset,
           containerHeight: fabricCanvasRef.current?.getHeight() ?? 1080,
           containerWidth: fabricCanvasRef.current?.getWidth() ?? 1920,
           mode,
-          pageIndex: page.pdfPageIndex,
+          pageIndex: pdfPageIndex,
           workerSrc: pdfWorkerSrc,
           zoom: mode === 'export' ? 1 : zoom,
         });
+
+      try {
+        const url = await render();
+
+        // The renderer hands out cached urls. One that no longer loads (revoked somewhere) would leave
+        // this page with NO background — on screen and in every export — so it is dropped and the page
+        // rendered again. The check is the load the caller does next anyway (shared loader: a cache hit).
+        if (await loadPdfPageImage(url)) {
+          return url;
+        }
+
+        forgetRenderedPdfPageUrl(url);
+
+        return await render();
       } catch {
         // Match the live renderer (usePdfPageImage): a transient pdf.js failure must not abort the
         // whole export — fall back to any inline preview so the page still composites.
@@ -2566,6 +2597,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   // until its ink changes — opening the list never competes with writing.
   const pageInkThumbnailCacheRef = useRef<Map<string, Promise<string | undefined>>>(new Map());
   const pageInkThumbnailQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const ownedPageThumbnailUrlsRef = useRef<Set<string>>(new Set());
   const resolvePageManagerThumbnail = useCallback(
     (page: WhiteboardPage): Promise<string | undefined> => {
       const background = page.pdfAssetId || page.pdfImageUrl ? resolvePageManagerPdfThumbnail({ ...page, thumbnail: '' }) : Promise.resolve(undefined);
@@ -2583,11 +2615,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           await waitForInputIdle(PAGE_MANAGER_THUMBNAIL_QUIET_MS, () => false);
 
           try {
-            return await renderPageThumbnail(page, {
+            const thumbnailUrl = await renderPageThumbnail(page, {
               backgroundUrl,
               width: PAGE_MANAGER_THUMBNAIL_NATIVE_EDGE,
               checkpoint: () => waitForInputIdle(PAGE_MANAGER_THUMBNAIL_QUIET_MS, () => false),
             });
+
+            if (thumbnailUrl) ownedPageThumbnailUrlsRef.current.add(thumbnailUrl);
+
+            return thumbnailUrl;
           } catch {
             // A page that will not render keeps whatever picture it can: the PDF page, an old thumbnail.
             return backgroundUrl ?? (page.thumbnail || undefined);
@@ -2601,7 +2637,13 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           const stale = cache.get(key);
 
           cache.delete(key);
-          void stale?.then((url) => url?.startsWith('blob:') && window.setTimeout(() => URL.revokeObjectURL(url), 5_000));
+          // Only a picture rendered HERE is ours to revoke. The fallback above can be the PDF renderer's
+          // own cached url; revoking that one blanks the page's background everywhere it is reused.
+          void stale?.then((url) => {
+            if (!url || !ownedPageThumbnailUrlsRef.current.delete(url)) return;
+
+            window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
+          });
         }
       }
       cache.set(cacheKey, pending);
@@ -2618,7 +2660,6 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       const pdfAssetId = page.pdfAssetId;
       const pdfPageIndex = page.pdfPageIndex;
       let backgroundUrl = page.pdfImageUrl;
-      let ownedUrl: string | null = null;
 
       if (pdfAssetId && pdfPageIndex !== undefined) {
         if (nativePdf?.isAvailable() && nativePdf.isCached(pdfAssetId) && !nativePdf.hasFailed?.(pdfAssetId)) {
@@ -2627,7 +2668,10 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           const asset = await resolvePdfRenderableAsset(page).catch(() => null);
 
           if (asset) {
-            ownedUrl = await renderPdfAssetPageImageUrl({
+            // The url belongs to the renderer's cache (it is the SAME entry «Export PDF» reads), so it
+            // is never revoked here: a revoked url stayed in that cache, and every later export and
+            // page picture loaded nothing and came out as ink on a blank page — the form was gone.
+            const renderedUrl = await renderPdfAssetPageImageUrl({
               asset,
               containerHeight: longEdge,
               containerWidth: longEdge,
@@ -2637,20 +2681,16 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               workerSrc: pdfWorkerSrc,
               zoom: 1,
             }).catch(() => null);
-            backgroundUrl = ownedUrl ?? backgroundUrl;
+            backgroundUrl = renderedUrl ?? backgroundUrl;
           }
         }
       }
 
-      try {
-        return await renderPageImage(page, { backgroundUrl, quality: 0.85, view: 'page', width: longEdge });
-      } finally {
-        if (ownedUrl?.startsWith('blob:')) URL.revokeObjectURL(ownedUrl);
-      }
+      return await renderPageImage(page, { backgroundUrl, quality: 0.85, view: 'page', width: longEdge });
     };
   }, [nativePdf, pdfWorkerSrc, renderPageImageRef, resolvePdfRenderableAsset]);
 
-  const getPageExportBounds = useCallback((page: WhiteboardPage, pdfPageImage: HTMLImageElement | null, { backgroundOnly = false }: { backgroundOnly?: boolean } = {}) => {
+  const getPageExportBounds = useCallback((page: WhiteboardPage, pdfPageImage: HTMLImageElement | null, { backgroundOnly = false, wholeSheet = false }: { backgroundOnly?: boolean; wholeSheet?: boolean } = {}) => {
     const canvas = fabricCanvasRef.current;
 
     if (!canvas) {
@@ -2690,12 +2730,20 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           )
         : null;
 
+    // A blank sheet added to a notebook is a PAGE with its own shape, not a window's worth of board:
+    // exported as the window it came out as a short landscape slab next to the full PDF pages.
+    const sheetWidth = page.canvasWidthPx && page.canvasWidthPx > 0 ? page.canvasWidthPx : canvasWidth;
+    const sheet =
+      wholeSheet && !pdfPlacement && isInsertedSheet(page) && page.sheetAspect
+        ? { height: sheetWidth * page.sheetAspect, width: sheetWidth }
+        : null;
+
     let minX = pdfPlacement?.left ?? 0;
     let minY = pdfPlacement?.top ?? 0;
-    let maxX = pdfPlacement ? pdfPlacement.left + pdfPlacement.width : canvasWidth;
-    let maxY = pdfPlacement ? pdfPlacement.top + pdfPlacement.height : canvasHeight;
+    let maxX = pdfPlacement ? pdfPlacement.left + pdfPlacement.width : (sheet?.width ?? canvasWidth);
+    let maxY = pdfPlacement ? pdfPlacement.top + pdfPlacement.height : (sheet?.height ?? canvasHeight);
 
-    if (!pdfPlacement && exportableObjects.length === 0) {
+    if (!pdfPlacement && !sheet && exportableObjects.length === 0) {
       return {
         height: canvasHeight,
         left: 0,
@@ -2730,12 +2778,30 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         multiplier = 2,
         quality = 1,
         maxDimension,
-      }: { format?: 'jpeg' | 'png'; multiplier?: number; quality?: number; maxDimension?: number } = {},
+        requireBackground = false,
+        wholeSheet = false,
+      }: {
+        format?: 'jpeg' | 'png';
+        multiplier?: number;
+        quality?: number;
+        maxDimension?: number;
+        /** A file the student keeps (PDF / image export): fail rather than leave the PDF page out. */
+        requireBackground?: boolean;
+        /** A blank sheet comes out as the whole sheet, not as the window it is shown in. */
+        wholeSheet?: boolean;
+      } = {},
     ) => {
       const canvas = fabricCanvasRef.current;
       const exportGeneration = loadGenerationRef.current;
       const pdfPageImage = await loadCanvasImage(await resolvePdfPageImageUrl(page, 'export'));
-      const exportBounds = getPageExportBounds(page, pdfPageImage);
+
+      // A page that HAS a PDF / picture under it is never exported without it: ink on a blank page
+      // looks like a finished file and is not one. The caller reports the failure instead.
+      if (requireBackground && !pdfPageImage && (page.pdfAssetId || page.pdfImageUrl)) {
+        throw new PageBackgroundMissingError();
+      }
+
+      const exportBounds = getPageExportBounds(page, pdfPageImage, { wholeSheet });
 
       if (!canvas || !exportBounds) {
         return null;
@@ -6812,6 +6878,31 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const endCanvasSweep = useCallback(async (session: PdfScrollSession | null, index: number) => {
     if (!session) return;
 
+    // The sweep leaves the LAST page it loaded on the canvas, in that page's own coordinates. The
+    // session only puts its window back on top, so those objects stayed: a second copy of that page's
+    // writing, sitting in the wrong place over whatever page is at the top. Hand the session an empty
+    // canvas, exactly as the effect that creates it does.
+    const canvas = fabricCanvasRef.current;
+
+    if (canvas) {
+      loadAbortRef.current?.abort();
+      loadGenerationRef.current += 1;
+      historyRef.current.pause();
+      isSyncingCanvasRef.current = true;
+
+      try {
+        canvas.discardActiveObject();
+        canvas.clear();
+        canvas.backgroundColor = 'transparent';
+        canvas.backgroundImage = undefined;
+        invalidateInkBake(canvas);
+        notifyLockedImagesChanged(canvas);
+      } finally {
+        isSyncingCanvasRef.current = false;
+        historyRef.current.resume();
+      }
+    }
+
     pdfScrollPainterRef.current = (ctx, args) => session.paint(ctx, args);
     await session.resume(index);
     viewportConstraintsRef.current = session.getConstraints();
@@ -6840,6 +6931,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       const snapshot = await createPageExportSnapshot(page, overlayImage, {
         format: 'png',
         multiplier: 2,
+        requireBackground: true,
+        wholeSheet: true,
       });
 
       // Discard if a page load/restore landed during the awaits — the pixels aren't this page's.
@@ -6865,6 +6958,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         link.click();
         document.body.removeChild(link);
       }
+    } catch (error) {
+      onExportFailed?.(error instanceof PageBackgroundMissingError ? 'background-missing' : 'failed');
     } finally {
       await endCanvasSweep(sweep, restoreIndex);
     }
@@ -6873,6 +6968,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
     createPageExportSnapshot,
     documentTitle,
     endCanvasSweep,
+    onExportFailed,
     fileBridge,
     flushCurrentPageSnapshot,
     loadPage,
@@ -6923,6 +7019,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           format: 'jpeg',
           multiplier: 2,
           quality: 0.92,
+          requireBackground: true,
+          wholeSheet: true,
         });
 
         // A load/restore superseded the sweep mid-snapshot — abort rather than publish a PDF
@@ -7122,6 +7220,8 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
       const publishPayload = await buildPublishPayload();
 
       if (!publishPayload) {
+        onExportFailed?.('failed');
+
         return;
       }
 
@@ -7140,12 +7240,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // Not revoked at once: the download reads the url after this click returns.
+        window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
       }
+    } catch (error) {
+      onExportFailed?.(error instanceof PageBackgroundMissingError ? 'background-missing' : 'failed');
     } finally {
       setIsExportingPdf(false);
     }
-  }, [buildPublishPayload, documentTitle, fileBridge, isExportingPdf]);
+  }, [buildPublishPayload, documentTitle, fileBridge, isExportingPdf, onExportFailed]);
 
   // Export the whole whiteboard (all pages + canvas JSON + metadata) as a re-importable .json file.
   // Mirrors handleExport: serialize the snapshot document and trigger a download. Works on the web

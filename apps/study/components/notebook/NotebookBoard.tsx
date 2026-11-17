@@ -29,6 +29,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { addToast } from '@repo/ui';
 
 import { ClaudeFeedback } from '@/components/notebook/ClaudeFeedback';
 import { RulerOverlay } from '@/components/notebook/RulerOverlay';
@@ -99,6 +100,19 @@ type SyncState =
   | { kind: 'error'; message: string };
 
 const FREE_ZOOM_KEY = 'study_board_free_zoom';
+
+/** A download that wrote nothing says so (it used to look like a button that did nothing). */
+function notifyExportFailed(reason: 'background-missing' | 'failed') {
+  addToast({
+    title: 'Nothing was saved',
+    description:
+      reason === 'background-missing'
+        ? 'The page under your writing did not load, so the file was not made. Your notebook is unchanged. Try again.'
+        : 'The file could not be made. Your notebook is unchanged. Try again.',
+    color: 'danger',
+    timeout: 8_000,
+  });
+}
 const UPLOAD_DEBOUNCE_MS = 2_500;
 /**
  * Page images for the Study MCP (`lib/notebooks/page-renders`) are drawn only after the board has been
@@ -917,6 +931,7 @@ export function NotebookBoard({
         embedded={embedded}
         extraSelectionActions={readOnly ? undefined : extraSelectionActions}
         fileBridge={studyFileBridge}
+        onExportFailed={notifyExportFailed}
         flushBeforeCloseRef={flushRef}
         liveBoardRef={liveMode ? liveBoardRef : undefined}
         onBoardChange={liveMode ? handleBoardChange : undefined}

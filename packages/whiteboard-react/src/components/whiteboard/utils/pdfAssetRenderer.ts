@@ -223,6 +223,18 @@ function pruneRenderedPageCache(): void {
   }
 }
 
+/**
+ * Forget a rendered page whose url no longer loads (something revoked it), so the next request
+ * renders the page again instead of handing out the dead url for the rest of the session.
+ */
+export function forgetRenderedPdfPageUrl(url: string): void {
+  for (const [key, entry] of Array.from(renderedPageCache.entries())) {
+    if (entry.url === url) {
+      renderedPageCache.delete(key);
+    }
+  }
+}
+
 function prunePdfDocumentCache(): void {
   while (pdfDocumentCache.size > MAX_PDF_DOCUMENT_CACHE_ENTRIES) {
     const oldestEntry = pdfDocumentCache.entries().next().value as [string, PdfDocumentCacheEntry] | undefined;
