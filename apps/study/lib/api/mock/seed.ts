@@ -143,7 +143,17 @@ function builtinSeed(): MockSeed {
   const modulesByClass: Record<string, ModuleNode[]> = {
     cls_demo_cs: [
       { id: 'mod_demo_1', name: 'Module 1: Getting started', position: 1, items: items.slice(0, 2) },
-      { id: 'mod_demo_2', name: 'Module 2: Classes', position: 2, items: items.slice(2, 4) },
+      {
+        id: 'mod_demo_2',
+        name: 'Module 2: Classes',
+        position: 2,
+        items: items.slice(2, 4),
+        // As Canvas lists it: a header, then the two items.
+        rows: [
+          { type: 'header', title: 'Read first' },
+          ...items.slice(2, 4).map((item) => ({ type: 'item' as const, itemId: item.id, title: item.title })),
+        ],
+      },
     ],
     cls_demo_earth: [],
     cls_demo_lab: [],

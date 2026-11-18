@@ -7,6 +7,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 
 import { NotebookBoard } from '@/components/notebook/NotebookBoard';
+import { NotebookRecordButton } from '@/features/lectures/NotebookRecordButton';
 import { NoteCover } from '@/components/notes/NoteCover';
 import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
 import { ActionButton, BOARD_CHIP_OVERRIDE, EmptyState, LinkButton } from '@/components/ui/primitives';
@@ -280,6 +281,7 @@ export default function NotebookPage() {
                   }}
                 />
               )}
+              {!sharedWithMe && <NotebookRecordButton page={page} />}
               {page.classId && page.kind === 'note' && (
                 <AttachToLectureButton classId={page.classId} page={page} />
               )}
