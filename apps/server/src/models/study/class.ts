@@ -1,3 +1,4 @@
+import { STUDY_QUESTION_TYPES, type StudyQuestionType } from "./question";
 import mongoose, { Schema, Types } from "mongoose";
 
 export const GRADE_POLICY_KINDS = ["weighted", "all_categories_min"] as const;
@@ -44,6 +45,8 @@ export interface IStudyClass {
   gradePolicy?: StudyGradePolicy | null;
   /** Manual class-times override (PATCH); wins over the A-plan syllabus's extracted meetings. */
   meetingsOverride?: { slots: { day: string; start: string; end: string }[]; timeZone: string } | null;
+  /** Owner setting (PATCH): the question types this class uses; null/empty = all. */
+  questionTypes?: StudyQuestionType[] | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,6 +100,7 @@ const StudyClassSchema = new Schema<IStudyClass>(
       ),
       default: null,
     },
+    questionTypes: { type: [{ type: String, enum: STUDY_QUESTION_TYPES }], default: undefined },
   },
   { timestamps: true }
 );

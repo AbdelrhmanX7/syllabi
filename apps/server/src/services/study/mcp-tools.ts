@@ -1,3 +1,4 @@
+import { typeExclusion } from "./question-types";
 import { QUESTION_PAGES_RULE } from "./ai-rules";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StudyCanvasConnection } from "@/models/study/canvas-connection";
@@ -465,7 +466,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
     "add_questions",
     {
       description:
-        "Save questions to the question bank (near-duplicates in the same class are merged — to change a saved question use update_question). mcq: choices without letters, answer = the exact correct choice text. Math as $LaTeX$. imageInboxId attaches a picture (a figure) shown above the question: upload it to the Study inbox first, then pass the inbox item id.",
+        "Save questions to the question bank (near-duplicates in the same class are merged — to change a saved question use update_question). Only use the question types the class allows (questionTypes in list_classes; null = any) — a question of another type is saved as a written (free) question. mcq: choices without letters, answer = the exact correct choice text. Math as $LaTeX$. imageInboxId attaches a picture (a figure) shown above the question: upload it to the Study inbox first, then pass the inbox item id.",
       inputSchema: { questions: z.array(questionInput.extend({ imageInboxId: imageInboxId.optional() })).min(1).max(100) },
       annotations: WRITE,
     },
@@ -550,7 +551,7 @@ export function buildStudyMcpServer(ownerId: string, opts: { publicBase?: string
       const sameTopic = (q: IStudyQuestion) => !topic || q.topic.toLowerCase() === topic.toLowerCase();
       const picked = (await reviewNext(userId, cls, REVIEW_MAX)).filter(sameTopic).slice(0, count);
       if (picked.length < count) {
-        const filter: Record<string, unknown> = { userId, classId: cls, _id: { $nin: picked.map((q) => q._id) } };
+        const filter: Record<string, unknown> = { userId, classId: cls, _id: { $nin: picked.map((q) => q._id) }, ...(await typeExclusion(userId, cls)) };
         if (topic) filter.topic = { $regex: `^${topic.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" };
         picked.push(...(await StudyQuestion.find(filter, { shingles: 0 }).sort({ "stats.mastery": 1, _id: 1 }).limit(count - picked.length).lean<IStudyQuestion[]>()));
       }

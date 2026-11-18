@@ -1,3 +1,4 @@
+import { allowedForClass, typeFor } from "../services/study/question-types";
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { StudyClass, IStudyClass } from "@/models/study/class";
@@ -538,7 +539,8 @@ export const similarQuestions = wrap(async (req, res) => {
     q.userId,
     "similar",
     async (sse, spend) => {
-      const list = await generateSimilar(q, count, spend, sse.signal);
+      const want = typeFor(await allowedForClass(q.userId, q.classId), q.type);
+      const list = await generateSimilar(q, count, spend, sse.signal, want);
       if (sse.signal.aborted) return;
       const source: QuestionDraft["source"] = { kind: "ai_similar", itemId: q.source?.itemId ?? null, pageId: q.source?.pageId ?? null, lectureId: q.source?.lectureId ?? null, ref: String(q._id) };
       let n = 0;
@@ -546,7 +548,7 @@ export const similarQuestions = wrap(async (req, res) => {
         let draft: QuestionDraft;
         try {
           const { classId: _c, source: _s, type: _t, topic: _p, ...rest } = r ?? {};
-          draft = toDraft({ ...rest, type: q.type, topic: q.topic, subtopic: rest.subtopic ?? q.subtopic }, { classId: q.classId, source });
+          draft = toDraft({ ...rest, type: want, topic: q.topic, subtopic: rest.subtopic ?? q.subtopic }, { classId: q.classId, source });
           draft.source = source;
         } catch {
           continue;

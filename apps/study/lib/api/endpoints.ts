@@ -2,6 +2,7 @@
 // instead of spelling paths themselves, so a contract change is one edit here.
 import type { SseFrame } from './http';
 import type {
+  QuestionType,
   AttemptInput,
   AttemptVerdict,
   CanvasStatus,
@@ -67,7 +68,14 @@ export const listClasses = (term?: 'all' | string) => studyGet<StudyClass[]>(`/c
 /** Hide a class from the lists, or recolour it. */
 export const patchClass = (
   classId: string,
-  patch: { hidden?: boolean; color?: string; meetings?: ClassMeetingTimes | null; name?: string; code?: string },
+  patch: {
+    hidden?: boolean;
+    color?: string;
+    meetings?: ClassMeetingTimes | null;
+    name?: string;
+    code?: string;
+    questionTypes?: QuestionType[] | null;
+  },
 ) => studyPatch<StudyClass>(`/classes/${enc(classId)}`, patch);
 /** A class of his own (LeetCode, a side project…) — not from Canvas. `name`/`code` are editable only on these. */
 export const createClass = (body: { name: string; code?: string; color?: string }) =>

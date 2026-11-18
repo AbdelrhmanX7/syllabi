@@ -45,6 +45,8 @@ export interface StudyClass {
   meetings?: ClassMeetingTimes | null;
   /** Where `meetings` came from: his override, or the syllabus. */
   meetingsSource?: 'manual' | 'syllabus' | null;
+  /** The question types this class uses (his setting); null/absent = all. */
+  questionTypes?: QuestionType[] | null;
 }
 
 /** `day` is 'Mon'…'Sun' (a 0–6 number from Sunday is read too); times are 24 h 'HH:MM'. */

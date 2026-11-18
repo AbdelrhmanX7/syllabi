@@ -1,3 +1,5 @@
+import { allowedOf, isAllowed } from "../question-types";
+import type { StudyQuestionType } from "../../../models/study/question";
 import { Types } from "mongoose";
 import { StudyClass, IStudyClass } from "@/models/study/class";
 import { StudyItem, IStudyItem } from "@/models/study/item";
@@ -245,7 +247,8 @@ async function runTurn(p: AskPrepared, sse: StudySse, cls: ClassRef | null, guid
         next = pendingFromBank(bank);
         quiz.bankAsked = [...(quiz.bankAsked ?? []), bank._id];
       } else {
-        const g = await generateQuestion({ topic: quiz.topic, snippets: found.snippets, asked: askedStems(conv?.messages ?? []), className }, textSpend, sse.signal);
+        const noChoices = p.cls ? !isAllowed(allowedOf(p.cls as { questionTypes?: StudyQuestionType[] | null }), "mcq") : false;
+        const g = await generateQuestion({ topic: quiz.topic, snippets: found.snippets, asked: askedStems(conv?.messages ?? []), className, noChoices }, textSpend, sse.signal);
         if (sse.signal.aborted) return;
         next = pendingFree(g);
       }

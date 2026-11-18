@@ -377,6 +377,7 @@ export default function BankHome({
           onFilters={setFilters}
           onLoadMore={() => void loadMore()}
           onBoardExam={(picked) => setView({ kind: "board", questions: picked })}
+          onClassesChanged={() => classesLoad.reload()}
           onOpen={(question) => setView({ kind: "solve", question })}
           onPractice={(picked) => setView({ kind: "review", picked })}
         />

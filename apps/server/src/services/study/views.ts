@@ -153,6 +153,7 @@ export const classDto = (c: IStudyClass, counts: Counts, examResults?: ExamResul
   hidden: !!c.hidden,
   meetings: mt?.meetings ?? null,
   meetingsSource: mt?.meetingsSource ?? null,
+  questionTypes: c.questionTypes?.length ? c.questionTypes : null,
   ...(examResults ? { examResults } : {}),
 });
 

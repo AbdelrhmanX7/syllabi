@@ -882,6 +882,15 @@ async function routeJson(method: string, path: string, body: Body, headers?: Rec
           return cls;
         }
       }
+      if (a && !b && method === 'PATCH' && body && typeof body === 'object' && 'questionTypes' in body) {
+        const cls = db.seed.classes.find((row) => row.id === a || row.id === toFixtureClassId(a));
+
+        if (cls) {
+          cls.questionTypes = (body as { questionTypes: StudyClass['questionTypes'] }).questionTypes ?? null;
+
+          return cls;
+        }
+      }
       if (a && !b && method === 'PATCH') {
         const cls = db.seed.classes.find((row) => row.id === a || row.id === toFixtureClassId(a));
         const meetings = patchClassMeetings(cls, body);

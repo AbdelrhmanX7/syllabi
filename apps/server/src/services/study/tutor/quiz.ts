@@ -1,3 +1,4 @@
+import { allowedForClass, isAllowed } from "../question-types";
 import { randomUUID } from "crypto";
 import { Types } from "mongoose";
 import { StudyQuestion, IStudyQuestion, AttemptResult } from "@/models/study/question";
@@ -75,7 +76,8 @@ const QUIZ_TYPES = ["free", "mcq"];
 
 /** A bank question of this class for the quiz topic: relevant first, then due, never repeated. */
 export async function pickBankQuestion(userId: Types.ObjectId, classId: Types.ObjectId, quiz: Pick<TutorQuizState, "bankAsked">, terms: string[], now = new Date()): Promise<IStudyQuestion | null> {
-  const base = { userId, classId, type: { $in: QUIZ_TYPES }, _id: { $nin: quiz.bankAsked ?? [] } };
+  const allowed = await allowedForClass(userId, classId);
+  const base = { userId, classId, type: { $in: QUIZ_TYPES.filter((t) => isAllowed(allowed, t)) }, _id: { $nin: quiz.bankAsked ?? [] } };
   const rx = anyTermRx(terms);
   const pool = rx ? await StudyQuestion.find({ ...base, $or: [{ stem: rx }, { topic: rx }, { tags: rx }] }).limit(50).lean<IStudyQuestion[]>() : [];
   if (!pool.length && !terms.length) pool.push(...(await StudyQuestion.find(base).sort({ "srs.dueAt": 1 }).limit(20).lean<IStudyQuestion[]>()));
@@ -84,14 +86,19 @@ export async function pickBankQuestion(userId: Types.ObjectId, classId: Types.Ob
   return pool.sort((a, b) => score(b) - score(a))[0];
 }
 
-export async function generateQuestion(o: { topic: string | null; snippets: Snippet[]; asked: string[]; className: string | null }, spend: Spend, signal?: AbortSignal) {
-  const raw = await textJson(QUIZ_GENERATE_SYSTEM_PROMPT, buildGenerateTurn(o), spend, { signal, maxTokens: 2000 });
+export async function generateQuestion(
+  o: { topic: string | null; snippets: Snippet[]; asked: string[]; className: string | null; noChoices?: boolean },
+  spend: Spend,
+  signal?: AbortSignal
+) {
+  const turn = buildGenerateTurn(o) + (o.noChoices ? "\n\nWrite an open (written-answer) question: NO answer choices, choices = []." : "");
+  const raw = await textJson(QUIZ_GENERATE_SYSTEM_PROMPT, turn, spend, { signal, maxTokens: 2000 });
   const stem = typeof raw?.stem === "string" ? raw.stem.trim() : "";
   if (!stem) throw new Error("question generator returned no stem");
   const choices = Array.isArray(raw?.choices) ? raw.choices.filter((c: unknown) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 500)).slice(0, 6) : [];
   return {
     stem: stem.slice(0, 4000),
-    choices: choices.length >= 2 ? choices : [],
+    choices: choices.length >= 2 && !o.noChoices ? choices : [],
     answer: typeof raw?.answer === "string" ? raw.answer.trim().slice(0, 1000) : "",
     topic: typeof raw?.topic === "string" && raw.topic.trim() ? raw.topic.trim().slice(0, 100) : o.topic,
   };

@@ -1,3 +1,4 @@
+import { allowedForClass, fitDraftToTypes, typeExclusion } from "./question-types";
 import { Types } from "mongoose";
 import {
   AttemptResult,
@@ -169,7 +170,9 @@ export function dedupeText(d: Pick<QuestionDraft, "type" | "stem" | "pairs">): s
  * normalised stem, or shingle Jaccard ≥ 0.85): the EXISTING doc is returned with the tags
  * unioned. Returns `{doc, merged}`.
  */
-export async function saveQuestion(userId: Types.ObjectId, draft: QuestionDraft, now = new Date()) {
+export async function saveQuestion(userId: Types.ObjectId, input: QuestionDraft, now = new Date()) {
+  // A type the class has switched off is saved as a written question (nothing is lost).
+  const draft = fitDraftToTypes(input, await allowedForClass(userId, input.classId));
   const hash = stemHash(dedupeText(draft));
   const shingles = shingleHashes(dedupeText(draft));
   const candidates = await StudyQuestion.find(
@@ -311,9 +314,10 @@ export const REVIEW_MAX = 100;
  */
 export async function reviewNext(userId: Types.ObjectId, classId: Types.ObjectId | null, limit: number, now = new Date()) {
   const scope: Record<string, unknown> = classId ? { classId } : {};
+  const off = await typeExclusion(userId, classId);
   const [due, fresh, topics] = await Promise.all([
-    StudyQuestion.find({ userId, ...scope, ...dueRule(now) }, { shingles: 0 }).sort({ "srs.dueAt": 1, _id: 1 }).limit(1000).lean<IStudyQuestion[]>(),
-    StudyQuestion.find({ userId, ...scope, ...newRule() }, { shingles: 0 }).sort({ createdAt: 1, _id: 1 }).limit(1000).lean<IStudyQuestion[]>(),
+    StudyQuestion.find({ userId, ...scope, ...off, ...dueRule(now) }, { shingles: 0 }).sort({ "srs.dueAt": 1, _id: 1 }).limit(1000).lean<IStudyQuestion[]>(),
+    StudyQuestion.find({ userId, ...scope, ...off, ...newRule() }, { shingles: 0 }).sort({ createdAt: 1, _id: 1 }).limit(1000).lean<IStudyQuestion[]>(),
     topicMastery(userId, scope, now),
   ]);
   const m = new Map(topics.map((t) => [`${t.classId}|${t.topic}`, t.mastery]));

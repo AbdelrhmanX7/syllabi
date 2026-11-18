@@ -1,3 +1,4 @@
+import { allowedForClass, typeExclusion, typeFor } from "./question-types";
 import { Types } from "mongoose";
 import { IStudyQuestion, StudyQuestion } from "@/models/study/question";
 import type { IStudyExam } from "@/models/study/exam";
@@ -88,8 +89,9 @@ export async function selectExamQuestions(o: SelectOpts, spend: Spend, signal?: 
   const scope: Record<string, unknown> = { userId: o.userId, classId: o.classId };
   if (o.topics.length) scope.topic = { $in: o.topics };
   else if (o.scopeItemIds.length) scope["source.itemId"] = { $in: o.scopeItemIds };
+  const [off, allowed] = await Promise.all([typeExclusion(o.userId, o.classId), allowedForClass(o.userId, o.classId)]);
   const [pool, mastery] = await Promise.all([
-    StudyQuestion.find(scope, { shingles: 0 }).sort({ _id: 1 }).limit(POOL_MAX).lean<IStudyQuestion[]>(),
+    StudyQuestion.find({ ...scope, ...off }, { shingles: 0 }).sort({ _id: 1 }).limit(POOL_MAX).lean<IStudyQuestion[]>(),
     topicMastery(o.userId, { classId: o.classId }, now),
   ]);
   const m = new Map(mastery.map((t) => [t.topic, t.mastery]));
@@ -112,7 +114,7 @@ export async function selectExamQuestions(o: SelectOpts, spend: Spend, signal?: 
       Array.from({ length: Math.min(GEN_CONCURRENCY, jobs.length) }, async () => {
         while (next < jobs.length && !signal?.aborted) {
           const j = next++;
-          batches[j] = await generateSimilar(jobs[j].seed, jobs[j].n, spend, signal).catch(() => []);
+          batches[j] = await generateSimilar(jobs[j].seed, jobs[j].n, spend, signal, typeFor(allowed, jobs[j].seed.type)).catch(() => []);
         }
       })
     );
@@ -124,7 +126,7 @@ export async function selectExamQuestions(o: SelectOpts, spend: Spend, signal?: 
         try {
           const { classId: _c, source: _s, type: _t, topic: _p, ...rest } = r ?? {};
           draft = toDraft(
-            { ...rest, type: seed.type, topic: seed.topic, subtopic: rest.subtopic ?? seed.subtopic },
+            { ...rest, type: typeFor(allowed, seed.type), topic: seed.topic, subtopic: rest.subtopic ?? seed.subtopic },
             { classId: seed.classId, source: { kind: "mock", itemId: seed.source?.itemId ?? null, pageId: seed.source?.pageId ?? null, lectureId: seed.source?.lectureId ?? null, ref: String(seed._id) } }
           );
           draft.source = { kind: "mock", itemId: seed.source?.itemId ?? null, pageId: seed.source?.pageId ?? null, lectureId: seed.source?.lectureId ?? null, ref: String(seed._id) };

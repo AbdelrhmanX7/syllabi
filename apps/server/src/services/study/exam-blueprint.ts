@@ -1,3 +1,4 @@
+import { allowedForClass, isAllowed, typeExclusion } from "./question-types";
 import { Types } from "mongoose";
 import { IStudyQuestion, StudyQuestion, STUDY_QUESTION_TYPES } from "@/models/study/question";
 import { ExamBlueprint, ExamBlueprintSection, ExamScheduleEntry, IStudyClassGuide, StudyClassGuide } from "@/models/study/library";
@@ -116,7 +117,9 @@ export async function composeBlueprintExam(
 
   const [focus, pool, mastery, guide] = await Promise.all([
     examFocus(o.userId, o.canvasCourseId, now),
-    StudyQuestion.find({ userId: o.userId, classId: o.classId }, { shingles: 0 }).sort({ _id: 1 }).limit(POOL_MAX).lean<IStudyQuestion[]>(),
+    typeExclusion(o.userId, o.classId).then((off) =>
+      StudyQuestion.find({ userId: o.userId, classId: o.classId, ...off }, { shingles: 0 }).sort({ _id: 1 }).limit(POOL_MAX).lean<IStudyQuestion[]>()
+    ),
     topicMastery(o.userId, { classId: o.classId }, now),
     StudyClassGuide.findOne({ userId: o.userId, canvasCourseId: o.canvasCourseId }, { examsSchedule: 1 }).sort({ updatedAt: -1 }).lean<IStudyClassGuide>(),
   ]);
@@ -142,8 +145,14 @@ export async function composeBlueprintExam(
   const sections: BlueprintExamOut["sections"] = [];
   const skipped: BlueprintExamOut["skipped"] = [];
 
+  const allowed = await allowedForClass(o.userId, o.classId);
   for (const sec of blueprint.sections) {
     if (signal?.aborted) break;
+    // A section of a type the class has switched off is left out.
+    if (sec.type !== "any" && !isAllowed(allowed, sec.type)) {
+      skipped.push({ section: sec.section, wanted: sec.count, got: 0, reason: "This class doesn't use this question type" });
+      continue;
+    }
     const ofType = (q: IStudyQuestion) => !used.has(String(q._id)) && (sec.type === "any" || q.type === sec.type);
     let candidates: IStudyQuestion[];
     if (sec.from === "concept_map") candidates = pool.filter((q) => ofType(q) && isConceptMapQ(q) && (windowRefs.has(String(q.source?.ref)) || inScope.includes(q)));

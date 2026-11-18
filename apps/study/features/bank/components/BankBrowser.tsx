@@ -10,6 +10,8 @@ import { SOURCE_LABEL, applyFilters, sourcesOf, topicsOf } from '../lib/filters'
 import { QuestionCard } from './QuestionCard';
 
 import { ActionButton, FilterChip } from '@/components/ui/primitives';
+
+import { QuestionTypesButton } from './QuestionTypes';
 import { track } from '@/lib/analytics';
 
 /**
@@ -33,6 +35,8 @@ export interface BankBrowserProps {
   onPractice?: (questions: Question[]) => void;
   /** A board exam from exactly these questions. */
   onBoardExam?: (questions: Question[]) => void;
+  /** A class setting changed (question types) — reload the class list. */
+  onClassesChanged?: () => void;
 }
 
 const RESULT_OPTIONS: { value: ResultFilter; label: string }[] = [
@@ -56,6 +60,7 @@ export function BankBrowser({
   onLoadMore,
   onPractice,
   onBoardExam,
+  onClassesChanged,
 }: BankBrowserProps) {
   const [showAllTopics, setShowAllTopics] = useState(false);
   // Pick mode: tapping a card ticks it instead of opening it; the bar practises the ticked ones.
@@ -242,6 +247,9 @@ export function BankBrowser({
               >
                 <Play className='h-4 w-4' /> Practice these {visible.length}
               </ActionButton>
+            ) : null}
+            {filters.classId && classById.get(filters.classId) ? (
+              <QuestionTypesButton key={filters.classId} cls={classById.get(filters.classId)!} onSaved={onClassesChanged} />
             ) : null}
             {onPractice && visible.length > 0 ? (
               <ActionButton className='min-h-9 px-3' variant='ghost' onClick={() => setPicking(true)}>

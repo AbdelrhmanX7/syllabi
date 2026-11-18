@@ -1,3 +1,4 @@
+import { parseQuestionTypes } from "../services/study/question-types";
 import { NextFunction, Request, Response } from "express";
 import { Types } from "mongoose";
 import { StudyCanvasConnection, IStudyCanvasConnection } from "@/models/study/canvas-connection";
@@ -228,7 +229,7 @@ export const deleteClass = wrap(async (req, res) => {
 });
 
 export const patchClass = wrap(async (req, res) => {
-  const { hidden, color, targetLetter, gradePolicy, meetings } = req.body ?? {};
+  const { hidden, color, targetLetter, gradePolicy, meetings, questionTypes } = req.body ?? {};
   const set: Record<string, unknown> = {};
   const nc = parseNameCode(req.body);
   if ("error" in nc) return fail(res, 400, "VALIDATION_ERROR", nc.error);
@@ -250,6 +251,11 @@ export const patchClass = wrap(async (req, res) => {
       if ("error" in r) return fail(res, 400, "VALIDATION_ERROR", r.error);
       set.meetingsOverride = r.value;
     }
+  }
+  if (questionTypes !== undefined) {
+    const r = parseQuestionTypes(questionTypes);
+    if ("error" in r) return fail(res, 400, "VALIDATION_ERROR", r.error);
+    set.questionTypes = r.value ?? [];
   }
   const gradeFields = targetLetter !== undefined || gradePolicy !== undefined;
   if (!Object.keys(set).length && !gradeFields) return fail(res, 400, "VALIDATION_ERROR", "Nothing to update");
