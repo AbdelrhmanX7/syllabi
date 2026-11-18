@@ -1,7 +1,8 @@
 import type { WhiteboardStorage } from '@repo/whiteboard-core';
+import type { MergeOverlaysResult } from '@repo/whiteboard-react';
 import type { Page } from '@/lib/api/types';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -27,6 +28,9 @@ import { ForkedFromNote, ShareButton } from '@/features/share/components/ShareBu
 import { PageVersionsButton, SharedEditChip } from '@/features/share/components/PageVersions';
 
 // «Make questions» from this page's ink — the bank feature owns the extract flow (client-only: canvas).
+const BoardExamSubmit = dynamic(() => import('@/features/bank/components/BoardExam').then((mod) => mod.BoardExamSubmit), {
+  ssr: false,
+});
 const ExtractButton = dynamic(() => import('@/features/bank').then((mod) => mod.ExtractButton), { ssr: false });
 
 /**
@@ -37,6 +41,8 @@ const ExtractButton = dynamic(() => import('@/features/bank').then((mod) => mod.
  */
 export default function NotebookPage() {
   const router = useRouter();
+  // The board's page sweep, used by «Submit for review» on a board exam notebook.
+  const mergeOverlaysRef = useRef<(() => Promise<MergeOverlaysResult | null>) | null>(null);
   const pageId = typeof router.query.id === 'string' ? router.query.id : '';
   const classId = typeof router.query.classId === 'string' ? router.query.classId : '';
   // `&page=<board page id>`: open on that page (a bookmark picked on the Notes page).
@@ -259,6 +265,7 @@ export default function NotebookPage() {
               </ActionButton>
             )
           }
+          buildMergeOverlaysRef={mergeOverlaysRef}
           pageId={page.id}
           pendingImage={inboxImage}
           pendingPdf={inboxPdf}
@@ -268,6 +275,7 @@ export default function NotebookPage() {
           title={page.title}
           topRight={
             <div className='flex items-center gap-2'>
+              {!sharedWithMe && <BoardExamSubmit overlaysRef={mergeOverlaysRef} pageId={page.id} />}
               {inboxItemId && (
                 <PlacePhoneImageChip
                   itemId={inboxItemId}

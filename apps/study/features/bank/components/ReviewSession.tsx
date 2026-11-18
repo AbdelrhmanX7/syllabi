@@ -2,7 +2,9 @@ import type { AttemptOutcome } from './SolveView';
 import type { Question, StudyClass } from '@/lib/api/types';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, RefreshCw, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronRight, NotebookPen, RefreshCw, Trophy } from 'lucide-react';
+
+import { ActionButton } from '@/components/ui/primitives';
 
 import { listQuestions, reviewNext } from '../api';
 import { useLoad } from '../hooks/useLoad';
@@ -26,9 +28,11 @@ export interface ReviewSessionProps {
   limit?: number;
   /** Practise exactly these (picked or filtered in the bank), in this order. */
   picked?: Question[] | null;
+  /** «On the board»: the questions still to do go into a notebook, one per page (the host opens it). */
+  onBoard?: (questions: Question[], classId: string | null) => void;
 }
 
-export function ReviewSession({ classId, topic, classes, onExit, limit = 20, picked }: ReviewSessionProps) {
+export function ReviewSession({ classId, topic, classes, onExit, limit = 20, picked, onBoard }: ReviewSessionProps) {
   const queue = useLoad<Question[]>(async () => {
     if (picked?.length) return picked;
     if (topic) {
@@ -158,9 +162,21 @@ export function ReviewSession({ classId, topic, classes, onExit, limit = 20, pic
   return (
     <Shell
       right={
-        <span className='text-xs tabular-nums text-st-muted'>
-          {index + 1} / {questions.length}
-        </span>
+        <>
+          {onBoard ? (
+            <ActionButton
+              aria-label='On the board'
+              className='shrink-0'
+              variant='secondary'
+              onClick={() => onBoard(questions.slice(answered ? index + 1 : index), current.classId ?? classId ?? null)}
+            >
+              <NotebookPen className='h-4 w-4' /> <span className='hidden sm:inline'>On the board</span>
+            </ActionButton>
+          ) : null}
+          <span className='text-xs tabular-nums text-st-muted'>
+            {index + 1} / {questions.length}
+          </span>
+        </>
       }
       title={sessionTitle}
       onExit={onExit}

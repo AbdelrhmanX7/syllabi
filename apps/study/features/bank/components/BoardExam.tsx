@@ -1,11 +1,10 @@
 import type { AttemptDone } from '../api';
-import type { BoardPaper } from '../lib/boardPaper';
 import type { BoardSession as Session } from '../lib/boardSession';
-import type { WhiteboardDocument, WhiteboardStorage } from '@repo/whiteboard-core';
 import type { MergeOverlaysResult } from '@repo/whiteboard-react';
 import type { AttemptVerdict, Question } from '@/lib/api/types';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { ArrowLeft, Check, ChevronDown, NotebookPen, Send } from 'lucide-react';
 
 import { attemptQuestion } from '../api';
@@ -17,18 +16,15 @@ import { resultLabel, resultTone } from '../lib/verdict';
 import { Markdown } from './Markdown';
 import { VerdictPanel } from './VerdictPanel';
 
-import { NotebookBoard } from '@/components/notebook/NotebookBoard';
 import { ActionButton, Badge, ErrorNote } from '@/components/ui/primitives';
 import { describeError } from '@/lib/api/errors';
-import { createPage } from '@/lib/api/endpoints';
-import { rememberPages } from '@/lib/notebooks/pages-cache';
-import { buildPdfNotebookDocument, restorePdfAsset } from '@/lib/notebooks/pdf-import';
+import { importNotebook } from '@/lib/notebooks/import-notebook';
 
 /**
- * Board exam: the questions on screen become one notebook board — a page per question, typeset at
- * the top — so he answers with the real pen tools. Submit sweeps every page and the AI grades each
- * question from his ink drawn over the question (`POST /questions/:id/attempt`, one at a time).
- * The board is a `solve` page, so it syncs like any notebook and the session survives a restart.
+ * Board exam: the questions become a normal notebook — a page per question, typeset at the top —
+ * opened on the everyday notebook board. Submit sweeps every page and the AI grades each question
+ * from the ink on its page (`POST /questions/:id/attempt`, one at a time). The open exam is kept on
+ * the device, so «Submit for review» survives a restart.
  */
 
 /** Which of `questions` go on the board, and why the rest do not. */
@@ -55,86 +51,107 @@ export interface BoardExamProps {
   /** A new exam from these questions; omit to resume the saved one. */
   questions?: Question[];
   classId: string | null;
-  onAttempted?: (question: Question, done: AttemptDone) => void;
   onExit: () => void;
 }
 
-export function BoardExam({ questions, classId, onAttempted, onExit }: BoardExamProps) {
-  const [session, setSession] = useState<Session | null>(() => (questions ? null : readBoardSession()));
+const notebookHref = (pageId: string, classId: string | null) =>
+  `/notebook/?id=${encodeURIComponent(pageId)}${classId ? `&classId=${encodeURIComponent(classId)}` : ''}`;
+
+/**
+ * The start screen. «Open the board» typesets the questions into a PDF, makes it a normal notebook
+ * (one question per page) and opens it on the everyday notebook board, where «Submit for review»
+ * ({@link BoardExamSubmit}) grades it.
+ */
+export function BoardExam({ questions, classId, onExit }: BoardExamProps) {
+  const router = useRouter();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
-  const [graded, setGraded] = useState<Graded[] | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const paperRef = useRef<BoardPaper | null>(null);
-  const overlaysRef = useRef<(() => Promise<MergeOverlaysResult | null>) | null>(null);
   const selection = useMemo(() => boardSelection(questions ?? []), [questions]);
+  const saved = useMemo(() => (questions ? null : readBoardSession()), [questions]);
 
-  const paperFor = useCallback(async (current: Session) => {
-    if (!paperRef.current) {
-      paperRef.current = await buildBoardPaper(current.questions, current.title, (done, total) =>
-        setProgress(`Typesetting questions ${done}/${total}`),
-      );
-    }
-
-    return paperRef.current;
-  }, []);
+  // Resume: the saved exam is just a notebook — open it.
+  useEffect(() => {
+    if (saved) void router.replace(notebookHref(saved.pageId, saved.classId));
+  }, [router, saved]);
 
   const start = async () => {
     setStarting(true);
     setError(null);
     try {
       const title = `Board exam · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
-      const page = await createPage({ classId, title, kind: 'solve' });
-      const next: Session = { pageId: page.id, title, classId, startedAt: Date.now(), questions: selection.picked };
+      const paper = await buildBoardPaper(selection.picked, title, (done, total) =>
+        setProgress(`Typesetting questions ${done}/${total}`),
+      );
+      const page = await importNotebook({
+        classId,
+        title,
+        input: { kind: 'pdf', source: { name: paper.file.name, mime: 'application/pdf', load: () => paper.file } },
+        onProgress: setProgress,
+      });
 
-      rememberPages([page]);
-      paperRef.current = null;
-      writeSession(next);
-      setSession(next);
+      writeSession({ pageId: page.id, title, classId, startedAt: Date.now(), questions: selection.picked });
+      await router.push(notebookHref(page.id, classId));
     } catch (failure) {
       setError(describeError(failure, 'Could not start the board exam'));
-    } finally {
       setStarting(false);
     }
   };
 
-  const seed = useCallback(
-    async (storage: WhiteboardStorage): Promise<WhiteboardDocument | null> => {
-      if (!session) return null;
-      const paper = await paperFor(session);
-      const url = URL.createObjectURL(paper.file);
+  if (saved) return null;
 
-      try {
-        return await buildPdfNotebookDocument({
-          pageId: session.pageId,
-          title: session.title,
-          fileUrl: url,
-          fileName: paper.file.name,
-          storage,
-          onProgress: (value) => setProgress(`Preparing the board ${Math.round(value * 100)}%`),
-        });
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    },
-    [paperFor, session],
+  return (
+    <div className='mx-auto flex max-w-xl flex-col gap-4'>
+      <ActionButton className='self-start' onClick={onExit}>
+        <ArrowLeft className='h-4 w-4' /> Back
+      </ActionButton>
+      <h1 className='text-st-fg text-2xl font-semibold'>Board exam</h1>
+      <p className='text-st-muted text-sm'>
+        {selection.picked.length} question{selection.picked.length === 1 ? '' : 's'} in a new notebook, one per page.
+        Answer with the pen, then tap «Submit» at the top.
+        {selection.notGradable ? ` ${selection.notGradable} matching / fill-in questions stay out for now.` : ''}
+        {selection.overCap ? ` Only the first ${BOARD_EXAM_MAX} fit in one notebook.` : ''}
+      </p>
+      {error ? <ErrorNote message={error} /> : null}
+      <ActionButton
+        className='self-start'
+        disabled={!selection.picked.length}
+        loading={starting}
+        variant='primary'
+        onClick={() => void start()}
+      >
+        <NotebookPen className='h-4 w-4' /> {starting && progress ? progress : 'Open the board'}
+      </ActionButton>
+    </div>
   );
+}
 
-  const restore = useCallback(
-    async (storage: WhiteboardStorage, assetId: string) => {
-      if (!session) return;
-      const paper = await paperFor(session);
-      const url = URL.createObjectURL(paper.file);
+/**
+ * «Submit for review» in the notebook's top bar, shown only on the notebook of the open board exam.
+ * Sweeps every page, grades each question from the ink on its page(s), shows the review over the
+ * notebook. The notebook itself stays like any other.
+ */
+export function BoardExamSubmit({
+  pageId,
+  overlaysRef,
+}: {
+  pageId: string;
+  overlaysRef: React.MutableRefObject<(() => Promise<MergeOverlaysResult | null>) | null>;
+}) {
+  const [session, setSession] = useState<Session | null>(() => {
+    const saved = readBoardSession();
 
-      try {
-        await restorePdfAsset({ assetId, fileUrl: url, fileName: paper.file.name, storage });
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    },
-    [paperFor, session],
-  );
+    return saved?.pageId === pageId ? saved : null;
+  });
+  const [graded, setGraded] = useState<Graded[] | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = readBoardSession();
+
+    setSession(saved?.pageId === pageId ? saved : null);
+  }, [pageId]);
 
   const submit = async () => {
     if (!session) return;
@@ -147,22 +164,14 @@ export function BoardExam({ questions, classId, onAttempted, onExit }: BoardExam
       if (!overlays) overlays = await overlaysRef.current?.();
       if (!overlays) throw new Error('The board is not ready yet — try again in a moment');
 
-      const answers = await boardAnswers(overlays, (await paperFor(session)).pages);
+      const paper = await buildBoardPaper(session.questions, session.title);
+      const answers = await boardAnswers(overlays, paper.pages);
       const byId = new Map(session.questions.map((question) => [question.id, question]));
       const rows: Graded[] = answers.flatMap(({ questionId, inkPngB64 }) => {
         const question = byId.get(questionId);
 
         return question
-          ? [
-              {
-                question,
-                state: inkPngB64 ? 'pending' : 'blank',
-                reading: null,
-                verdict: null,
-                done: null,
-                error: null,
-              },
-            ]
+          ? [{ question, state: inkPngB64 ? 'pending' : 'blank', reading: null, verdict: null, done: null, error: null }]
           : [];
       });
       const timeMs = Math.round((Date.now() - session.startedAt) / Math.max(1, rows.length));
@@ -171,9 +180,7 @@ export function BoardExam({ questions, classId, onAttempted, onExit }: BoardExam
 
       setGraded(rows);
       for (const [index, answer] of answers.entries()) {
-        const row = rows[index];
-
-        if (!row || !answer.inkPngB64) continue;
+        if (!rows[index] || !answer.inkPngB64) continue;
         patch(index, { state: 'grading' });
         try {
           await attemptQuestion(
@@ -182,10 +189,7 @@ export function BoardExam({ questions, classId, onAttempted, onExit }: BoardExam
             {
               onReading: (reading) => patch(index, { reading }),
               onVerdict: (verdict) => patch(index, { verdict }),
-              onDone: (done) => {
-                patch(index, { done });
-                onAttempted?.(row.question, done);
-              },
+              onDone: (done) => patch(index, { done }),
             },
           );
           patch(index, { state: 'done' });
@@ -201,70 +205,39 @@ export function BoardExam({ questions, classId, onAttempted, onExit }: BoardExam
     }
   };
 
-  if (graded) return <BoardResults rows={graded} submitting={submitting} onExit={onExit} />;
-
-  if (session) {
+  if (graded) {
     return (
-      <div className='bg-st-bg fixed inset-0 z-50'>
-        <NotebookBoard
-          buildMergeOverlaysRef={overlaysRef}
-          pageId={session.pageId}
-          pdfLayout='paged'
-          restorePdfAsset={restore}
-          seed={seed}
-          seedProgress={progress}
-          title={session.title}
-          topRight={
-            <>
-              <ActionButton
-                disabled={submitting}
-                title='Close this board exam without grading (the board stays in your notebook)'
-                onClick={() => {
-                  writeSession(null);
-                  onExit();
-                }}
-              >
-                Discard
-              </ActionButton>
-              <ActionButton loading={submitting} variant='primary' onClick={() => void submit()}>
-                <Send className='h-4 w-4' /> {submitting ? 'Reading your board…' : 'Submit for AI review'}
-              </ActionButton>
-            </>
-          }
-          onBack={onExit}
+      <div className='bg-st-bg fixed inset-0 z-[60] overflow-y-auto px-4 py-4'>
+        <BoardResults
+          rows={graded}
+          submitting={submitting}
+          onExit={() => {
+            setGraded(null);
+            setSession(null);
+          }}
         />
-        {error ? (
-          <div className='absolute inset-x-4 top-16 z-10 mx-auto max-w-lg'>
-            <ErrorNote message={error} onRetry={() => void submit()} />
-          </div>
-        ) : null}
       </div>
     );
   }
+  if (!session) return null;
 
   return (
-    <div className='mx-auto flex max-w-xl flex-col gap-4'>
-      <ActionButton className='self-start' onClick={onExit}>
-        <ArrowLeft className='h-4 w-4' /> Back
-      </ActionButton>
-      <h1 className='text-st-fg text-2xl font-semibold'>Board exam</h1>
-      <p className='text-st-muted text-sm'>
-        {selection.picked.length} question{selection.picked.length === 1 ? '' : 's'} on a notebook board, one per page.
-        Answer with the pen, then submit — the AI reviews every answer.
-        {selection.notGradable ? ` ${selection.notGradable} matching / fill-in questions stay out for now.` : ''}
-        {selection.overCap ? ` Only the first ${BOARD_EXAM_MAX} fit on one board.` : ''}
-      </p>
-      {error ? <ErrorNote message={error} /> : null}
+    <>
       <ActionButton
-        className='self-start'
-        disabled={!selection.picked.length}
-        loading={starting}
+        aria-label='Submit for review'
+        className='shrink-0'
+        loading={submitting}
         variant='primary'
-        onClick={() => void start()}
+        onClick={() => void submit()}
       >
-        <NotebookPen className='h-4 w-4' /> Open the board
+        <Send className='h-4 w-4' /> {submitting ? 'Reading…' : 'Submit'}
       </ActionButton>
-    </div>
+      {error ? (
+        <div className='fixed inset-x-4 top-16 z-[60] mx-auto max-w-lg'>
+          <ErrorNote message={error} onRetry={() => void submit()} />
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -282,7 +255,7 @@ function BoardResults({ rows, submitting, onExit }: { rows: Graded[]; submitting
     <div className='mx-auto flex max-w-3xl flex-col gap-3'>
       <div className='flex items-center gap-3'>
         <ActionButton disabled={submitting} onClick={onExit}>
-          <ArrowLeft className='h-4 w-4' /> Bank
+          <ArrowLeft className='h-4 w-4' /> Back
         </ActionButton>
         <h1 className='text-st-fg flex-1 text-xl font-semibold'>Board exam review</h1>
         <span className='text-st-fg text-lg font-semibold'>

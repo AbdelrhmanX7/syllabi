@@ -222,6 +222,7 @@ export default function BankHome({
           classes={classes}
           picked={view.picked ?? null}
           topic={view.topic ?? null}
+          onBoard={(rest, classId) => setView({ kind: "board", questions: rest, classId })}
           onExit={exit}
         />
       </div>
@@ -233,15 +234,6 @@ export default function BankHome({
         <BoardExam
           classId={view.classId !== undefined ? view.classId : filters.classId}
           questions={view.questions}
-          onAttempted={(question, done) =>
-            questions.setData((current) =>
-              (current ?? []).map((q) =>
-                q.id === question.id
-                  ? { ...q, stats: done.stats, srs: done.srs }
-                  : q,
-              ),
-            )
-          }
           onExit={() => setView({ kind: "browse" })}
         />
       </div>
