@@ -11,6 +11,7 @@ import {
   Clock,
   Flag,
   History,
+  NotebookPen,
   Play,
   Plus,
   Sparkles,
@@ -18,6 +19,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { ActionButton } from '@/components/ui/primitives';
 
 import { createExam, getExam, getMastery, listExams, submitExam } from '../api';
 import { errorText, useLoad } from '../hooks/useLoad';
@@ -62,6 +64,8 @@ export interface MockExamProps {
   initialTopics?: string[];
   /** The countdown link asks for «Real exam format»; it is on by default anyway when offered. */
   initialBlueprint?: boolean;
+  /** «On the board»: do this exam's questions by hand on a notebook page (the host opens the board exam). */
+  onBoard?: (questions: Question[], classId: string) => void;
 }
 
 type Stage =
@@ -116,6 +120,7 @@ export function MockExam({
   onPractice,
   initialTopics,
   initialBlueprint,
+  onBoard,
 }: MockExamProps) {
   const [classId, setClassId] = useState<string | null>(
     initialClassId ?? (classes.length === 1 ? classes[0]!.id : null),
@@ -138,6 +143,7 @@ export function MockExam({
       <ExamRunner
         exam={stage.exam}
         restored={stage.restored}
+        onBoard={onBoard}
         onExit={onExit}
         onResults={(exam) => setStage({ kind: 'results', exam, ...resultsFromDetail(exam) })}
         onSubmitted={(graded, summary) => setStage({ kind: 'results', exam: stage.exam, graded, summary })}
@@ -482,9 +488,11 @@ function ExamRunner({
   onSubmitted,
   onResults,
   onExit,
+  onBoard,
 }: {
   exam: ExamDetail;
   restored: StoredExam | null;
+  onBoard?: (questions: Question[], classId: string) => void;
   onSubmitted: (graded: Map<string, GradedFrame>, summary: ExamSummary | null) => void;
   onResults: (exam: ExamDetail) => void;
   onExit: () => void;
@@ -696,6 +704,20 @@ function ExamRunner({
           </span>
         ) : null}
         <span className='flex-1' />
+        {onBoard ? (
+          <ActionButton
+            aria-label='On the board'
+            className='shrink-0'
+            variant='secondary'
+            onClick={() => {
+              snapshotInk();
+              saver.flush();
+              onBoard(exam.questions.map(asQuestion), exam.classId);
+            }}
+          >
+            <NotebookPen className='h-4 w-4' /> <span className='hidden sm:inline'>On the board</span>
+          </ActionButton>
+        ) : null}
         {state === 'late' || left <= 0 ? <Badge>Late</Badge> : null}
         <span
           className={`inline-flex items-center gap-1 rounded-sm px-3 py-1 text-sm font-semibold tabular-nums ${

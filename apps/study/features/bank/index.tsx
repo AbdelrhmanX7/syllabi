@@ -56,7 +56,7 @@ type View =
   | { kind: "mastery" }
   | { kind: "exam"; topics?: string[]; blueprint?: boolean }
   /** `questions` = a new board exam from them; absent = resume the saved one. */
-  | { kind: "board"; questions?: Question[] };
+  | { kind: "board"; questions?: Question[]; classId?: string | null };
 
 // The notebook board (whiteboard engine) loads only when a board exam opens.
 const BoardExam = dynamic(
@@ -231,7 +231,7 @@ export default function BankHome({
     return (
       <div className={`px-4 py-4 ${className}`}>
         <BoardExam
-          classId={filters.classId}
+          classId={view.classId !== undefined ? view.classId : filters.classId}
           questions={view.questions}
           onAttempted={(question, done) =>
             questions.setData((current) =>
@@ -258,6 +258,7 @@ export default function BankHome({
           classes={classes}
           initialBlueprint={view.blueprint}
           initialTopics={view.topics}
+          onBoard={(picked, classId) => setView({ kind: "board", questions: picked, classId })}
           onExit={exit}
           onPractice={() => setView({ kind: "review" })}
         />
