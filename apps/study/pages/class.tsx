@@ -170,6 +170,26 @@ function ModuleBlock({
   const items = module.items.filter(
     (item) => filter === "all" || item.type === filter,
   );
+  // Canvas order when the server sends it: headers (only on the full list), repeats, the module's names.
+  const rows = useMemo(() => {
+    if (!module.rows) return null;
+    const byId = new Map(module.items.map((item) => [item.id, item]));
+    const out: Array<
+      | { kind: "header"; title: string; indent: number }
+      | { kind: "item"; item: Item; indent: number }
+    > = [];
+    for (const row of module.rows) {
+      if (row.type === "header") {
+        if (filter === "all") out.push({ kind: "header", title: row.title, indent: row.indent ?? 0 });
+        continue;
+      }
+      const item = byId.get(row.itemId);
+      if (!item || (filter !== "all" && item.type !== filter)) continue;
+      out.push({ kind: "item", item: row.title && row.title !== item.title ? { ...item, title: row.title } : item, indent: row.indent ?? 0 });
+    }
+    return out;
+  }, [module.rows, module.items, filter]);
+  const visibleCount = rows ? rows.filter((row) => row.kind === "item").length : items.length;
 
   // A type filter is a request to SEE those items: a collapsed module would hide every match behind
   // its header (the chip says "Quizzes 13", the list shows nothing), so filtering opens the modules.
@@ -179,6 +199,7 @@ function ModuleBlock({
 
   if (items.length === 0) return null;
   const unseen = items.filter((item) => !item.seenAt).length;
+  const indentStyle = (indent: number) => (indent > 0 ? { paddingLeft: `${Math.min(indent, 3) * 16}px` } : undefined);
 
   return (
     <Surface className="overflow-hidden">
@@ -198,15 +219,29 @@ function ModuleBlock({
         </span>
         {unseen > 0 && <Badge tone="accent">{unseen} new</Badge>}
         <span className="text-st-muted text-xs tabular-nums">
-          {items.length}
+          {visibleCount}
         </span>
       </button>
       {open && (
         <div className="border-st-line border-t px-1 py-1">
           <WeekNotes classId={classId} week={weekOfName(module.name)} />
-          {items.map((item) => (
-            <ItemRow key={item.id} item={item} />
-          ))}
+          {rows
+            ? rows.map((row, index) =>
+                row.kind === "header" ? (
+                  <p
+                    key={`h${index}`}
+                    className="text-st-muted px-3 pb-1 pt-3 text-xs font-semibold"
+                    style={indentStyle(row.indent)}
+                  >
+                    {row.title}
+                  </p>
+                ) : (
+                  <div key={`i${index}`} style={indentStyle(row.indent)}>
+                    <ItemRow item={row.item} />
+                  </div>
+                ),
+              )
+            : items.map((item) => <ItemRow key={item.id} item={item} />)}
         </div>
       )}
     </Surface>

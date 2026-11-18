@@ -435,9 +435,19 @@ async function syncCourse(ctx: Ctx, cls: IStudyClass, course: Json, stampSeen: b
         { upsert: true, new: true }
       ).lean();
       const items: Json[] = Array.isArray(m.items) ? m.items : await client.getAll(`${base}/modules/${m.id}/items?per_page=100`);
-      for (const it of items) {
+      // The module as Canvas shows it — order, text headers, repeats, and the name the teacher gave each
+      // entry. An item holds only ONE moduleId, so without this a lesson listed in two weeks showed once
+      // (in the last), headers ("Assessment 1") were dropped, and files showed their file name.
+      const entries: { kind: "item" | "header"; itemId: Types.ObjectId | null; title: string; indent: number }[] = [];
+      const ordered = [...items].sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
+      for (const it of ordered) {
         const place = { moduleId: mod!._id, modulePosition: Number(it.position ?? 0) };
         const title = String(it.title ?? "");
+        const indent = Math.max(0, Math.min(5, Number(it.indent ?? 0) || 0));
+        if (it.type === "SubHeader") {
+          if (title.trim()) entries.push({ kind: "header", itemId: null, title, indent });
+          continue;
+        }
         let doc: IStudyItem | null = null;
         switch (it.type) {
           case "File": {
@@ -497,8 +507,12 @@ async function syncCourse(ctx: Ctx, cls: IStudyClass, course: Json, stampSeen: b
           default:
             break; // SubHeader and anything unknown
         }
-        if (doc) inModule.add(String(doc._id));
+        if (doc) {
+          inModule.add(String(doc._id));
+          entries.push({ kind: "item", itemId: doc._id, title, indent });
+        }
       }
+      await StudyModule.updateOne({ _id: mod!._id }, { $set: { entries } });
     }
     await StudyItem.updateMany(
       { userId, classId, moduleId: { $ne: null }, _id: { $nin: [...inModule].map((id) => new Types.ObjectId(id)) } },

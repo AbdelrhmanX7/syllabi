@@ -8,6 +8,20 @@ export interface IStudyModule {
   canvasId: number;
   name: string;
   position: number;
+  /**
+   * The module exactly as Canvas lists it, in order: its items (by the name the teacher gave them in
+   * the module, which can differ from the file's name) and its text headers. An item the teacher lists
+   * twice appears twice. Empty on a module not synced since this was added (the list falls back to
+   * the items' own moduleId).
+   */
+  entries?: IStudyModuleEntry[];
+}
+
+export interface IStudyModuleEntry {
+  kind: "item" | "header";
+  itemId?: Types.ObjectId | null;
+  title: string;
+  indent?: number;
 }
 
 const StudyModuleSchema = new Schema<IStudyModule>(
@@ -17,6 +31,20 @@ const StudyModuleSchema = new Schema<IStudyModule>(
     canvasId: { type: Number, required: true },
     name: { type: String, required: true },
     position: { type: Number, default: 0 },
+    entries: {
+      type: [
+        new Schema(
+          {
+            kind: { type: String, enum: ["item", "header"], required: true },
+            itemId: { type: Schema.Types.ObjectId, default: null },
+            title: { type: String, default: "" },
+            indent: { type: Number, default: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

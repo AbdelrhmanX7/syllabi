@@ -295,14 +295,52 @@ export const getModules = wrap(async (req, res) => {
     if (!byModule.has(k)) byModule.set(k, []);
     byModule.get(k)!.push(it, ...(linkedBy.get(String(it._id)) ?? []));
   }
+  // A module synced with its Canvas entries is listed exactly as Canvas lists it: `rows` in order
+  // (headers, repeats, the teacher's names), `items` the distinct items those rows point at.
+  const entryIds = modules.flatMap((m: any) => (m.entries ?? []).filter((e: any) => e.kind === "item" && e.itemId).map((e: any) => e.itemId));
+  const byId = new Map<string, IStudyItem>(items.map((it) => [String(it._id), it]));
+  const missingIds = entryIds.filter((id: any) => !byId.has(String(id)));
+  if (missingIds.length) {
+    for (const it of await StudyItem.find({ userId: uid(req), classId: cls._id, _id: { $in: missingIds } }, LIST_PROJECTION).lean<IStudyItem[]>()) {
+      byId.set(String(it._id), it);
+    }
+  }
+  if (entryIds.length) {
+    const more = await StudyItem.find({ userId: uid(req), classId: cls._id, type: "file", moduleId: null, parentItemId: { $in: entryIds } }, LIST_PROJECTION)
+      .sort({ title: 1 })
+      .lean<IStudyItem[]>();
+    for (const file of more) {
+      const k = String(file.parentItemId);
+      if (!linkedBy.has(k)) linkedBy.set(k, []);
+      if (!linkedBy.get(k)!.some((f) => String(f._id) === String(file._id))) linkedBy.get(k)!.push(file);
+    }
+  }
   res.json(
     await Promise.all(
-      modules.map(async (m: any) => ({
-        id: String(m._id),
-        name: m.name,
-        position: m.position,
-        items: await itemsDto(byModule.get(String(m._id)) ?? []),
-      }))
+      modules.map(async (m: any) => {
+        const entries: any[] = m.entries ?? [];
+        if (!entries.length) {
+          return { id: String(m._id), name: m.name, position: m.position, items: await itemsDto(byModule.get(String(m._id)) ?? []) };
+        }
+        const rows: Array<{ type: "header"; title: string; indent: number } | { type: "item"; itemId: string; title: string; indent: number }> = [];
+        const distinct = new Map<string, IStudyItem>();
+        for (const entry of entries) {
+          if (entry.kind === "header") {
+            rows.push({ type: "header", title: entry.title, indent: entry.indent ?? 0 });
+            continue;
+          }
+          const item = entry.itemId ? byId.get(String(entry.itemId)) : undefined;
+          if (!item) continue;
+          distinct.set(String(item._id), item);
+          rows.push({ type: "item", itemId: String(item._id), title: entry.title || item.title, indent: entry.indent ?? 0 });
+          // Files a lesson links to sit right under it, a step in.
+          for (const file of linkedBy.get(String(item._id)) ?? []) {
+            distinct.set(String(file._id), file);
+            rows.push({ type: "item", itemId: String(file._id), title: file.title, indent: (entry.indent ?? 0) + 1 });
+          }
+        }
+        return { id: String(m._id), name: m.name, position: m.position, items: await itemsDto([...distinct.values()]), rows };
+      })
     )
   );
 });

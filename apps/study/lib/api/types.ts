@@ -95,8 +95,18 @@ export interface ModuleNode {
   id: string;
   name: string;
   position: number;
+  /** The distinct items in this module. */
   items: Item[];
+  /**
+   * The module exactly as Canvas lists it: text headers and items in order, an item the teacher lists
+   * twice twice, under the name the module gives it. Absent from an older server or an unsynced module.
+   */
+  rows?: ModuleRow[];
 }
+
+export type ModuleRow =
+  | { type: 'header'; title: string; indent?: number }
+  | { type: 'item'; itemId: string; title: string; indent?: number };
 
 export interface TranscriptSegment {
   start: number;
