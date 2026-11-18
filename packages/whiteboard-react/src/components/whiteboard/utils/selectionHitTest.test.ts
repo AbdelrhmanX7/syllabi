@@ -487,11 +487,11 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
 
     canvas._activeObject = circle;
     assert.equal(at(100, 150), circle, 'empty middle of the selection: the selection (it drags)');
-    assert.equal(at(100, 101), inner, 'the word inside it: the word');
+    assert.equal(at(100, 101), circle, 'the word inside it: still the selection (it drags the whole thing)');
     uninstall();
   });
 
-  it('a multi-selection drags from inside its box, but ink of an object outside it is picked', () => {
+  it('a multi-selection drags from anywhere inside its box, even over ink that is not in it', () => {
     const a = strokePath('M 0 0 L 100 0');
     const b = strokePath('M 0 100 L 100 100');
     const other = strokePath('M 40 50 L 60 50');
@@ -507,7 +507,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
     canvas._activeObject = selection;
     assert.equal(at(20, 70), selection, 'empty space inside the selection');
     assert.equal(at(50, 1), selection, 'a member\'s ink: still the selection');
-    assert.equal(at(50, 51), other, 'ink that is not in the selection');
+    assert.equal(at(50, 51), selection, 'ink inside the box that is not in the selection: still the selection');
     uninstall();
   });
 
@@ -525,7 +525,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
     const { canvas, at, uninstall } = makeCanvas([original, copyA, copyB]);
 
     canvas._activeObject = selection;
-    assert.equal(at(50, 70), original, 'an ordinary selection: the ink under the press is picked');
+    assert.equal(at(50, 70), selection, 'any selection: a press inside it drags it');
     markFreshSelection(canvas as never, selection);
     assert.equal(at(50, 70), selection, 'a fresh duplicate: the copy is dragged');
     assert.equal(at(300, 300), undefined, 'outside the copy: nothing');
@@ -549,7 +549,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
 
     canvas._activeObject = selection;
     assert.equal(at(350, 300), selection);
-    assert.equal(at(350, 309), neighbour, 'on the neighbour ink: the neighbour');
+    assert.equal(at(350, 309), selection, 'neighbour ink inside the box: still the selection');
     uninstall();
   });
 
@@ -563,7 +563,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
     assert.equal(at(50, 30), path, 'Fabric\'s box test again');
   });
 
-  describe('a frameless selection (setSelectionGrabsByPaint) is grabbed by its ink only', () => {
+  describe('a frameless selection (setSelectionGrabsByPaint) drags from anywhere inside its box, and near its ink just outside', () => {
     it('a selected L-stroke: its empty box corner finds nothing, its ink (with room to spare) grabs it', () => {
       const ell = strokePath('M 0 0 L 0 100 L 100 100');
 
@@ -573,7 +573,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
       const ungrab = setSelectionGrabsByPaint(canvas as never);
 
       canvas._activeObject = ell;
-      assert.equal(at(80, 20), undefined, 'empty corner of the box: a new selection starts');
+      assert.equal(at(80, 20), ell, 'empty corner of the box: still the selection (it drags)');
       assert.equal(at(50, 100), ell);
       // Pen reach 12 px; a selected stroke answers to twice that (+ half its 4 px width).
       assert.equal(at(50, 100 + 12 * SELECTED_GRAB_FACTOR + 1), ell);
@@ -597,7 +597,7 @@ describe('installGeometryTargetFind — Fabric picks by paint', () => {
       const ungrab = setSelectionGrabsByPaint(canvas as never);
 
       canvas._activeObject = selection;
-      assert.equal(at(50, 100), undefined);
+      assert.equal(at(50, 100), selection, 'empty space between its members: the selection');
       assert.equal(at(50, 2), selection);
       assert.equal(selectionGrabbedByPaint(selection, { x: 50, y: 198 }, 12), true);
       ungrab();

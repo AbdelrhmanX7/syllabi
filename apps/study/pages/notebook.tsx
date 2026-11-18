@@ -7,7 +7,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 
 import { NotebookBoard } from '@/components/notebook/NotebookBoard';
-import { NotebookRecordButton } from '@/features/lectures/NotebookRecordButton';
+import { NotebookRecordButton, useStopRecordingOnLeave } from '@/features/lectures/NotebookRecordButton';
 import { NoteCover } from '@/components/notes/NoteCover';
 import { NotebookDetailsSheet } from '@/components/notes/NotebookDetailsSheet';
 import { ActionButton, BOARD_CHIP_OVERRIDE, EmptyState, LinkButton } from '@/components/ui/primitives';
@@ -42,6 +42,8 @@ export default function NotebookPage() {
   // `&page=<board page id>`: open on that page (a bookmark picked on the Notes page).
   const startPageId = typeof router.query.page === 'string' ? router.query.page : undefined;
   const [page, setPage] = useState<Page | null>(null);
+  // A class recording started here ends (and saves) when this notebook closes, not when its top bar re-mounts.
+  useStopRecordingOnLeave(page?.id);
   // Someone else's page shared with me to edit: content only, nothing that reaches into their classes.
   const sharedWithMe = page?.shared ?? null;
   const ownClassId = sharedWithMe ? null : (page?.classId ?? (classId || null));
@@ -239,6 +241,7 @@ export default function NotebookPage() {
           initialPageId={startPageId}
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
+          boardButtons={sharedWithMe ? undefined : <NotebookRecordButton page={page} />}
           live={Boolean(page.live)}
           // The name opens Notebook details (name, description, tags, cover live there, not up here).
           // Someone else's shared page has no details: the board shows its plain name.
@@ -281,7 +284,6 @@ export default function NotebookPage() {
                   }}
                 />
               )}
-              {!sharedWithMe && <NotebookRecordButton page={page} />}
               {page.classId && page.kind === 'note' && (
                 <AttachToLectureButton classId={page.classId} page={page} />
               )}

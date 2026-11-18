@@ -732,8 +732,14 @@ export function installGeometryTargetFind(canvas: Canvas, options: InstallOption
     const info = originalFindTarget.call(this, e);
     const active = this._activeObject;
 
-    if (active && freshSelections.get(this) === active && typeof this.getScenePoint === 'function' && pointInPolygon(this.getScenePoint(e), active.getCoords())) {
-      return { ...info, target: active, container: active, subTargets: [] };
+    // A press anywhere inside the selection's box drags the selection — on its ink, in the empty space
+    // between its strokes, or over other ink under it. Picking that other ink instead (or starting a new
+    // selection in an empty corner) dropped the selection mid-move. Its handles still work as handles.
+    if (active && typeof this.getScenePoint === 'function' && pointInPolygon(this.getScenePoint(e), active.getCoords())) {
+      const isTouch = 'touches' in e || (e as PointerEvent).pointerType === 'touch';
+      const control = typeof active.findControl === 'function' ? active.findControl(this.getViewportPoint(e), isTouch) : undefined;
+
+      if (!control) return { ...info, target: active, container: active, subTargets: [] };
     }
     const touched = info?.currentTarget;
 
