@@ -7,7 +7,7 @@ import type { Spend } from "./ai-models";
 import { generateSimilar } from "./ai";
 import { examFocus, generateShortAnswers } from "./concept-maps";
 import { normTerm } from "./concept-map-parse";
-import { EXAM_MAX_COUNT, EXAM_MAX_MINUTES, focusBonus, pickQuestions, snapshot } from "./exams";
+import { EXAM_MAX_COUNT, EXAM_MAX_MINUTES, focusBonus, freshnessBonus, pickQuestions, snapshot } from "./exams";
 import { QuestionDraft, saveQuestion, toDraft, topicMastery } from "./questions";
 
 /**
@@ -133,7 +133,9 @@ export async function composeBlueprintExam(
   const usable = keywords.some((k) => normTerm(k).length >= 4);
   const inScopeFn = explicit ? (q: IStudyQuestion) => (explicit.has(q.topic) ? 1 : 0) : usable ? focusBonus(keywords) : () => 1;
   const inScope = pool.filter((q) => inScopeFn(q) > 0);
-  const weak = focusBonus(focus.weak);
+  const focused = focusBonus(focus.weak);
+  const fresh = await freshnessBonus(o.userId, o.classId);
+  const weak = (q: IStudyQuestion) => focused(q) + fresh(q);
 
   // Concept maps in the next exam's week window (all maps when the schedule has no weeks).
   const maps = await StudyConceptMap.find({ userId: o.userId, canvasCourseId: o.canvasCourseId, promptTerms: { $ne: [] } }).sort({ week: -1, number: -1 }).lean<IStudyConceptMap[]>();

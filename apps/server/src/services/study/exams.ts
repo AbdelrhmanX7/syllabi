@@ -2,6 +2,7 @@ import { allowedForClass, typeExclusion, typeFor } from "./question-types";
 import { Types } from "mongoose";
 import { IStudyQuestion, StudyQuestion } from "@/models/study/question";
 import type { IStudyExam } from "@/models/study/exam";
+import { StudyExam } from "@/models/study/exam";
 import { generateSimilar } from "./ai";
 import type { Spend } from "./ai-models";
 import { QuestionDraft, questionDto, RESULT_SCORE, saveQuestion, toDraft, topicMastery } from "./questions";
@@ -23,6 +24,30 @@ const W_DUE = 2;
 const W_MISSED = 1;
 const W_NEW = 0.5;
 const DIFFICULTY_PENALTY = 0.25;
+/** Questions on the last few mock exams of the class drop down the list (newest exam = strongest). */
+const RECENT_EXAMS = 4;
+const W_RECENT = 3;
+/** A little shuffle so two exams on the same bank never come out identical. */
+const JITTER = 0.6;
+
+/**
+ * Extra score per question for a new exam: minus for questions used on the class's recent mock exams,
+ * plus a small random jitter. Without it every exam on an unchanged bank was the same exam.
+ */
+export async function freshnessBonus(userId: Types.ObjectId, classId: Types.ObjectId, random: () => number = Math.random): Promise<(q: IStudyQuestion) => number> {
+  const recent = await StudyExam.find({ userId, classId }, { "questions.id": 1 }).sort({ createdAt: -1 }).limit(RECENT_EXAMS).lean<{ questions: { id?: string }[] }[]>();
+  const used = new Map<string, number>();
+  recent.forEach((exam, at) => {
+    const weight = (W_RECENT * (RECENT_EXAMS - at)) / RECENT_EXAMS;
+    for (const q of exam.questions ?? []) if (q?.id) used.set(String(q.id), Math.max(used.get(String(q.id)) ?? 0, weight));
+  });
+  const jitter = new Map<string, number>();
+  return (q) => {
+    const id = String(q._id);
+    if (!jitter.has(id)) jitter.set(id, random() * JITTER);
+    return jitter.get(id)! - (used.get(id) ?? 0);
+  };
+}
 /** P-CM: small bonus for a question on the next scheduled exam's topics or a weak exam section. */
 export const W_FOCUS = 0.5;
 
@@ -97,7 +122,9 @@ export async function selectExamQuestions(o: SelectOpts, spend: Spend, signal?: 
   const m = new Map(mastery.map((t) => [t.topic, t.mastery]));
   const cls = await StudyClass.findOne({ _id: o.classId, userId: o.userId }, { canvasCourseId: 1 }).lean<{ canvasCourseId: number }>();
   const focus = cls ? await examFocus(o.userId, cls.canvasCourseId, now).catch(() => null) : null;
-  const picked = pickQuestions(pool, m, o.count, now, focusBonus(focus ? [...(focus.next?.topics ?? []), ...focus.weak] : []));
+  const focused = focusBonus(focus ? [...(focus.next?.topics ?? []), ...focus.weak] : []);
+  const fresh = await freshnessBonus(o.userId, o.classId);
+  const picked = pickQuestions(pool, m, o.count, now, (q) => focused(q) + fresh(q));
   if (picked.length >= o.count || !picked.length) return picked;
 
   const have = new Set(picked.map((q) => String(q._id)));
