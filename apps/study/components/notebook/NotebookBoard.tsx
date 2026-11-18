@@ -166,8 +166,8 @@ export interface NotebookBoardProps {
   onImagePlaced?: (file: File) => void;
   /** Host layers over the board (absolutely positioned; e.g. the concept strip and its sheet). */
   overlay?: ReactNode;
-  /** Buttons on the board itself that stay in focus mode too (the class recording). */
-  boardButtons?: ReactNode;
+  /** Host controls at the start of the bottom tool bar (the class recording button). */
+  toolbarLeading?: ReactNode;
   /** `'paged'` = one page at a time (a board exam: one question per page). Default `'scroll'`. */
   pdfLayout?: 'paged' | 'scroll';
   /** Filled by the editor: every page's ink overlay + geometry, in order (a board exam grades from it). */
@@ -288,7 +288,7 @@ export function NotebookBoard({
   extraSelectionActions,
   onImagePlaced,
   overlay,
-  boardButtons,
+  toolbarLeading,
   pdfLayout = 'scroll',
   buildMergeOverlaysRef,
   onPdfFileImported,
@@ -956,6 +956,7 @@ export function NotebookBoard({
         selectionChrome='modern'
         selectionShape='box'
         toolbarLayout='full-scroll'
+        toolbarLeading={toolbarLeading}
         whiteboardId={pageId}
         onBack={handleBack}
         onFocusModeChange={setFocusMode}
@@ -971,7 +972,6 @@ export function NotebookBoard({
       {/* Focus mode: only the page (and the editor's small pen dock, which also exits) — every host
           chip and overlay goes with the editor's own chrome. */}
       {!focusMode && overlay}
-      {boardButtons}
       {rulerOn && !readOnly && (
         <RulerOverlay
           edgesRef={rulerEdgesRef}

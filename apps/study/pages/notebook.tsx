@@ -241,7 +241,7 @@ export default function NotebookPage() {
           initialPageId={startPageId}
           onImagePlaced={conceptMaps.onImagePlaced}
           overlay={conceptMaps.overlay}
-          boardButtons={sharedWithMe ? undefined : <NotebookRecordButton page={page} />}
+          toolbarLeading={sharedWithMe ? undefined : <NotebookRecordButton page={page} />}
           live={Boolean(page.live)}
           // The name opens Notebook details (name, description, tags, cover live there, not up here).
           // Someone else's shared page has no details: the board shows its plain name.

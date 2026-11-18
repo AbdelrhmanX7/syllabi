@@ -83,6 +83,8 @@ import type { WbStringKey } from '../../i18n/strings';
 
 interface ToolbarProps {
   overlayPortalContainer?: Element;
+  /** The host's own control(s) at the very start of the bar (the class recording button). */
+  leadingSlot?: React.ReactNode;
   activeTool: WhiteboardTool;
   openToolSettings: 'pen' | 'eraser' | 'highlighter' | null;
   onOpenToolSettings: (tool: 'pen' | 'eraser' | 'highlighter' | null) => void;
@@ -450,6 +452,7 @@ const MemoizedActionButton = React.memo(ActionButton);
 
 const Toolbar: React.FC<ToolbarProps> = ({
   overlayPortalContainer,
+  leadingSlot,
   activeTool,
   openToolSettings,
   onOpenToolSettings,
@@ -755,6 +758,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
         <div ref={scrollRowRef} className={viewportClassName} data-wb-toolbar-row={isScrollRow ? 'scroll' : undefined}>
           <div className={containerClassName}>
+            {leadingSlot ? <MemoizedToolbarSection isVertical={isVertical}>{leadingSlot}</MemoizedToolbarSection> : null}
             <MemoizedToolbarSection isVertical={isVertical} tone='accent'>
               <MemoizedSettingsToolButton
                 // The pen button now covers three nib types, so it stays lit for any of them — the type

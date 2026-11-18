@@ -39,7 +39,7 @@ export function useStopRecordingOnLeave(pageId: string | undefined) {
 }
 
 /**
- * The round red «Record» button on the notebook's board: records the class through the mic while you
+ * The round red «Record» button in the notebook's bottom tool bar: records the class through the mic while you
  * keep writing. The recording itself lives in `lib/notebookRecording` so this button can re-mount freely.
  */
 export function NotebookRecordButton({ page }: { page: Page }) {
@@ -84,12 +84,12 @@ export function NotebookRecordButton({ page }: { page: Page }) {
   const classList = classes.data ?? [];
 
   return (
-    // On the board itself, bottom right above the tools: a round red button; while recording, a red
-    // timer pill that opens Pause / Stop and save. Shown in focus mode too, so a recording is never hidden.
-    <div className='pointer-events-auto absolute bottom-24 right-4 z-30' data-testid='notebook-record'>
+    // First in the board's bottom tool bar (never over the page; the bar scrolls, so it always has room):
+    // a small round red button; while recording, a red timer pill that opens Pause / Stop and save.
+    <div className='pointer-events-auto flex items-center' data-testid='notebook-record'>
       {active ? (
         <ClayButton
-          className='!flex h-12 min-w-24 items-center justify-center gap-2 !rounded-full !px-4 !py-0 !text-sm'
+          className='!flex h-9 min-w-[4.5rem] items-center justify-center gap-1.5 !rounded-full !border-2 !px-3 !py-0 !text-xs'
           color='danger'
           size='sm'
           onPress={() => setControlsOpen(true)}
@@ -100,13 +100,13 @@ export function NotebookRecordButton({ page }: { page: Page }) {
         </ClayButton>
       ) : (
         <ClayButton
-          className='!flex h-12 w-12 items-center justify-center !rounded-full !p-0'
+          className='!flex h-9 w-9 items-center justify-center !rounded-full !border-2 !p-0'
           color='danger'
           isDisabled={recording.phase === 'starting'}
           size='sm'
           onPress={() => (page.classId ? void start(page.classId) : setPicking(true))}
         >
-          <Mic aria-hidden className='h-5 w-5' />
+          <Mic aria-hidden className='h-4 w-4' />
           <span className='sr-only'>Record the class</span>
         </ClayButton>
       )}

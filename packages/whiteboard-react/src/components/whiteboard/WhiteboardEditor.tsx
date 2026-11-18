@@ -290,6 +290,8 @@ export interface WhiteboardLiveHandle {
 }
 
 export interface WhiteboardEditorProps {
+  /** The host's own control(s) at the start of the tool bar (the class recording button). */
+  toolbarLeading?: React.ReactNode;
   /**
    * Kept for host compatibility; the board chrome is English-only, so every value renders the same.
    */
@@ -1563,6 +1565,7 @@ const carriesFiles = (dataTransfer: DataTransfer | null): boolean =>
   Array.from(dataTransfer?.types ?? []).includes('Files');
 
 const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
+  toolbarLeading,
   convertOfficeFile,
   onContactCaptured,
   onPenCaptureEnabledChange,
@@ -8055,6 +8058,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
               data-wb-chrome='toolbar'
             >
               <Toolbar
+                leadingSlot={toolbarLeading}
                 activeTool={activeTool}
                 backgroundType={backgroundType}
                 backgroundImageOpacity={sharedBackgroundImageOpacity}
