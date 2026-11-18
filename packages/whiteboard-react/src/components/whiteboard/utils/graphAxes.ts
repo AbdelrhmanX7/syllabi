@@ -13,7 +13,13 @@ export interface GraphSpec {
   xMax: number;
   yMin: number;
   yMax: number;
+  /** The gap between numbered ticks on each axis. Absent = picked to fit (1, 2 or 5 × a power of ten). */
+  xStep?: number;
+  yStep?: number;
 }
+
+/** A step that would draw more ticks than this is ignored (the axis picks its own). */
+export const MAX_GRAPH_TICKS = 200;
 
 export const DEFAULT_GRAPH: GraphSpec = { mode: 'xy', xMin: -5, xMax: 5, yMin: -5, yMax: 5 };
 
@@ -39,8 +45,15 @@ export function normalizeGraphSpec(raw: Partial<Record<keyof GraphSpec, unknown>
   };
   const [xMin, xMax] = pair(raw?.xMin, raw?.xMax, DEFAULT_GRAPH.xMin, DEFAULT_GRAPH.xMax);
   const [yMin, yMax] = pair(raw?.yMin, raw?.yMax, DEFAULT_GRAPH.yMin, DEFAULT_GRAPH.yMax);
+  const step = (value: unknown, span: number): number | undefined => {
+    const n = finite(value, Number.NaN);
 
-  return { mode, xMin, xMax, yMin, yMax };
+    return n > 0 && span / n <= MAX_GRAPH_TICKS ? n : undefined;
+  };
+  const xStep = step(raw?.xStep, xMax - xMin);
+  const yStep = step(raw?.yStep, yMax - yMin);
+
+  return { mode, xMin, xMax, yMin, yMax, ...(xStep !== undefined && { xStep }), ...(yStep !== undefined && { yStep }) };
 }
 
 /** The spacing between numbered ticks: 1, 2 or 5 × a power of ten, so the axis shows at most `maxTicks` gaps. */
@@ -135,8 +148,13 @@ export function planGraph(input: GraphSpec, size = PLOT): GraphPlan {
   const axisX = hasY ? px(clamp(0, spec.xMin, spec.xMax)) : 0;
   const axisY = hasX ? (hasY ? py(clamp(0, spec.yMin, spec.yMax)) : 0) : 0;
   // As many numbers as fit without touching: a number needs about 2.6 of its heights sideways, 1.8 upward.
-  const stepX = niceStep(spanX, Math.max(2, Math.min(12, Math.floor(width / (fontSize * 2.6)))));
-  const stepY = niceStep(spanY, Math.max(2, Math.min(12, Math.floor(height / (fontSize * 1.8)))));
+  const stepX = spec.xStep ?? niceStep(spanX, Math.max(2, Math.min(12, Math.floor(width / (fontSize * 2.6)))));
+  const stepY = spec.yStep ?? niceStep(spanY, Math.max(2, Math.min(12, Math.floor(height / (fontSize * 1.8)))));
+  // A step the person chose can be finer than the numbers fit: every tick is drawn, and only every
+  // n-th one is numbered so the numbers never touch.
+  const labelEveryX = sx > 0 ? Math.max(1, Math.ceil((fontSize * 2.6) / (stepX * sx))) : 1;
+  const labelEveryY = sy > 0 ? Math.max(1, Math.ceil((fontSize * 1.8) / (stepY * sy))) : 1;
+  const numbered = (value: number, step: number, every: number) => every === 1 || Math.round(value / step) % every === 0;
   // The corner «0» drops under the x-axis when the next number down leaves it room; on a squat graph it
   // moves to the right of the y-axis instead (never onto «−1»).
   const zeroBelow = stepY * sy >= fontSize * 2.4;
@@ -154,6 +172,7 @@ export function planGraph(input: GraphSpec, size = PLOT): GraphPlan {
 
       // Where the axes cross, one «0» is enough (written by the y loop, beside the corner).
       if (crossing && Math.abs(x - axisX) < 0.5) continue;
+      if (!numbered(value, stepX, labelEveryX)) continue;
 
       labels.push({ x, y: axisY + TICK + 3, text: tickLabel(value, stepX), alignX: 'center', alignY: 'top' });
     }
@@ -172,6 +191,8 @@ export function planGraph(input: GraphSpec, size = PLOT): GraphPlan {
       lines.push({ x1: axisX - TICK, y1: y, x2: axisX + TICK, y2: y, kind: 'tick' });
 
       const atCross = crossing && Math.abs(y - axisY) < 0.5;
+
+      if (!atCross && !numbered(value, stepY, labelEveryY)) continue;
 
       if (atCross && !zeroBelow) {
         labels.push({ x: axisX + 4, y: y + TICK + 3, text: tickLabel(value, stepY), alignX: 'left', alignY: 'top' });

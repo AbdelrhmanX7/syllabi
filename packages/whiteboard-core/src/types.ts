@@ -498,7 +498,8 @@ export interface StrokeSettings {
   dashed?: boolean;
   /**
    * The line gets thicker when the pen is pressed harder (the plain pen and the script pen). Absent =
-   * on. Off = an even line whatever the pressure. A finger or a mouse reports no pressure: even either way.
+   * off (an even line whatever the pressure); on only when the user turns it on. A finger or a mouse
+   * reports no pressure: even either way.
    */
   pressure?: boolean;
 }

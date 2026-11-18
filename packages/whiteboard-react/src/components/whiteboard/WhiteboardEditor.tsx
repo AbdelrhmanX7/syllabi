@@ -1132,7 +1132,18 @@ function readStrokeSettings(): StrokeSettings {
     const lineShape: LineShape = parsed.lineShape === 'hold' || parsed.lineShape === 'always' ? parsed.lineShape : 'free';
     const highlighterWidth = normalizeHighlighterWidth(parsed.highlighterWidth);
 
-    return { color, secondaryColor, width, ...(highlighterWidth !== undefined && { highlighterWidth }), opacity, lineShape, dashed: parsed.dashed === true };
+    // `pressure` must be read back too: dropped here, the switch came back ON in every notebook that had
+    // no pen of its own remembered on this tablet (each new one), however often it was turned off.
+    return {
+      color,
+      secondaryColor,
+      width,
+      ...(highlighterWidth !== undefined && { highlighterWidth }),
+      opacity,
+      lineShape,
+      dashed: parsed.dashed === true,
+      pressure: parsed.pressure === true,
+    };
   } catch {
     return DEFAULT_STROKE_SETTINGS;
   }
@@ -1786,6 +1797,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const [geometryOverlay, setGeometryOverlay] = useState<GeometryOverlayState | null>(null);
   const [pinImageAction, setPinImageAction] = useState<PinImageActionState | null>(null);
   const [lockedImageChips, setLockedImageChips] = useState<LockedImageChipState[]>([]);
+  const lockedImageChipElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [isQuickGestureMenuOpen, setIsQuickGestureMenuOpen] = useState(false);
   const isQuickGestureMenuOpenRef = useRef(false);
 
@@ -3951,6 +3963,22 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
 
       if (!moved) {
         return;
+      }
+
+      // Keep each «Pinned» flag on its picture WHILE the board scrolls or zooms: move the flags' own
+      // elements this frame (no React render), then settle the state once the movement stops. They used
+      // to wait for the settle and float with the screen until the scrolling ended.
+      if (activeTool === 'select') {
+        for (const image of getLockedImages(fabricCanvas)) {
+          const element = lockedImageChipElementsRef.current.get(getLockedImageChipKey(image));
+
+          if (!element) continue;
+
+          const chip = describeLockedImageChip(image, fabricCanvas);
+
+          element.style.left = `${chip.left}px`;
+          element.style.top = `${chip.top}px`;
+        }
       }
 
       scheduleRefresh();
@@ -8524,6 +8552,10 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           {lockedImageChips.map((chip) => (
             <div
               key={chip.chipKey}
+              ref={(element) => {
+                if (element) lockedImageChipElementsRef.current.set(chip.chipKey, element);
+                else lockedImageChipElementsRef.current.delete(chip.chipKey);
+              }}
               className='pointer-events-none absolute z-20'
               style={{
                 left: chip.left,

@@ -142,10 +142,13 @@ test('reopening: a pen keeps its colour; the highlighter takes its own and parks
   assert.equal(openBoardPen({ tool: 'highlighter', strokeSettings: RED_BRUSH }, null).strokeSettings.color, '#ffd60a');
 });
 
-test('the pressure switch is remembered with the pen; absent means on', () => {
+test('the pressure switch is remembered with the pen; absent means off (left to the reader)', () => {
   const fallback = { color: '#111111', secondaryColor: '#2563eb', width: 4, opacity: 1 };
   const off = parseBoardPenMemory(serializeBoardPenMemory({ tool: 'pen', strokeSettings: { ...fallback, pressure: false } }), fallback);
 
   assert.equal(off?.strokeSettings.pressure, false);
+  const on = parseBoardPenMemory(serializeBoardPenMemory({ tool: 'pen', strokeSettings: { ...fallback, pressure: true } }), fallback);
+
+  assert.equal(on?.strokeSettings.pressure, true);
   assert.equal(parseBoardPenMemory(serializeBoardPenMemory({ tool: 'pen', strokeSettings: fallback }), fallback)?.strokeSettings.pressure, undefined);
 });

@@ -2499,7 +2499,7 @@ export function useWhiteboardCanvas({
         case 'pen': {
           // «Pressure» on (the default) and not dashed: the pressure pen. A dashed line cannot be a filled
           // outline, and with pressure off the pen is the plain even line it always was.
-          if (strokeSettingsRef.current.pressure !== false && !strokeSettingsRef.current.dashed) {
+          if (strokeSettingsRef.current.pressure === true && !strokeSettingsRef.current.dashed) {
             const pressurePen = getOrCreatePressurePenBrush(c);
 
             pressurePen.setStrokeColor(strokeSettingsRef.current.color);
@@ -2543,7 +2543,7 @@ export function useWhiteboardCanvas({
 
           const brush = getOrCreateCalligraphyBrush(c);
 
-          brush.setPressure(strokeSettingsRef.current.pressure !== false);
+          brush.setPressure(strokeSettingsRef.current.pressure === true);
           brush.setStrokeColor(strokeSettingsRef.current.color);
           brush.width = strokeSettingsRef.current.width;
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
@@ -2571,7 +2571,7 @@ export function useWhiteboardCanvas({
 
           const brush = getOrCreateScriptBrush(c);
 
-          brush.setPressure(strokeSettingsRef.current.pressure !== false);
+          brush.setPressure(strokeSettingsRef.current.pressure === true);
           brush.setStrokeColor(strokeSettingsRef.current.color);
           brush.width = strokeSettingsRef.current.width;
           brush.decimate = resolvePenJitterDecimate(tabletInputSettingsRef.current.penJitterFilter);
@@ -2583,7 +2583,7 @@ export function useWhiteboardCanvas({
 
         case 'marker': {
           // «Pressure» on and not dashed: the pressure marker (a filled outline cannot carry a dash).
-          if (strokeSettingsRef.current.pressure !== false && !strokeSettingsRef.current.dashed) {
+          if (strokeSettingsRef.current.pressure === true && !strokeSettingsRef.current.dashed) {
             const pressureMarker = getOrCreatePressureMarkerBrush(c);
 
             pressureMarker.setStrokeColor(withAlpha(strokeSettingsRef.current.color, SOFT_MARKER_OPACITY));
@@ -6484,6 +6484,13 @@ export function useWhiteboardCanvas({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Typing in a field (the graph's numbers, a dialog) erases a character, never the selection:
+        // erasing the 5 of «−5» in the graph panel used to delete the selected graph.
+        const target = e.target as HTMLElement | null;
+        const tagName = target?.tagName;
+
+        if (target?.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+
         // Don't delete if user is typing in a textbox
         const active = canvas.getActiveObject();
 

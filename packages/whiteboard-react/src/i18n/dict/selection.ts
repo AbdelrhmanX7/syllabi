@@ -23,6 +23,8 @@ export const SELECTION_STRINGS = {
   'graph.yOnly': 'Y only',
   'graph.from': 'from',
   'graph.to': 'to',
+  'graph.step': 'step',
+  'graph.auto': 'auto',
   'shape.panel': 'Shape style',
   'shape.stroke': 'Stroke',
   'shape.background': 'Background',

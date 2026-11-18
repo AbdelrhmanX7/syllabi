@@ -87,3 +87,31 @@ test('a squat graph never writes one number onto the next (the corner 0 included
     for (let i = 1; i < across.length; i += 1) assert.ok(across[i]! - across[i - 1]! >= plan.fontSize * 2, JSON.stringify(spec));
   }
 });
+
+test('a step the person chose is kept and used for the ticks; a silly one falls back to fit', () => {
+  const spec = normalizeGraphSpec({ mode: 'x', xMin: -2, xMax: 2, xStep: 0.5 });
+
+  assert.equal(spec.xStep, 0.5);
+  assert.equal(normalizeGraphSpec({ mode: 'x', xMin: -2, xMax: 2, xStep: 0 }).xStep, undefined);
+  assert.equal(normalizeGraphSpec({ mode: 'x', xMin: 0, xMax: 1000, xStep: 1 }).xStep, undefined);
+
+  const plan = planGraph(spec);
+  const ticks = plan.lines.filter((line) => line.kind === 'tick');
+
+  assert.equal(ticks.length, 9);
+  assert.deepEqual(
+    plan.labels.filter((label) => !label.name).map((label) => label.text),
+    ['−2', '−1.5', '−1', '−0.5', '0', '0.5', '1', '1.5', '2'],
+  );
+});
+
+test('a fine step draws every tick but numbers only as many as fit', () => {
+  const plan = planGraph(normalizeGraphSpec({ mode: 'x', xMin: 0, xMax: 100, xStep: 1 }));
+  const numbers = plan.labels.filter((label) => !label.name);
+
+  assert.equal(plan.lines.filter((line) => line.kind === 'tick').length, 101);
+  assert.ok(numbers.length < 30, `too many numbers: ${numbers.length}`);
+  for (let index = 1; index < numbers.length; index += 1) {
+    assert.ok(numbers[index].x - numbers[index - 1].x >= plan.fontSize * 2.5);
+  }
+});

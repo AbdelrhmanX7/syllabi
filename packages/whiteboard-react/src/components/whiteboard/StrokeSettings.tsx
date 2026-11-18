@@ -154,11 +154,11 @@ const StrokeSettingsComponent: React.FC<StrokeSettingsProps> = ({
           />
         </div>
         {/* The pen and the script pen get thicker when pressed harder; off = an even line. */}
-        <div className='flex items-center justify-between gap-3' data-pen-pressure={settings.pressure !== false ? 'on' : 'off'}>
+        <div className='flex items-center justify-between gap-3' data-pen-pressure={settings.pressure === true ? 'on' : 'off'}>
           <p className='text-foreground text-xs font-medium'>{t('stroke.pressure')}</p>
           <Switch
             aria-label={t('stroke.pressure')}
-            isSelected={settings.pressure !== false}
+            isSelected={settings.pressure === true}
             size='sm'
             onValueChange={(pressure) => onChange({ ...settings, pressure })}
           />
