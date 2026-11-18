@@ -1798,6 +1798,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
   const [pinImageAction, setPinImageAction] = useState<PinImageActionState | null>(null);
   const [lockedImageChips, setLockedImageChips] = useState<LockedImageChipState[]>([]);
   const lockedImageChipElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pinImageActionElementRef = useRef<HTMLDivElement | null>(null);
   const [isQuickGestureMenuOpen, setIsQuickGestureMenuOpen] = useState(false);
   const isQuickGestureMenuOpenRef = useRef(false);
 
@@ -3979,6 +3980,15 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           element.style.left = `${chip.left}px`;
           element.style.top = `${chip.top}px`;
         }
+      }
+
+      // The «Pin image» button under a selected picture follows it the same way.
+      const pinElement = pinImageActionElementRef.current;
+      const pinAction = pinElement ? describePinImageAction(fabricCanvas.getActiveObject(), fabricCanvas) : null;
+
+      if (pinElement && pinAction) {
+        pinElement.style.left = `${pinAction.left}px`;
+        pinElement.style.top = `${pinAction.top}px`;
       }
 
       scheduleRefresh();
@@ -8532,6 +8542,7 @@ const WhiteboardEditorInner: React.FC<WhiteboardEditorInnerProps> = ({
           {pinImageAction && !selectionActions.selectionBox ? (
             // Only when the selection bar is not up — with it, «Pin image» is one of its buttons.
             <div
+              ref={pinImageActionElementRef}
               className='pointer-events-none absolute z-20 -translate-x-1/2'
               style={{
                 left: pinImageAction.left,
